@@ -1,15 +1,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "zuens-dl-platform",
-  "main": ".opennext/worker.js",
+  "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-01",
-  "compatibility_flags": ["nodejs_compat"],
-  "pages_build_output_dir": ".vercel/output/static",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "zuens-dl-db",
-      "database_id": "ce85bf1b-9a70-4827-b11b-0df8c3387fd9"
+      "database_id": "ce85bf1b-9a70-4827-b11b-0df8c3387fd9",
+      "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
@@ -20,14 +24,5 @@
   ],
   "vars": {
     "AUTH_MODE": "better-auth"
-  },
-  "observability": {
-    "logs": {
-      "enabled": true,
-      "invocation_logs": true
-    },
-    "traces": {
-      "enabled": false
-    }
   }
 }
