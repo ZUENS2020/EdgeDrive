@@ -1,4 +1,4 @@
-const MAX_KEY_LEN = 512;
+const MAX_KEY_BYTES = 1024;
 
 export function looksLikeTraversal(rawUrl: string, pathname: string): boolean {
   const raw = String(rawUrl || "");
@@ -32,7 +32,8 @@ export function sanitizeKey(raw: string | null | undefined): {
   }
   key = key.normalize("NFC").trim();
   if (!key) return { error: "empty" };
-  if (key.length > MAX_KEY_LEN) return { error: "too-long" };
+  // R2 key 上限按 UTF-8 bytes（1024）——用字节数而不是 JS 字符数（中文/emoji 多字节）
+  if (new TextEncoder().encode(key).byteLength > 1024) return { error: "too-long" };
   if (/[\x00-\x1f\x7f]/.test(key)) return { error: "control-chars" };
   key = key.replace(/\\/g, "/");
   if (key.includes("..")) return { error: "path-traversal" };

@@ -94,14 +94,21 @@ async function upload(request: Request) {
         { status: 413 },
       );
     }
+    // 表单里可能覆盖 name/path——重新计算 key（不能用 query 算出的旧值）
+    const formKeyRes = sanitizeKey(folderPath ? `${folderPath}/${name}` : name);
+    if (formKeyRes.error || !formKeyRes.value) {
+      return NextResponse.json({ error: formKeyRes.error || "bad-filename" }, { status: 400 });
+    }
+    const formParts = splitKey(formKeyRes.value);
+    const formKey = formKeyRes.value;
     try {
-      await r2.put(key, file.stream(), { ...opts, httpMetadata: { contentType: guessMime(parts.name) } });
+      await r2.put(formKey, file.stream(), { ...opts, httpMetadata: { contentType: guessMime(formParts.name) } });
     } catch (err) {
-      await r2.delete(key).catch(() => {});
+      await r2.delete(formKey).catch(() => {});
       return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
     }
-    const head = await r2.head(key);
-    return NextResponse.json(await saveUploaded(parts, head?.size || file.size, guessMime(parts.name), parsed.value));
+    const head = await r2.head(formKey);
+    return NextResponse.json(await saveUploaded(formParts, head?.size || file.size, guessMime(formParts.name), parsed.value));
   }
 
   // 裸流直传：R2 直接吃 ReadableStream——内存 O(1)——不 OOM

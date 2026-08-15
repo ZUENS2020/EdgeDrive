@@ -263,10 +263,13 @@ async function rewriteFilePaths(oldPath: string, newPath: string) {
           httpMetadata: obj.httpMetadata,
           customMetadata: obj.customMetadata,
         });
-        await r2.delete(fromKey);
+        // 先提交 DB 元数据（权威），成功后再删旧对象——避免 DB 失败导致文件失联
+        await db.prepare("UPDATE files SET path = ? WHERE id = ?").bind(nextPath, file.id).run();
+        await r2.delete(fromKey).catch(() => {});
+      } else {
+        await db.prepare("UPDATE files SET path = ? WHERE id = ?").bind(nextPath, file.id).run();
       }
     }
-    await db.prepare("UPDATE files SET path = ? WHERE id = ?").bind(nextPath, file.id).run();
   }
 }
 
@@ -291,8 +294,11 @@ export async function deleteFolder(id: string) {
   const tree = buildTree(folders.results || []);
   const ids = collectIds(tree, id);
   if (ids.length) {
-    const placeholders = ids.map(() => "?").join(",");
-    await db.prepare(`DELETE FROM folders WHERE id IN (${placeholders})`).bind(...ids).run();
+    // D1 绑定参数上限 100——分块删除（子目录 >90 时避免 500）
+    for (const chunk of chunkIds(ids)) {
+      const placeholders = chunk.map(() => "?").join(",");
+      await db.prepare(`DELETE FROM folders WHERE id IN (${placeholders})`).bind(...chunk).run();
+    }
   }
   return { deletedFiles: files.results?.length || 0, deletedFolders: ids.length };
 }
