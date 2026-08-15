@@ -1,4 +1,5 @@
 import { getDB, getR2 } from "./cloudflare";
+import { escapeLike } from "./like";
 import { fileKey, isExpired, type FileRow, type FileView, type FolderNode, type FolderRow, type StatsPayload } from "./types";
 import { sanitizeFolderName, sanitizeKey, splitKey } from "./sanitize";
 
@@ -32,8 +33,8 @@ export async function listFiles(opts: {
   const binds: unknown[] = [];
 
   if (opts.q && opts.q.trim()) {
-    where.push("name LIKE ?");
-    binds.push(`%${opts.q.trim()}%`);
+    where.push("name LIKE ? ESCAPE '\\'");
+    binds.push(`%${escapeLike(opts.q.trim())}%`);
   } else if (opts.path != null) {
     where.push("path = ?");
     binds.push(opts.path);
@@ -189,10 +190,15 @@ export async function createFolder(name: string, parentId = "") {
     if (!parent) throw new Error("parent-not-found");
   }
   const id = crypto.randomUUID();
-  await db
-    .prepare("INSERT INTO folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)")
-    .bind(id, clean.value, parentId, new Date().toISOString())
-    .run();
+  try {
+    await db
+      .prepare("INSERT INTO folders (id, name, parent_id, created_at) VALUES (?, ?, ?, ?)")
+      .bind(id, clean.value, parentId, new Date().toISOString())
+      .run();
+  } catch (err) {
+    if (/UNIQUE/i.test(String((err as Error).message || err))) throw new Error("folder-exists");
+    throw err;
+  }
   return { id, name: clean.value, parent_id: parentId };
 }
 
@@ -202,7 +208,12 @@ export async function renameFolder(id: string, name: string) {
   const db = await getDB();
   const oldPath = await folderPathById(id);
   if (oldPath == null) throw new Error("not-found");
-  await db.prepare("UPDATE folders SET name = ? WHERE id = ?").bind(clean.value, id).run();
+  try {
+    await db.prepare("UPDATE folders SET name = ? WHERE id = ?").bind(clean.value, id).run();
+  } catch (err) {
+    if (/UNIQUE/i.test(String((err as Error).message || err))) throw new Error("folder-exists");
+    throw err;
+  }
   const newPath = await folderPathById(id);
   if (newPath == null) throw new Error("not-found");
   if (oldPath !== newPath) {

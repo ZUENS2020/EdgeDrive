@@ -3,8 +3,17 @@
 import { useMemo, useState } from "react";
 import { parseExpireInput } from "@/lib/expires";
 import { formatTime } from "@/lib/format";
-import { Button } from "./ui/Button";
-import { Modal } from "./ui/Modal";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export type ExpireSubmit =
   | { action: "permanent" }
@@ -39,72 +48,100 @@ export function ExpireDialog({
   }, [mode, n, unit, until]);
 
   return (
-    <Modal open={open} title={count > 1 ? `设置有效期（${count} 个文件）` : "设置有效期"} onClose={onClose}>
-      <p>永久 / 限时（小时、天、截止时间）/ 自定义。到期后直链返回 410，文件仍保留。</p>
-      <div className="seg">
-        <button type="button" className={mode === "dur" ? "on" : ""} onClick={() => setMode("dur")}>
-          持续时长
-        </button>
-        <button type="button" className={mode === "until" ? "on" : ""} onClick={() => setMode("until")}>
-          截止时间
-        </button>
-        <button type="button" className={mode === "perm" ? "on" : ""} onClick={() => setMode("perm")}>
-          永久
-        </button>
-      </div>
-      {mode === "dur" && (
-        <>
-          <div className="chip-row">
-            <button className="chip" type="button" onClick={() => { setN("24"); setUnit("hours"); }}>
-              +24h
-            </button>
-            <button className="chip" type="button" onClick={() => { setN("7"); setUnit("days"); }}>
-              +7 天
-            </button>
-            <button className="chip" type="button" onClick={() => { setN("30"); setUnit("days"); }}>
-              +30 天
-            </button>
-          </div>
-          <div className="exp-custom">
-            <input className="num" type="number" min="0" step="any" value={n} onChange={(e) => setN(e.target.value)} />
-            <select value={unit} onChange={(e) => setUnit(e.target.value as "hours" | "days")}>
-              <option value="hours">小时</option>
-              <option value="days">天</option>
-            </select>
-          </div>
-        </>
-      )}
-      {mode === "until" && (
-        <div className="until-row">
-          <input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{count > 1 ? `设置有效期（${count} 个文件）` : "设置有效期"}</DialogTitle>
+          <DialogDescription>
+            永久 / 限时（小时、天、截止时间）。到期后直链返回 410，文件仍保留。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="seg">
+          <button type="button" className={cn(mode === "dur" && "on")} onClick={() => setMode("dur")}>
+            持续时长
+          </button>
+          <button type="button" className={cn(mode === "until" && "on")} onClick={() => setMode("until")}>
+            截止时间
+          </button>
+          <button type="button" className={cn(mode === "perm" && "on")} onClick={() => setMode("perm")}>
+            永久
+          </button>
         </div>
-      )}
-      <p className="exp-preview">{preview}</p>
-      <div className="modal-acts">
-        <Button variant="warn" type="button" onClick={() => onSubmit({ action: "expireNow" })}>
-          立即过期
-        </Button>
-        <span className="sp" />
-        <Button type="button" onClick={onClose}>
-          取消
-        </Button>
-        <Button
-          variant="primary"
-          type="button"
-          onClick={() => {
-            if (mode === "perm") return onSubmit({ action: "permanent" });
-            if (mode === "until") {
-              if (!until) return;
-              return onSubmit({ action: "expire", expires: new Date(until).toISOString() });
-            }
-            const num = Number(n);
-            if (!Number.isFinite(num) || num <= 0) return;
-            onSubmit(unit === "days" ? { action: "expire", days: num } : { action: "expire", hours: num });
-          }}
-        >
-          保存
-        </Button>
-      </div>
-    </Modal>
+        {mode === "dur" && (
+          <>
+            <div className="chip-row">
+              <button
+                className="chip"
+                type="button"
+                onClick={() => {
+                  setN("24");
+                  setUnit("hours");
+                }}
+              >
+                +24h
+              </button>
+              <button
+                className="chip"
+                type="button"
+                onClick={() => {
+                  setN("7");
+                  setUnit("days");
+                }}
+              >
+                +7 天
+              </button>
+              <button
+                className="chip"
+                type="button"
+                onClick={() => {
+                  setN("30");
+                  setUnit("days");
+                }}
+              >
+                +30 天
+              </button>
+            </div>
+            <div className="exp-custom">
+              <Input className="num" type="number" min="0" step="any" value={n} onChange={(e) => setN(e.target.value)} />
+              <select value={unit} onChange={(e) => setUnit(e.target.value as "hours" | "days")}>
+                <option value="hours">小时</option>
+                <option value="days">天</option>
+              </select>
+            </div>
+          </>
+        )}
+        {mode === "until" && (
+          <div className="until-row">
+            <Input type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} />
+          </div>
+        )}
+        <p className="exp-preview">{preview}</p>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="warn" type="button" onClick={() => onSubmit({ action: "expireNow" })}>
+            立即过期
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" type="button" onClick={onClose}>
+              取消
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (mode === "perm") return onSubmit({ action: "permanent" });
+                if (mode === "until") {
+                  if (!until) return;
+                  return onSubmit({ action: "expire", expires: new Date(until).toISOString() });
+                }
+                const num = Number(n);
+                if (!Number.isFinite(num) || num <= 0) return;
+                onSubmit(unit === "days" ? { action: "expire", days: num } : { action: "expire", hours: num });
+              }}
+            >
+              保存
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

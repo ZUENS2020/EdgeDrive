@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Input";
+import { safeInternalPath } from "@/lib/safe-next";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function LoginForm({ siteName }: { siteName: string }) {
   const search = useSearchParams();
@@ -27,7 +29,7 @@ export function LoginForm({ siteName }: { siteName: string }) {
       return;
     }
     // Full document navigation avoids OpenNext RSC 500 on login → /admin.
-    window.location.assign(search.get("next") || "/admin");
+    window.location.assign(safeInternalPath(search.get("next")));
   }
 
   return (
@@ -41,19 +43,28 @@ export function LoginForm({ siteName }: { siteName: string }) {
           </div>
         </div>
         {error ? <p className="err">{error}</p> : null}
-        <Field label="用户名">
-          <Input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required />
-        </Field>
-        <Field label="密码">
+        <div className="grid gap-2 mb-3">
+          <Label htmlFor="username">用户名</Label>
           <Input
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+          />
+        </div>
+        <div className="grid gap-2 mb-4">
+          <Label htmlFor="password">密码</Label>
+          <Input
+            id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             required
           />
-        </Field>
-        <Button variant="primary" wide type="submit" disabled={pending}>
+        </div>
+        <Button className="w-full" type="submit" disabled={pending}>
           {pending ? "登录中…" : "登录"}
         </Button>
       </form>

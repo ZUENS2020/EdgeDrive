@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "./ui/Button";
+import { Button } from "@/components/ui/button";
 
 export function BatchBar({
   count,
@@ -21,20 +21,20 @@ export function BatchBar({
   return (
     <div className="batch-bar">
       <span className="n">已选 {count}</span>
-      <Button type="button" onClick={onExpire}>
+      <Button variant="outline" size="sm" type="button" onClick={onExpire}>
         批量有效期
       </Button>
-      <Button type="button" onClick={onPermanent}>
+      <Button variant="outline" size="sm" type="button" onClick={onPermanent}>
         转永久
       </Button>
-      <Button variant="warn" type="button" onClick={onExpireNow}>
+      <Button variant="warn" size="sm" type="button" onClick={onExpireNow}>
         立即过期
       </Button>
-      <Button variant="danger" type="button" onClick={onDelete}>
+      <Button variant="destructive" size="sm" type="button" onClick={onDelete}>
         删除
       </Button>
       <span className="sp" style={{ flex: 1 }} />
-      <Button variant="ghost" type="button" onClick={onClear}>
+      <Button variant="ghost" size="sm" type="button" onClick={onClear}>
         取消选择
       </Button>
     </div>

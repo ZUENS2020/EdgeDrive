@@ -5,6 +5,9 @@ export function applyBrandColor(color: string) {
     el.style.setProperty("--brand", color);
     el.style.setProperty("--accent", color);
     el.style.setProperty("--accent-h", color);
+    el.style.setProperty("--primary", color);
+    el.style.setProperty("--ring", color);
+    el.style.setProperty("--sidebar-primary", color);
   };
   apply(document.documentElement);
   const root = document.querySelector(".admin-root");
