@@ -75,7 +75,7 @@ npx wrangler r2 bucket create <你的-r2-桶名>
 
 打开 [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → 选中这个 Worker → **Settings** → **Variables and Secrets** → **Add** → 类型选 **Secret**（Encrypted）。也可以用下面的 CLI，效果相同。
 
-**不要**把这些写进 `wrangler.jsonc`、GitHub、或任何会提交的文件。选填项可以不创建，缺了就当空。
+**不要**把这些写进 `wrangler.jsonc`、GitHub、或任何会提交的文件。选填的 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN` 会以**空明文 vars** 出现在 Worker 设置里（方便在 Dashboard 看到变量名）。要填真实 Token 时，在同一页改成 **Secret** 覆盖，不要把值写回 `wrangler.jsonc`。
 
 | Secret | 必填？ | 说明 |
 | --- | --- | --- |
@@ -141,6 +141,8 @@ npm run deploy
 
 自定义域名在 Workers 设置里绑到该 Worker。`BETTER_AUTH_URL` 必须与浏览器实际访问的 origin 一致。
 
+部署后到该 Worker 的 **Settings → Variables and Secrets** 配账密等 Secret（见上一节）。`wrangler deploy` **不会**把 `.dev.vars` 推上去。
+
 ### 5. GitHub Actions
 
 push `main` 会跑 `.github/workflows/deploy.yml`：应用 D1 迁移 → OpenNext build → `wrangler deploy`。
@@ -197,7 +199,7 @@ GET      /dl/<文件夹路径/文件名>/view  长链，落地页（可预览图
 
 时间范围：24 小时 / 7 天 / 本月。本月对照 Cloudflare 免费档（R2 10 GB / 100 万 A / 1000 万 B，D1 5 GB），**不是账单**。
 
-`CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 是 Worker **选填 Secret**（Dashboard → Settings → Variables and Secrets，或不创建）。不要写进 `wrangler.jsonc`。空着时统计页只有本盘数据；配上后（Token 需 Account Analytics 读）才走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/) 拉 R2 Class A/B、D1 查询量和 Worker 调用。过滤名用明文 vars：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。
+`CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 在 `wrangler.jsonc` 里是**空明文 vars**（部署后 Dashboard 能看到变量名）。要填真实值时改成 Worker Secret 覆盖，不要把 Token 写进仓库。空着时统计页只有本盘数据；配上后（Token 需 Account Analytics 读）才走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/) 拉 R2 Class A/B、D1 查询量和 Worker 调用。过滤名：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。
 
 `GET /api/usage?range=month|7d|24h`（需登录）返回同一份 JSON。未填时 `analytics.configured` 为 `false`。
 
