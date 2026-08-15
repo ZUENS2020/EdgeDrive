@@ -20,5 +20,14 @@
   ],
   "vars": {
     "AUTH_MODE": "better-auth"
+  },
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false
+    }
   }
 }
