@@ -10,6 +10,12 @@
 
 管理台可改标记颜色、分页和默认有效期。产品名固定为 **EdgeDrive**。管理员账号和站点配置存在 D1，不用去 Worker 的 Variables and Secrets 里填。
 
+## 截图
+
+| 管理台（桌面） | 落地页（登录） | 管理台（手机） |
+|---|---|---|
+| ![admin-desktop](docs/screenshots/admin-desktop.png) | ![login](docs/screenshots/login.png) | ![admin-mobile](docs/screenshots/admin-mobile.png) |
+
 ---
 
 ## 部署
