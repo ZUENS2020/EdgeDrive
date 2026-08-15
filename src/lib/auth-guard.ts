@@ -10,8 +10,8 @@ export async function requireAdmin(request?: Request) {
   if (isAccessMode(mode)) {
     return { ok: true as const, session: null, mode };
   }
-  const auth = await createAuth();
   const hdrs = request ? request.headers : await headers();
+  const auth = await createAuth(request ?? hdrs);
   const session = await auth.api.getSession({
     headers: hdrs,
     query: SESSION_QUERY,
@@ -41,13 +41,13 @@ export async function requireAdminPage() {
     return { ok: false as const, mode };
   }
   try {
-    const auth = await createAuth();
+    const auth = await createAuth(hdrs);
     const session = await auth.api.getSession({
       headers: hdrs,
       query: SESSION_QUERY,
     });
     return { ok: Boolean(session), mode };
   } catch {
-    return { ok: true as const, mode };
+    return { ok: false as const, mode };
   }
 }

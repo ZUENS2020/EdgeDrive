@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Local `npm run cf-deploy` / optional Workers Builds deploy command.
- * Assumes the OpenNext build already produced `.open-next/`.
+ * Local `npm run cf-deploy` / Cloudflare 默认 `npx wrangler deploy`。
+ * 假定 OpenNext 已经产出 `.open-next/`。
  *
- * 1. wrangler deploy（已有 DB/FILES 就沿用；没有则自动建；若默认名资源已存在则绑上）
+ * 1. wrangler deploy（已有 DB/FILES 就沿用；没有则自动建；默认名资源已存在则绑上）
  * 2. 对绑定名 DB 跑远程迁移
- * 3. 种齐 Variables and Secrets 字段名（已有值不覆盖）
  *
+ * 登录和管理员配置在 D1 里，部署不再种密钥。
  * OPEN_NEXT_DEPLOY 避免 wrangler 再包一层 `opennextjs-cloudflare deploy`。
  * EDGEDRIVE_INNER_WRANGLER 避免 postinstall 包装过的 wrangler 再进本脚本。
  */
@@ -30,13 +30,5 @@ const configPath = await resolvedWranglerConfigPath();
 const configArgs = path.basename(configPath) === "wrangler.jsonc" ? [] : ["--config", configPath];
 env.CF_WRANGLER_CONFIG = configPath;
 
-run(wranglerBin, ["deploy", "--keep-vars", ...configArgs]);
+run(wranglerBin, ["deploy", ...configArgs]);
 run(process.execPath, [path.join(process.cwd(), "scripts", "d1-migrate-remote.mjs")]);
-
-const seed = spawnSync(process.execPath, [path.join(process.cwd(), "scripts", "ensure-optional-secrets.mjs")], {
-  stdio: "inherit",
-  env,
-});
-if (seed.status !== 0) {
-  console.warn("dashboard secret names were not seeded; add them in Dashboard → Variables and Secrets");
-}

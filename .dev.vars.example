@@ -1,13 +1,2 @@
-# Copy to `.dev.vars` for local `next dev` / `wrangler dev`. Do not commit `.dev.vars`.
-# Production: the same keys are created as Encrypted secrets on first deploy
-# (Dashboard → this Worker → Settings → Variables and Secrets). Edit values; do not Add names.
-
-AUTH_MODE=password
-BETTER_AUTH_SECRET=replace-with-a-32-char-random-string
-BETTER_AUTH_URL=http://localhost:3000
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=change-me
-CRON_SECRET=
-# NULL = unset Encrypted secrets. Replace locally to load R2 / D1 / Worker analytics.
-CLOUDFLARE_ACCOUNT_ID=NULL
-CLOUDFLARE_API_TOKEN=NULL
+# Copy to `.dev.vars` only if you need local overrides. Do not commit `.dev.vars`.
+# Production needs no Worker secrets for login: first visit creates the admin in D1.

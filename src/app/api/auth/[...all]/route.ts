@@ -4,9 +4,9 @@ import { getAuthMode, isAccessMode } from "@/lib/cloudflare";
 
 async function handler(request: Request) {
   if (isAccessMode(await getAuthMode())) {
-    return Response.json({ error: "AUTH_MODE=access" }, { status: 404 });
+    return Response.json({ error: "access-mode" }, { status: 404 });
   }
-  const auth = await createAuth();
+  const auth = await createAuth(request);
   return auth.handler(request);
 }
 

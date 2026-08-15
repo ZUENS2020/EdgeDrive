@@ -1,8 +1,10 @@
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { username } from "better-auth/plugins";
+import { headers } from "next/headers";
 import { compare, hash } from "bcryptjs";
-import { envString, getCfEnv, readAuthMode } from "./cloudflare";
+import { ensureAuthSecret, originFromHeaders } from "./app-config";
+import { getAuthMode, getDB } from "./cloudflare";
 
 const BCRYPT_ROUNDS = 10;
 
@@ -10,26 +12,25 @@ function adminEmail(usernameValue: string) {
   return `${usernameValue.toLowerCase()}@admin.local`;
 }
 
-export async function createAuth() {
-  const env = await getCfEnv();
-  const mode = readAuthMode(env);
-  if (mode === "access") {
-    throw new Error("createAuth is not used when AUTH_MODE=access");
-  }
-  const secret =
-    envString(env, "BETTER_AUTH_SECRET") ||
-    (process.env.NODE_ENV !== "production" ? "dev-only-change-me-use-32-chars-min" : "");
-  if (!secret) {
-    throw new Error("BETTER_AUTH_SECRET is required when AUTH_MODE=password");
-  }
-  const baseURL = envString(env, "BETTER_AUTH_URL") || process.env.BETTER_AUTH_URL;
+export function isValidUsername(value: string): boolean {
+  return /^[a-zA-Z0-9._-]{1,64}$/.test(value);
+}
 
-  await ensureAdmin(env);
+export async function createAuth(req?: Request | Headers) {
+  const mode = await getAuthMode();
+  if (mode === "access") {
+    throw new Error("createAuth is not used when auth_mode=access");
+  }
+  const db = await getDB();
+  const secret = await ensureAuthSecret(db);
+  await ensureBetterAuthUser(db);
+  const hdrs = req instanceof Request ? req.headers : req ?? (await headers());
+  const baseURL = originFromHeaders(hdrs);
 
   return betterAuth({
     secret,
     baseURL,
-    database: env.DB,
+    database: db,
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
@@ -43,7 +44,7 @@ export async function createAuth() {
       username({
         minUsernameLength: 1,
         maxUsernameLength: 64,
-        usernameValidator: (value) => /^[a-zA-Z0-9._-]+$/.test(value),
+        usernameValidator: (value) => isValidUsername(value),
       }),
       nextCookies(),
     ],
@@ -60,54 +61,53 @@ export async function createAuth() {
   });
 }
 
-export async function ensureAdmin(env?: CloudflareEnv) {
-  const cf = env ?? (await getCfEnv());
-  if (readAuthMode(cf) !== "password") return;
-  const db = cf.DB;
-  if (!db) return;
+export async function createFirstAdmin(usernameValue: string, password: string) {
+  const db = await getDB();
+  const passwordHash = await hash(password, BCRYPT_ROUNDS);
+  const id = crypto.randomUUID();
+  const inserted = await db
+    .prepare(
+      `INSERT INTO admin (id, username, password_hash, created_at)
+       SELECT ?, ?, ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM admin)`,
+    )
+    .bind(id, usernameValue, passwordHash, new Date().toISOString())
+    .run();
+  if (inserted.meta.changes === 0) {
+    throw new Error("admin-exists");
+  }
+  await syncBetterAuthUser(db, usernameValue, passwordHash);
+}
 
-  const existing = await db.prepare("SELECT * FROM admin LIMIT 1").first<{
-    id: string;
+async function ensureBetterAuthUser(db: D1Database) {
+  const admin = await db.prepare("SELECT username, password_hash FROM admin LIMIT 1").first<{
     username: string;
     password_hash: string;
   }>();
+  if (!admin) return;
+  await syncBetterAuthUser(db, admin.username, admin.password_hash);
+}
 
-  let admin = existing;
-  if (!admin) {
-    const usernameValue = envString(cf, "ADMIN_USERNAME");
-    const password = envString(cf, "ADMIN_PASSWORD");
-    if (!usernameValue || !password) {
-      throw new Error("ADMIN_USERNAME and ADMIN_PASSWORD are required to seed the first admin");
-    }
-    const passwordHash = await hash(password, BCRYPT_ROUNDS);
-    const id = crypto.randomUUID();
-    await db
-      .prepare("INSERT INTO admin (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)")
-      .bind(id, usernameValue, passwordHash, new Date().toISOString())
-      .run();
-    admin = { id, username: usernameValue, password_hash: passwordHash };
-  }
-
+async function syncBetterAuthUser(db: D1Database, usernameValue: string, passwordHash: string) {
   const user = await db
     .prepare('SELECT id FROM "user" WHERE username = ?')
-    .bind(admin.username)
+    .bind(usernameValue)
     .first<{ id: string }>();
   if (user) return;
-
   const now = new Date().toISOString();
   const userId = crypto.randomUUID();
-  const email = adminEmail(admin.username);
+  const email = adminEmail(usernameValue);
   await db
     .prepare(
       'INSERT INTO "user" ("id", "name", "email", "emailVerified", "image", "createdAt", "updatedAt", "username", "displayUsername") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .bind(userId, admin.username, email, 1, null, now, now, admin.username, admin.username)
+    .bind(userId, usernameValue, email, 1, null, now, now, usernameValue, usernameValue)
     .run();
   await db
     .prepare(
       'INSERT INTO "account" ("id", "accountId", "providerId", "userId", "password", "createdAt", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
-    .bind(crypto.randomUUID(), userId, "credential", userId, admin.password_hash, now, now)
+    .bind(crypto.randomUUID(), userId, "credential", userId, passwordHash, now, now)
     .run();
 }
 

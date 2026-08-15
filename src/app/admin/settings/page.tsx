@@ -1,12 +1,15 @@
 import { SettingsForm } from "@/components/SettingsForm";
 import { SettingsShell } from "@/components/SettingsShell";
-import { getAuthMode } from "@/lib/cloudflare";
+import { ensureCronSecret } from "@/lib/app-config";
+import { getAuthMode, getDB } from "@/lib/cloudflare";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const settings = await getSettings();
+  const db = await getDB();
+  await ensureCronSecret(db);
+  const settings = await getSettings(db);
   const authMode = await getAuthMode();
   return (
     <SettingsShell showLogout={authMode !== "access"}>
