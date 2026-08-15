@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Cloudflare 创建 Worker 时往往只让填构建命令，部署固定为 `npx wrangler deploy`。
- * 拦截 deploy / versions upload，改走 scripts/cf-deploy.mjs（绑资源、迁移、种密钥名）。
+ * 拦截 deploy / versions upload，改走 scripts/cf-deploy.mjs（绑资源、跑迁移）。
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -24,14 +24,6 @@ if (isDeploy && !inner && !dryRun) {
   process.exit(result.status ?? 1);
 }
 
-function hasFlag(name) {
-  return args.some((arg) => arg === name || arg.startsWith(`${name}=`));
-}
-
-if ((isDeploy || isUpload) && !dryRun) {
-  if (!hasFlag("--keep-vars") && !hasFlag("--no-keep-vars")) args.push("--keep-vars");
-}
-
 const result = spawnSync(process.execPath, [wranglerJs, ...args], {
   stdio: "inherit",
   env: process.env,
@@ -46,12 +38,4 @@ if (isUpload && !inner && !dryRun) {
     cwd: root,
   });
   if (migrate.status !== 0) process.exit(migrate.status ?? 1);
-  const seed = spawnSync(process.execPath, [path.join(root, "scripts/ensure-optional-secrets.mjs")], {
-    stdio: "inherit",
-    env: process.env,
-    cwd: root,
-  });
-  if (seed.status !== 0) {
-    console.warn("dashboard secret names were not seeded; add them in Dashboard → Variables and Secrets");
-  }
 }

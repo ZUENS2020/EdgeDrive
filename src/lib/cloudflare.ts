@@ -1,4 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { parseAuthMode, readAuthModeFromDb } from "./app-config";
 import { ensureD1Schema } from "./d1-bootstrap";
 import type { AuthMode } from "./types";
 
@@ -28,47 +29,15 @@ export async function getR2(): Promise<R2Bucket> {
   return env.FILES;
 }
 
-export function readAuthMode(env?: CloudflareEnv): AuthMode {
-  const raw = (process.env.AUTH_MODE || env?.AUTH_MODE || "password")
-    .trim()
-    .toLowerCase();
-  if (raw === "none" || raw === "access" || raw === "oauth") return "access";
-  return "password";
-}
-
 export function isAccessMode(mode: AuthMode): boolean {
   return mode === "access";
 }
 
 export async function getAuthMode(): Promise<AuthMode> {
   try {
-    const env = await getCfEnv();
-    return readAuthMode(env);
+    const db = await getDB();
+    return await readAuthModeFromDb(db);
   } catch {
-    return readAuthMode();
+    return parseAuthMode("password");
   }
-}
-
-/** Encrypted secret / wrangler var 哨兵：未配置。空字符串同样视为没有值。 */
-export function isUnsetEnvValue(value: unknown): boolean {
-  if (value == null) return true;
-  if (typeof value !== "string") return true;
-  const trimmed = value.trim();
-  if (!trimmed) return true;
-  return trimmed.toUpperCase() === "NULL";
-}
-
-export function envString(
-  env: CloudflareEnv | undefined,
-  key: keyof CloudflareEnv,
-): string | undefined {
-  const fromBinding = env?.[key];
-  if (!isUnsetEnvValue(fromBinding) && typeof fromBinding === "string") {
-    return fromBinding.trim();
-  }
-  const fromProcess = process.env[key];
-  if (typeof fromProcess === "string" && !isUnsetEnvValue(fromProcess)) {
-    return fromProcess.trim();
-  }
-  return undefined;
 }

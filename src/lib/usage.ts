@@ -1,4 +1,5 @@
-import { envString, getCfEnv, getDB } from "./cloudflare";
+import { getKv, KV } from "./app-config";
+import { getDB } from "./cloudflare";
 import type { UsagePayload, UsageRange } from "./usage-types";
 
 export type { UsagePayload, UsageRange } from "./usage-types";
@@ -144,15 +145,15 @@ type GqlAccount = {
 async function graphqlAnalytics(
   range: UsageRange,
 ): Promise<UsagePayload["analytics"]> {
-  const env = await getCfEnv();
-  const token = envString(env, "CLOUDFLARE_API_TOKEN");
-  const account = envString(env, "CLOUDFLARE_ACCOUNT_ID");
+  const db = await getDB();
+  const token = await getKv(db, KV.cfApiToken);
+  const account = await getKv(db, KV.cfAccountId);
   if (!token || !account) {
     return { configured: false, r2: null, d1: null, worker: null };
   }
-  const workerName = envString(env, "CF_WORKER_NAME") || "";
-  const bucket = envString(env, "CF_R2_BUCKET") || "";
-  const databaseId = envString(env, "CF_D1_DATABASE_ID") || "";
+  const workerName = (await getKv(db, KV.cfWorkerName)) || "";
+  const bucket = (await getKv(db, KV.cfR2Bucket)) || "";
+  const databaseId = (await getKv(db, KV.cfD1DatabaseId)) || "";
   const { from, to } = usageWindow(range);
   const start = from.toISOString();
   const end = to.toISOString();

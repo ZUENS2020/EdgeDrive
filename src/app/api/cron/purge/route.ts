@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
-import { envString, getCfEnv } from "@/lib/cloudflare";
+import { getKv, KV } from "@/lib/app-config";
+import { getDB } from "@/lib/cloudflare";
 import { getSettings } from "@/lib/settings";
 import { purgeExpired } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 async function authorized(request: Request): Promise<boolean> {
-  const env = await getCfEnv();
-  const secret = envString(env, "CRON_SECRET");
+  const db = await getDB();
+  const secret = await getKv(db, KV.cronSecret);
   const header = request.headers.get("authorization") || "";
   if (secret && header === `Bearer ${secret}`) return true;
   const gate = await requireAdmin(request);

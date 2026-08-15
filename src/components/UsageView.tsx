@@ -90,7 +90,7 @@ export function UsageView() {
       </div>
       <p className="usage-lead">
         R2 容量与 Class A/B、D1 读写、Worker 调用量来自 Cloudflare GraphQL Analytics。账号 ID 与 Token 在
-        Worker Secrets 里选填。本站文件数始终从 D1 读取。免费额度条仅作对照，账单以账号套餐为准。
+        设置 → 账号里选填。本站文件数始终从 D1 读取。免费额度条仅作对照，账单以账号套餐为准。
       </p>
       {loading && !data ? <p className="load-hint">正在加载用量…</p> : null}
       {error ? <p className="err">{error}</p> : null}
@@ -109,8 +109,7 @@ function UsageBody({ data }: { data: UsagePayload }) {
     <div className="usage-page">
       {!a.configured ? (
         <p className="usage-banner">
-          <code>CLOUDFLARE_ACCOUNT_ID</code> 与 <code>CLOUDFLARE_API_TOKEN</code>{" "}
-          是 Worker Encrypted Secret，选填。不配也能看本站；在 Dashboard 加上真值（Token 需 Account Analytics 读）后，才会显示 R2 Class A/B、D1 查询量与 Worker 调用。
+          账号 ID 与 API Token 在设置 → 账号里选填。不配也能看本站；配上真值（Token 需 Account Analytics 读）后，才会显示 R2 Class A/B、D1 查询量与 Worker 调用。
         </p>
       ) : null}
       {a.configured && a.error ? <p className="err">{a.error}</p> : null}

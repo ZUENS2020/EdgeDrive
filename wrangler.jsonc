@@ -1,7 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Cloudflare Workers Builds 创建页往往只让填构建命令（npm run build）。
-  // 部署会走默认的 npx wrangler deploy；postinstall 包装 wrangler，会接着跑迁移和密钥播种。
+  // Cloudflare 创建页往往只让填构建命令：npm run build。
+  // 部署走默认 npx wrangler deploy；postinstall 包装 wrangler，接着跑 D1 迁移。
+  // 登录和管理员配置在 D1，不写进 Variables and Secrets。
   //
   // 只声明绑定名。不要填 database_id / bucket_name，否则会写死某一套资源。
   // 新 Worker 第一次部署会自动建 D1（DB）和 R2（FILES）。
@@ -10,8 +11,6 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  // Dashboard 里改过的明文 vars 不要被下次部署清掉。Encrypted secrets 本来就会保留。
-  "keep_vars": true,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
@@ -27,6 +26,4 @@
       "binding": "FILES"
     }
   ]
-  // AUTH_MODE 和账密等全部走 Encrypted secrets，部署后由脚本种上字段名。
-  // 不要写进 vars，否则下次部署会盖掉 Dashboard 里改过的值。
 }

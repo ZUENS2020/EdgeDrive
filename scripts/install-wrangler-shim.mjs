@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Point wrangler at scripts/wrangler-shim.mjs so Cloudflare's default
- * `npx wrangler deploy` still migrates D1 and seeds secret names.
+ * `npx wrangler deploy` still binds D1/R2 when missing and runs migrations.
  *
  * Only rewrite node_modules/wrangler/bin/wrangler.js. npm's
  * node_modules/.bin/wrangler is a symlink to that file.

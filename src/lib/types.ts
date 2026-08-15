@@ -36,6 +36,13 @@ export type SiteSettings = {
   page_size: number;
   default_expires: string;
   purge_after_days: number;
+  auth_mode: AuthMode;
+  cf_account_id: string;
+  cf_api_token_set: boolean;
+  cf_worker_name: string;
+  cf_r2_bucket: string;
+  cf_d1_database_id: string;
+  cron_secret: string;
 };
 
 export type StatsPayload = {

@@ -34,17 +34,22 @@ export function SettingsForm({
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [pwPending, setPwPending] = useState(false);
+  const [cfApiToken, setCfApiToken] = useState("");
 
   useEffect(() => {
     applyBrandColor(form.brand_color);
   }, [form.brand_color]);
 
-  async function saveSettings() {
+  async function saveSettings(extra: Record<string, unknown> = {}) {
     setPending(true);
     const res = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        ...(cfApiToken.trim() ? { cf_api_token: cfApiToken.trim() } : {}),
+        ...extra,
+      }),
     });
     setPending(false);
     if (!res.ok) {
@@ -54,8 +59,13 @@ export function SettingsForm({
     const data = (await res.json()) as { settings: SiteSettings };
     setForm(data.settings);
     applyBrandColor(data.settings.brand_color);
+    setCfApiToken("");
     toast.success("已保存");
     router.refresh();
+  }
+
+  async function rotateCron() {
+    await saveSettings({ rotate_cron_secret: true });
   }
 
   async function onPurge() {
@@ -95,7 +105,7 @@ export function SettingsForm({
   const nav: { id: Section; label: string; hint: string }[] = [
     { id: "look", label: "外观", hint: "产品名固定为 EdgeDrive，这里只改标记颜色。" },
     { id: "files", label: "文件", hint: "列表分页、新文件默认有效期，以及过期后如何清理。" },
-    { id: "account", label: "账号", hint: "登录方式由部署环境决定，这里只改当前模式需要的项。" },
+    { id: "account", label: "账号", hint: "管理员密码、登录方式，以及可选的 Cloudflare 用量统计。" },
   ];
   const current = nav.find((item) => item.id === section) ?? nav[0];
 
@@ -146,7 +156,7 @@ export function SettingsForm({
               </div>
             </section>
             <div className="settings-save">
-              <Button type="button" disabled={pending} onClick={saveSettings}>
+              <Button type="button" disabled={pending} onClick={() => void saveSettings()}>
                 {pending ? "保存中…" : "保存外观"}
               </Button>
             </div>
@@ -207,7 +217,7 @@ export function SettingsForm({
               </div>
             </section>
             <div className="settings-save">
-              <Button type="button" disabled={pending} onClick={saveSettings}>
+              <Button type="button" disabled={pending} onClick={() => void saveSettings()}>
                 {pending ? "保存中…" : "保存文件设置"}
               </Button>
               <Button type="button" variant="outline" disabled={purging} onClick={onPurge}>
@@ -218,45 +228,141 @@ export function SettingsForm({
         ) : null}
 
         {section === "account" ? (
-          authMode === "password" ? (
-            <form className="settings-block" onSubmit={onPassword}>
-              <h3>登录密码</h3>
-              <p className="hint">当前是账密模式。新密码至少 8 位。</p>
+          <>
+            <section className="settings-block">
+              <h3>登录方式</h3>
+              <p className="hint">账密存在本站数据库。Access 模式下后台由 Cloudflare Access 保护，不再显示登录页。</p>
+              <div className="grid gap-2">
+                <Label>模式</Label>
+                <Select
+                  value={form.auth_mode}
+                  onValueChange={(value) => setForm({ ...form, auth_mode: value as AuthMode })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="password">账密</SelectItem>
+                    <SelectItem value="access">Cloudflare Access</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </section>
+            {authMode === "password" || form.auth_mode === "password" ? (
+              <form className="settings-block" onSubmit={onPassword}>
+                <h3>登录密码</h3>
+                <p className="hint">新密码至少 8 位。</p>
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="current_password">当前密码</Label>
+                    <Input
+                      id="current_password"
+                      type="password"
+                      autoComplete="current-password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="new_password">新密码</Label>
+                    <Input
+                      id="new_password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" disabled={pwPending}>
+                    {pwPending ? "更新中…" : "更新密码"}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <section className="settings-block">
+                <h3>Cloudflare Access</h3>
+                <p className="hint">当前应用不处理登录。GitHub / Google 等 OAuth 在 Access 里配。</p>
+              </section>
+            )}
+            <section className="settings-block">
+              <h3>Cloudflare 用量（可选）</h3>
+              <p className="hint">填了账号 ID 和 Token（需 Account Analytics 读）后，统计页才显示 R2 / D1 / Worker 调用量。Token 只在保存时写入，不会再读出来。</p>
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="current_password">当前密码</Label>
+                  <Label htmlFor="cf_account_id">Account ID</Label>
                   <Input
-                    id="current_password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    required
+                    id="cf_account_id"
+                    value={form.cf_account_id}
+                    onChange={(e) => setForm({ ...form, cf_account_id: e.target.value })}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="new_password">新密码</Label>
+                  <Label htmlFor="cf_api_token">API Token{form.cf_api_token_set ? "（已保存，留空则保持）" : ""}</Label>
                   <Input
-                    id="new_password"
+                    id="cf_api_token"
                     type="password"
-                    autoComplete="new-password"
-                    minLength={8}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
+                    autoComplete="off"
+                    placeholder={form.cf_api_token_set ? "已配置" : ""}
+                    value={cfApiToken}
+                    onChange={(e) => setCfApiToken(e.target.value)}
+                  />
+                  {form.cf_api_token_set ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => void saveSettings({ cf_api_token: "" })}
+                    >
+                      清除 Token
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="cf_worker_name">Worker 名（过滤，可选）</Label>
+                  <Input
+                    id="cf_worker_name"
+                    value={form.cf_worker_name}
+                    onChange={(e) => setForm({ ...form, cf_worker_name: e.target.value })}
                   />
                 </div>
-                <Button type="submit" disabled={pwPending}>
-                  {pwPending ? "更新中…" : "更新密码"}
-                </Button>
+                <div className="grid gap-2">
+                  <Label htmlFor="cf_r2_bucket">R2 桶名（过滤，可选）</Label>
+                  <Input
+                    id="cf_r2_bucket"
+                    value={form.cf_r2_bucket}
+                    onChange={(e) => setForm({ ...form, cf_r2_bucket: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="cf_d1_database_id">D1 数据库 ID（过滤，可选）</Label>
+                  <Input
+                    id="cf_d1_database_id"
+                    value={form.cf_d1_database_id}
+                    onChange={(e) => setForm({ ...form, cf_d1_database_id: e.target.value })}
+                  />
+                </div>
               </div>
-            </form>
-          ) : (
-            <section className="settings-block">
-              <h3>Cloudflare Access</h3>
-              <p className="hint">当前应用不处理登录。后台由 Access（或同等网关）保护，GitHub / Google 等 OAuth 也在网关里配置，账号在网关里管理。</p>
             </section>
-          )
+            <section className="settings-block">
+              <h3>定时清理</h3>
+              <p className="hint">外部定时器调用 POST /api/cron/purge，Header 为 Authorization: Bearer 下面这串。管理台点「立即清理」不用这个。</p>
+              <div className="grid gap-2">
+                <Label htmlFor="cron_secret">CRON 令牌</Label>
+                <Input id="cron_secret" readOnly value={form.cron_secret} />
+              </div>
+            </section>
+            <div className="settings-save">
+              <Button type="button" disabled={pending} onClick={() => void saveSettings()}>
+                {pending ? "保存中…" : "保存账号设置"}
+              </Button>
+              <Button type="button" variant="outline" disabled={pending} onClick={rotateCron}>
+                更换定时令牌
+              </Button>
+            </div>
+          </>
         ) : null}
       </div>
     </div>
