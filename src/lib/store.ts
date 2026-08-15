@@ -248,8 +248,8 @@ async function rewriteFilePaths(oldPath: string, newPath: string) {
   const db = await getDB();
   const r2 = await getR2();
   const rows = await db
-    .prepare("SELECT * FROM files WHERE path = ? OR path LIKE ?")
-    .bind(oldPath, `${oldPath}/%`)
+    .prepare("SELECT * FROM files WHERE path = ? OR path LIKE ? ESCAPE '\\'")
+    .bind(oldPath, `${escapeLike(oldPath)}/%`)
     .all<FileRow>();
   for (const file of rows.results || []) {
     const nextPath = file.path === oldPath ? newPath : newPath + file.path.slice(oldPath.length);
@@ -279,15 +279,15 @@ export async function deleteFolder(id: string) {
   const path = await folderPathById(id);
   if (path == null) throw new Error("not-found");
   const files = await db
-    .prepare("SELECT * FROM files WHERE path = ? OR path LIKE ?")
-    .bind(path, `${path}/%`)
+    .prepare("SELECT * FROM files WHERE path = ? OR path LIKE ? ESCAPE '\\'")
+    .bind(path, `${escapeLike(path)}/%`)
     .all<FileRow>();
   for (const file of files.results || []) {
     await r2.delete(fileKey(file.path, file.name));
   }
   await db
-    .prepare("DELETE FROM files WHERE path = ? OR path LIKE ?")
-    .bind(path, `${path}/%`)
+    .prepare("DELETE FROM files WHERE path = ? OR path LIKE ? ESCAPE '\\'")
+    .bind(path, `${escapeLike(path)}/%`)
     .run();
 
   const folders = await db.prepare("SELECT * FROM folders").all<FolderRow>();
