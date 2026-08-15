@@ -25,7 +25,8 @@ jobs:
       - name: Build with OpenNext
         run: npx opennextjs-cloudflare build
       - name: Deploy Worker
-        # OPEN_NEXT_DEPLOY 避免 wrangler 再包一层 opennext deploy 把鉴权环境变量弄丢。
+        # OPEN_NEXT_DEPLOY 避免 OpenNext 再包一层 wrangler，把 wrangler.jsonc
+        # 里的 CLOUDFLARE_API_TOKEN=NULL 注入进程、盖掉 GitHub Secret。
         run: npx wrangler deploy
         env:
           OPEN_NEXT_DEPLOY: "true"

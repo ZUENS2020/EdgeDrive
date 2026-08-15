@@ -23,10 +23,14 @@
     }
   ],
   "vars": {
-    // 非密钥明文。账密、CLOUDFLARE_API_TOKEN 等不要写在这里（后者会和 CI 部署鉴权撞名）。
+    // 非密钥明文。账密不要写在这里。
+    // CLOUDFLARE_* 默认 NULL（未配置）；程序把 NULL / 空当成没填。
+    // 不要改成空字符串：会和 CI 部署鉴权撞名，把 GitHub Secret 冲掉。
     "AUTH_MODE": "better-auth",
     "CF_WORKER_NAME": "zuens-dl-platform",
     "CF_R2_BUCKET": "zuens-dl",
-    "CF_D1_DATABASE_ID": "ce85bf1b-9a70-4827-b11b-0df8c3387fd9"
+    "CF_D1_DATABASE_ID": "ce85bf1b-9a70-4827-b11b-0df8c3387fd9",
+    "CLOUDFLARE_ACCOUNT_ID": "NULL",
+    "CLOUDFLARE_API_TOKEN": "NULL"
   }
 }

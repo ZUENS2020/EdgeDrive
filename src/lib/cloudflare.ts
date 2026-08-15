@@ -51,12 +51,26 @@ export async function getAuthMode(): Promise<AuthMode> {
   }
 }
 
+/** wrangler vars 里的哨兵：未配置。空字符串同样视为没有值。 */
+export function isUnsetEnvValue(value: unknown): boolean {
+  if (value == null) return true;
+  if (typeof value !== "string") return true;
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  return trimmed.toUpperCase() === "NULL";
+}
+
 export function envString(
   env: CloudflareEnv | undefined,
   key: keyof CloudflareEnv,
 ): string | undefined {
   const fromBinding = env?.[key];
-  if (typeof fromBinding === "string" && fromBinding) return fromBinding;
+  if (!isUnsetEnvValue(fromBinding) && typeof fromBinding === "string") {
+    return fromBinding.trim();
+  }
   const fromProcess = process.env[key];
-  return fromProcess || undefined;
+  if (typeof fromProcess === "string" && !isUnsetEnvValue(fromProcess)) {
+    return fromProcess.trim();
+  }
+  return undefined;
 }

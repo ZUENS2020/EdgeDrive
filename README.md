@@ -68,14 +68,17 @@ npx wrangler r2 bucket create <你的-r2-桶名>
 | --- | --- |
 | `AUTH_MODE` | `password`（默认，别名 `better-auth`）、`oauth`、`access`（别名 `none`） |
 | `CF_WORKER_NAME` / `CF_R2_BUCKET` / `CF_D1_DATABASE_ID` | 统计页过滤用，与本文件里的 Worker 名、R2 桶名、D1 `database_id` 一致 |
+| `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | 统计页拉 GraphQL 用。默认 **`NULL`**（未配置）；程序把 `NULL`、空字符串当成没填 |
 
-改绑定资源时，这三个 `CF_*` 一并改。
+改绑定资源时，这三个 `CF_*` 一并改。`CLOUDFLARE_*` 保持 `NULL` 时统计页只有本盘数据。要看 R2 Class A/B 等，在 Dashboard 把这两个改成真值（Token 需 **Account Analytics 读**）。Token 更稳妥是改成 Encrypted Secret；若转 Secret，从 `wrangler.jsonc` 删掉这两行，否则下次部署会把明文再写成 `NULL`。
+
+不要把 `CLOUDFLARE_API_TOKEN` 写成**空字符串**：这个名字和 GitHub Actions 部署鉴权撞名，空值会把 CI Token 冲掉。仓库里用哨兵 `NULL`，CI 里用 `OPEN_NEXT_DEPLOY=true` 避免 OpenNext 把 vars 注入 wrangler 进程。
 
 #### 高危（Cloudflare Worker Secrets）
 
 打开 [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → 选中这个 Worker → **Settings** → **Variables and Secrets** → **Add** → 类型选 **Secret**（Encrypted）。也可以用下面的 CLI，效果相同。
 
-**不要**把这些写进 `wrangler.jsonc`、GitHub、或任何会提交的文件。选填项可以不创建。尤其不要把 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` 写成 wrangler `vars`：这两个名字和 CI 部署鉴权撞名，空字符串也会把部署 Token 冲掉。要看统计时，在 Dashboard **Add → Secret**，名称就用这两个。
+**不要**把账密、`BETTER_AUTH_*`、OAuth 密钥写进 `wrangler.jsonc`、GitHub、或任何会提交的文件。选填项可以不创建。统计用的 `CLOUDFLARE_*` 例外：仓库里默认是哨兵 `NULL`，方便 Dashboard 看到变量名；程序读到 `NULL` 就当没配。
 
 | Secret | 必填？ | 说明 |
 | --- | --- | --- |
@@ -87,8 +90,6 @@ npx wrangler r2 bucket create <你的-r2-桶名>
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `oauth` 选填 | 配了才显示 Google 登录 |
 | `OAUTH_ALLOW_EMAILS` | `oauth` 选填 | 额外允许的邮箱；也可在设置页改 |
 | `CRON_SECRET` | 选填 | `Authorization: Bearer <secret>` 调 `POST /api/cron/purge` |
-| `CLOUDFLARE_ACCOUNT_ID` | 选填 | 统计页拉 R2 / D1 / Worker 分析 |
-| `CLOUDFLARE_API_TOKEN` | 选填 | 需 **Account Analytics 读**。与 GitHub Actions 里那个部署用 Token 不是一回事 |
 
 CLI 示例（会提示你粘贴值，不会写进仓库）：
 
@@ -98,7 +99,7 @@ npx wrangler secret put BETTER_AUTH_URL
 npx wrangler secret put ADMIN_USERNAME
 npx wrangler secret put ADMIN_PASSWORD
 # oauth 时再 put GITHUB_* / GOOGLE_*
-# 要看统计里的 R2 A/B 时再 put CLOUDFLARE_ACCOUNT_ID 与 CLOUDFLARE_API_TOKEN
+# 统计：可把 wrangler.jsonc 里的 CLOUDFLARE_* 从 NULL 改成真值，或 secret put 后从 vars 删掉这两行
 ```
 
 #### 本地
@@ -199,7 +200,7 @@ GET      /dl/<文件夹路径/文件名>/view  长链，落地页（可预览图
 
 时间范围：24 小时 / 7 天 / 本月。本月对照 Cloudflare 免费档（R2 10 GB / 100 万 A / 1000 万 B，D1 5 GB），**不是账单**。
 
-`CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 是 Worker **选填 Secret**（Dashboard → Settings → Variables and Secrets → Add Secret）。不要写进 `wrangler.jsonc`（会和 GitHub Actions 部署鉴权撞名）。空着时统计页只有本盘数据；配上后（Token 需 Account Analytics 读）才走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/) 拉 R2 Class A/B、D1 查询量和 Worker 调用。过滤名：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。
+`CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 写在 `wrangler.jsonc` 的 `vars` 里，默认 **`NULL`**（未配置）。程序把 `NULL` / 空当成没填，统计页只有本盘数据。改成真值后（Token 需 Account Analytics 读）才走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/) 拉 R2 Class A/B、D1 查询量和 Worker 调用。过滤名：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。GitHub Actions 里同名 Secret 只给 **wrangler 部署**用，和 Worker 运行时这个 Token 不是一回事。
 
 `GET /api/usage?range=month|7d|24h`（需登录）返回同一份 JSON。未填时 `analytics.configured` 为 `false`。
 
