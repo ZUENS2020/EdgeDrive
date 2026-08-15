@@ -1,8 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Cloudflare Workers Builds：
-  //   Build command:  npm run build
-  //   Deploy command: npm run cf-deploy
+  // Cloudflare Workers Builds 创建页往往只让填构建命令（npm run build）。
+  // 部署会走默认的 npx wrangler deploy；postinstall 包装 wrangler，会接着跑迁移和密钥播种。
   //
   // 只声明绑定名。不要填 database_id / bucket_name，否则会写死某一套资源。
   // 新 Worker 第一次部署会自动建 D1（DB）和 R2（FILES）。
