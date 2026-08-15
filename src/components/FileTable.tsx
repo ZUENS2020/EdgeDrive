@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, MoreHorizontal, Timer } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { extLabel, formatSize, formatTime } from "@/lib/format";
 import type { FileView } from "@/lib/types";
 import { Badge } from "./ui/Badge";
@@ -32,18 +32,23 @@ export function FileTable({
   onCopy,
   onRename,
   onMove,
+  onDelete,
 }: {
   files: FileView[];
   loading: boolean;
   selected: Set<string>;
   onToggle: (id: string) => void;
   onToggleAll: () => void;
-  onExpire: (id: string) => void;
+  onExpire: (file: FileView) => void;
   onCopy: (url: string, kind: "download" | "view") => void;
   onRename: (file: FileView) => void;
   onMove: (file: FileView) => void;
+  onDelete: (file: FileView) => void;
 }) {
   const allOn = files.length > 0 && files.every((f) => selected.has(f.id));
+  const selecting = selected.size > 0;
+  const cols = selecting ? 6 : 7;
+
   return (
     <div className="panel">
       <div className="table-scroll">
@@ -57,14 +62,14 @@ export function FileTable({
               <th style={{ width: "11%" }}>大小</th>
               <th style={{ width: "12%" }}>下载</th>
               <th style={{ width: "14%" }}>上传时间</th>
-              <th style={{ width: "18%" }}>状态</th>
-              <th className="acts-td">操作</th>
+              <th style={{ width: selecting ? "18%" : "16%" }}>状态</th>
+              {selecting ? null : <th className="acts-td">操作</th>}
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={cols}>
                   <p className="load-hint" style={{ padding: 18, color: "var(--text-4)" }}>
                     正在加载文件列表…
                   </p>
@@ -73,7 +78,7 @@ export function FileTable({
             )}
             {!loading && files.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={cols}>
                   <div className="empty">
                     <h2>还没有文件</h2>
                     <p>拖拽到侧栏或点上传，支持批量。</p>
@@ -85,20 +90,31 @@ export function FileTable({
               files.map((file) => {
                 const st = statusOf(file);
                 return (
-                  <tr key={file.id} className={`${selected.has(file.id) ? "picked" : ""} ${file.expired ? "expired" : ""}`}>
+                  <tr
+                    key={file.id}
+                    className={`${selected.has(file.id) ? "picked" : ""} ${file.expired ? "expired" : ""}`}
+                    onClick={(e) => {
+                      const t = e.target as HTMLElement;
+                      if (t.closest("a, button, input, [data-slot='dropdown-menu'], [data-slot='dropdown-menu-content']")) {
+                        return;
+                      }
+                      onToggle(file.id);
+                    }}
+                  >
                     <td className="check-col">
                       <input
                         className="check"
                         type="checkbox"
                         checked={selected.has(file.id)}
                         onChange={() => onToggle(file.id)}
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </td>
                     <td>
                       <div className="file">
                         <span className="fico">{extLabel(file.name)}</span>
                         <div>
-                          <a className="name" href={file.url} title={file.key}>
+                          <a className="name" href={file.url} title={file.key} onClick={(e) => e.stopPropagation()}>
                             {file.name}
                           </a>
                           {file.path ? <div className="sub">{file.path}</div> : null}
@@ -114,36 +130,35 @@ export function FileTable({
                         <span className="when">{st.when}</span>
                       </div>
                     </td>
-                    <td className="acts-td">
-                      <div className="acts">
-                        <Button variant="ghost" size="sm" type="button" onClick={() => onExpire(file.id)}>
-                          <Timer />
-                          有效期
-                        </Button>
-                        <Button variant="ghost" size="sm" type="button" onClick={() => onCopy(file.url, "download")}>
-                          <Copy />
-                          复制
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" type="button" aria-label="更多">
-                              <MoreHorizontal />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => onCopy(file.url, "download")}>
-                              复制下载链接
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onCopy(file.viewUrl, "view")}>
-                              复制预览链接
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => onRename(file)}>改名</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onMove(file)}>移动</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </td>
+                    {selecting ? null : (
+                      <td className="acts-td">
+                        <div className="acts">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" type="button" aria-label={`${file.name} 操作`}>
+                                <MoreHorizontal />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => onCopy(file.url, "download")}>
+                                复制下载链接
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onCopy(file.viewUrl, "view")}>
+                                复制预览链接
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => onRename(file)}>改名</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onMove(file)}>移动</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => onExpire(file)}>有效期</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem variant="destructive" onClick={() => onDelete(file)}>
+                                删除
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
