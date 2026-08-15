@@ -72,7 +72,7 @@ npx wrangler r2 bucket create dl-files
    如果 Worker 已经建好：点进该 Worker → **Settings** → **Build** → **Connect**
 3. Worker 名称必须和 `wrangler.jsonc` 里的 `name` 完全一致（默认 `dl-platform`）
 4. 生产分支选 `main`
-5. 构建设置填下面这几项。Cloudflare 可能会自动填成 `npm run build` 和 `npx wrangler deploy`，请改成：
+5. 构建设置填：
 
 | 项 | 填 |
 | --- | --- |
@@ -81,11 +81,11 @@ npx wrangler r2 bucket create dl-files
 | **Non-production deploy** | `npx wrangler versions upload` |
 | **Root directory** | `/` |
 
-`npm run build` 会编出 Cloudflare Worker。如果 Deploy 仍是 `npx wrangler deploy`，会报找不到 OpenNext 配置，必须改成 `npm run cf-deploy`。
+Cloudflare 自动填的 Build command 可以保留。**Deploy command 不要用** `npx wrangler deploy`，改成 `npm run cf-deploy`。
 
 6. **Save and Deploy**。第一次会自动构建并发布。之后每次 push `main` 都会再部署一次。
 
-若已经失败过：改好构建设置后，在该 Worker 的 **Deployments / Builds** 里点 **Retry**。
+若已经失败过：改好 Deploy command 后，在该 Worker 的 **Deployments / Builds** 里点 **Retry**。
 
 部署失败时，先核对：Worker 名是否一致、`database_id` 是否已换成真实 ID、D1 / R2 是否在同一个账号里。
 
