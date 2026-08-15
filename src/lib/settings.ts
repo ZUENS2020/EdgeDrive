@@ -54,7 +54,8 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
     cf_worker_name: unset(map.get(KV.cfWorkerName)),
     cf_r2_bucket: unset(map.get(KV.cfR2Bucket)),
     cf_d1_database_id: unset(map.get(KV.cfD1DatabaseId)),
-    cron_secret: (await getKv(conn, KV.cronSecret)) || "",
+    // cron_secret 永不通过 getSettings 返回（明文只在 cron 路由经 getKv 直接读）
+    cron_secret: "",
   };
 }
 
@@ -74,7 +75,12 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
     next.purge_after_days = clampDays(String(patch.purge_after_days), current.purge_after_days);
   }
   if (patch.auth_mode) {
-    next.auth_mode = parseAuthMode(patch.auth_mode);
+    const nextMode = parseAuthMode(patch.auth_mode);
+    // 切到 access 前校验 CF_ACCESS_TEAM/AUD 已配置——否则站点会锁死（fail-closed 全拒）
+    if (nextMode === "access" && (!process.env.CF_ACCESS_TEAM || !process.env.CF_ACCESS_AUD)) {
+      throw new Error("access-mode-needs-env: 请先在 Worker 配置 CF_ACCESS_TEAM 和 CF_ACCESS_AUD");
+    }
+    next.auth_mode = nextMode;
   }
 
   const entries: [string, string][] = [
@@ -105,10 +111,11 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
 
   if (patch.rotate_cron_secret) {
     await conn.prepare("DELETE FROM settings WHERE key = ?").bind(KV.cronSecret).run();
-    next.cron_secret = await ensureCronSecret(conn);
-  } else {
-    next.cron_secret = (await getKv(conn, KV.cronSecret)) || current.cron_secret;
+    await ensureCronSecret(conn);
   }
+  // cron_secret 明文不随 settings 返回（只保证已设置状态）
+  next.cron_secret = "";
+  next.cron_secret_set = Boolean(await getKv(conn, KV.cronSecret).catch(() => undefined));
 
   return next;
 }
