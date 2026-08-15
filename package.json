@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/cf-build.mjs",
+    "build": "opennextjs-cloudflare build",
     "start": "next start",
     "preview": "opennextjs-cloudflare build && wrangler dev",
     "deploy": "npm run build && npm run cf-deploy",
-    "cf-build": "node scripts/cf-build.mjs",
+    "cf-build": "opennextjs-cloudflare build",
     "cf-deploy": "node scripts/cf-deploy.mjs",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv",
+    "postinstall": "node scripts/install-wrangler-shim.mjs",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate": "wrangler d1 migrations apply DB --remote"
   },

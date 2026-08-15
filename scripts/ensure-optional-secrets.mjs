@@ -7,7 +7,7 @@
  * Sentinel value NULL is treated as unset by envString().
  */
 import { spawnSync } from "node:child_process";
-import path from "node:path";
+import { wranglerJs } from "./wrangler-bin.mjs";
 
 const SENTINEL = "NULL";
 const SECRETS = [
@@ -24,11 +24,10 @@ const SECRETS = [
   ["CF_D1_DATABASE_ID", SENTINEL],
 ];
 
-const wranglerBin = path.join(process.cwd(), "node_modules", ".bin", "wrangler");
 const env = { ...process.env, WRANGLER_LOG: process.env.WRANGLER_LOG || "error" };
 
 function wrangler(args, { input, inherit } = {}) {
-  const result = spawnSync(wranglerBin, args, {
+  const result = spawnSync(process.execPath, [wranglerJs, ...args], {
     encoding: "utf8",
     input,
     stdio: inherit ? ["pipe", "inherit", "inherit"] : ["ignore", "pipe", "pipe"],

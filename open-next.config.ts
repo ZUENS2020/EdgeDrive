@@ -4,5 +4,5 @@ import { defineCloudflareConfig } from "@opennextjs/cloudflare";
 // Inner Next build must not run `npm run build` (that script is OpenNext).
 export default {
   ...defineCloudflareConfig(),
-  buildCommand: "npx next build",
+  buildCommand: "node scripts/next-build.mjs",
 };

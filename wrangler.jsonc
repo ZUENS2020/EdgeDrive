@@ -1,9 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Cloudflare Workers Builds：
-  //   Build command:  npm run build
-  //   Deploy command: npm run cf-deploy
-  //   （会沿用 Bindings，并种好 Variables and Secrets 里的字段名）
+  // Cloudflare Workers Builds 会按 Next.js / OpenNext 自动填构建和部署命令，
+  // 不用改。常见是 npm run build + npx wrangler deploy，也可能是
+  // npx opennextjs-cloudflare build / deploy。仓库里的 npm run build 就是
+  // OpenNext；npx wrangler deploy 会走 postinstall 装上的 shim
+  //（不自动建 D1/R2，并种密钥名）。
   //
   // 只声明绑定名。不要填 database_id / bucket_name，否则会写死资源、
   // 也会在第一次部署时自动建新库和新桶。

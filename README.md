@@ -51,15 +51,15 @@ npx wrangler r2 bucket create 你的桶名
    如果 Worker 已经建好：点进该 Worker → **Settings** → **Build** → **Connect**
 3. Worker 名称保持和仓库里的一致（默认 `dl-platform`）。若要换名，同时改 `wrangler.jsonc` 的 `name`
 4. 生产分支选 `main`
-5. 构建设置：
+5. 构建设置用 Cloudflare 自动填的即可，不用改。它会识别 Next.js / OpenNext：
 
-| 项 | 填 |
+| 项 | Cloudflare 自动填（任选其一，都不用改） |
 | --- | --- |
-| **Build command** | `npm run build`（默认即可） |
-| **Deploy command** | `npm run cf-deploy` |
+| **Build command** | `npm run build` 或 `npx opennextjs-cloudflare build` |
+| **Deploy command** | `npx wrangler deploy` 或 `npx opennextjs-cloudflare deploy` |
 | **Root directory** | `/` |
 
-`npm run cf-deploy` 会：沿用 Bindings 里已有的 D1/R2（不自动建新的）、跑数据库迁移、并把 Variables and Secrets 里的字段名全部种上。不要用默认的 `npx wrangler deploy`。
+仓库里的 `npm run build` 就是 OpenNext 构建。默认的 `wrangler deploy` 会沿用 Bindings 里已有的 D1/R2（不自动建新的），并种齐 Variables and Secrets 字段名。
 
 6. 先 **Save**。若已经自动跑过一次部署并因缺少绑定失败，先做下一步再 **Retry**。
 
