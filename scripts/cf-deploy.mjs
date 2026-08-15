@@ -5,7 +5,7 @@
  *
  * 1. wrangler deploy（沿用 Dashboard Bindings 里已有的 D1/R2，不自动建新的）
  * 2. 对绑定名 DB 跑远程迁移
- * 3. 种可选 CLOUDFLARE_* Encrypted Secret 占位
+ * 3. 种齐 Variables and Secrets 字段名（已有值不覆盖）
  *
  * OPEN_NEXT_DEPLOY 避免 wrangler 再包一层 `opennextjs-cloudflare deploy`。
  */
@@ -31,5 +31,5 @@ const seed = spawnSync(process.execPath, [path.join(process.cwd(), "scripts", "e
   env,
 });
 if (seed.status !== 0) {
-  console.warn("optional CLOUDFLARE_* secrets were not seeded; add them in Dashboard → Variables and Secrets");
+  console.warn("dashboard secret names were not seeded; add them in Dashboard → Variables and Secrets");
 }
