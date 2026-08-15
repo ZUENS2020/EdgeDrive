@@ -201,6 +201,7 @@ async function fetchR2(
             orderBy: [datetime_DESC]
           ) {
             max { objectCount uploadCount payloadSize metadataSize }
+            dimensions { datetime }
           }
         }
       }
@@ -266,6 +267,7 @@ async function fetchD1(
             orderBy: [date_DESC]
           ) {
             max { databaseSizeBytes }
+            dimensions { date }
           }
         }
       }
