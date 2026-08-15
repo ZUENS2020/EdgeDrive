@@ -25,5 +25,8 @@
     {
       "binding": "FILES"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": ["0 4 * * *"]
+  }
 }

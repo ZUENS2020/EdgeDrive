@@ -28,8 +28,43 @@ function writeBootstrapSql() {
   const out = path.join(process.cwd(), "src/lib/d1-bootstrap-sql.ts");
   writeFileSync(
     out,
-    `/** Generated from migrations/*.sql by scripts/cf-build.mjs. Do not edit by hand. */\nexport const D1_BOOTSTRAP_SQL = ${JSON.stringify(sql)};\n`,
+    `/** Generated from migrations/*.sql by scripts/cf-build.mjs. Do not edit by hand. */\nexport const EXPECTED_SCHEMA_VERSION = ${files.length};\nexport const D1_BOOTSTRAP_SQL = ${JSON.stringify(sql)};\n`,
   );
+}
+
+function injectScheduledHandler() {
+  const workerPath = path.join(process.cwd(), ".open-next/worker.js");
+  const marker = "async scheduled(";
+  const src = readFileSync(workerPath, "utf8");
+  if (src.includes(marker)) return;
+  const needle = "export default {\n    async fetch(request, env, ctx) {";
+  if (!src.includes(needle)) {
+    throw new Error(
+      "OpenNext worker.js structure changed; cannot inject cron scheduled handler. Update scripts/cf-build.mjs.",
+    );
+  }
+  const injected = src.replace(
+    needle,
+    `export default {
+    async scheduled(event, env, ctx) {
+        let secret = String(env.CRON_SECRET || "").trim();
+        if (!secret && env.DB) {
+            const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind("cron_secret").first();
+            secret = String(row?.value || "").trim();
+        }
+        if (!secret) {
+            console.warn("[edgedrive] scheduled purge skipped: cron_secret missing");
+            return;
+        }
+        const request = new Request("https://edgedrive.internal/api/cron/purge", {
+            method: "GET",
+            headers: { Authorization: "Bearer " + secret },
+        });
+        return this.fetch(request, env, ctx);
+    },
+    async fetch(request, env, ctx) {`,
+  );
+  writeFileSync(workerPath, injected);
 }
 
 if (env[FLAG] === "1") {
@@ -40,3 +75,4 @@ if (env[FLAG] === "1") {
 writeBootstrapSql();
 env[FLAG] = "1";
 run(opennextBin, ["build"]);
+injectScheduledHandler();

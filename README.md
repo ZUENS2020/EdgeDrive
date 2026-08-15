@@ -20,9 +20,11 @@
 
 ## 部署
 
-需要：Cloudflare 账号、本仓库的 Git 权限。线上用 Cloudflare 绑定仓库自动部署，不要走 GitHub Actions。
+需要：Cloudflare 账号、本仓库的 Git 权限。线上用 Cloudflare 绑定仓库自动部署。GitHub Actions 只跑 `npm test` 和 `tsc`，不负责发布。
 
 不要在 `wrangler.jsonc` 里填数据库 ID 或桶名。代码里的绑定名必须是 **DB**（D1）和 **FILES**（R2）。
+
+本机或自定义流水线请用 **`npm run deploy`**（`scripts/cf-deploy.mjs`）：编 OpenNext、绑缺失的 D1/R2、跑远程迁移。Cloudflare 创建页若只填构建命令、部署固定为 `npx wrangler deploy`，`postinstall` 会包装 `node_modules/wrangler` 的 CLI，把这次 deploy 转进同一套脚本。这是有意的 hack：wrangler 改 CLI 路径时 **postinstall 会报错退出**，不要静默跳过；此时改用 `npm run deploy`，或更新 `scripts/install-wrangler-shim.mjs`。
 
 - **新 Worker**：第一次部署时还没有 Bindings，wrangler 会自动建一套 D1 和 R2 并绑上（名称类似 `edgedrive-db`、`edgedrive-files`）。
 - **已经绑过**：Settings → Bindings 里已有 `DB` / `FILES` 时，部署会沿用，不会另建。
@@ -62,7 +64,14 @@
 
 之后可以：上传文件、设有效期、建文件夹、改标记颜色。下载路径是 `/dl/文件夹/文件名`。
 
-统计页默认只显示本站数据。若要看 R2 / 数据库用量，在设置 → 账号填 Cloudflare Account ID 和 API Token（需 Account Analytics 读）。账号里有多套 Worker / R2 / D1 时，再填 Worker 名、桶名、D1 ID 用来过滤，不是绑定本身。
+统计页默认只显示本站数据。若要看 R2 / 数据库用量，需要 Account ID 和 API Token（Account Analytics 读权限）。Token 两种模式：
+
+- **D1（方便）**：公开 fork、只想在管理台填一次。Token 存在 D1 `settings`。适合快速部署；库被读出则 Token 也会暴露。
+- **Worker Secret（推荐）**：Dashboard → Worker → Settings → Variables and Secrets，添加加密变量 **`CF_API_TOKEN`**。运行时优先读 Secret，未配才回退 D1。Account ID 仍可在管理台填写。
+
+账号里有多套 Worker / R2 / D1 时，再填 Worker 名、桶名、D1 ID 用来过滤，不是绑定本身。
+
+过期文件由 **Cron Trigger** 每天 **04:00 UTC** 自动清理：Worker 会 `GET /api/cron/purge`，`Authorization: Bearer <cron_secret>`。外部定时器也可 GET 或 POST 同一地址。令牌在管理台 → 账号里轮换。第一次部署后访问一次后台会写入 `cron_secret`。
 
 ---
 

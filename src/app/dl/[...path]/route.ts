@@ -4,7 +4,8 @@ import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { fileKind, formatSize, formatTime } from "@/lib/format";
 import { guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
-import { getFileByKey, incrementDownload } from "@/lib/store";
+import { scheduleDownloadIncrement, shouldCountDownload } from "@/lib/download-count";
+import { getFileByKey } from "@/lib/store";
 import { isExpired, type FileRow, type SiteSettings } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -152,8 +153,8 @@ async function handle(
     });
   }
 
-  if (!headOnly && !inline && (!range || range.start === 0)) {
-    await incrementDownload(meta.id);
+  if (shouldCountDownload({ headOnly, inline, range })) {
+    await scheduleDownloadIncrement(meta.id);
   }
 
   if (range) {

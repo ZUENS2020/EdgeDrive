@@ -22,13 +22,18 @@ export function sanitizeKey(raw: string | null | undefined): {
 } {
   if (raw == null) return { error: "empty" };
   let key = String(raw);
-  if (/%2e/i.test(key) || /%2f/i.test(key) || /%5c/i.test(key)) {
-    return { error: "encoded-traversal" };
-  }
-  try {
-    if (/%[0-9a-fA-F]{2}/.test(key)) key = decodeURIComponent(key);
-  } catch {
-    return { error: "bad-encoding" };
+  for (let i = 0; i < 4; i++) {
+    if (/%2e/i.test(key) || /%2f/i.test(key) || /%5c/i.test(key)) {
+      return { error: "encoded-traversal" };
+    }
+    if (!/%[0-9a-fA-F]{2}/.test(key)) break;
+    try {
+      const next = decodeURIComponent(key);
+      if (next === key) break;
+      key = next;
+    } catch {
+      return { error: "bad-encoding" };
+    }
   }
   key = key.normalize("NFC").trim();
   if (!key) return { error: "empty" };

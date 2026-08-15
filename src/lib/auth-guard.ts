@@ -2,7 +2,10 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { verifyAccessJwt } from "./access-jwt";
 import { createAuth } from "./auth";
+import { evaluateAdminGate, hasSessionCookie } from "./auth-gate";
 import { getAuthMode, isAccessMode } from "./cloudflare";
+
+export { evaluateAdminGate, hasSessionCookie } from "./auth-gate";
 
 const SESSION_QUERY = { disableRefresh: true, disableCookieCache: true } as const;
 
@@ -15,9 +18,16 @@ async function accessVerified(hdrs: Headers): Promise<boolean> {
 
 export async function requireAdmin(request?: Request) {
   const mode = await getAuthMode();
+  const hdrs = request ? request.headers : await headers();
   if (isAccessMode(mode)) {
-    const hdrs = request ? request.headers : await headers();
-    if (!(await accessVerified(hdrs))) {
+    const jwt = hdrs.get("cf-access-jwt-assertion");
+    const gate = evaluateAdminGate({
+      mode,
+      hasAccessJwt: Boolean(jwt),
+      accessVerified: jwt ? await verifyAccessJwt(jwt) : false,
+      hasSession: false,
+    });
+    if (!gate.ok) {
       return {
         ok: false as const,
         session: null,
@@ -27,13 +37,18 @@ export async function requireAdmin(request?: Request) {
     }
     return { ok: true as const, session: null, mode };
   }
-  const hdrs = request ? request.headers : await headers();
   const auth = await createAuth(request ?? hdrs);
   const session = await auth.api.getSession({
     headers: hdrs,
     query: SESSION_QUERY,
   });
-  if (!session) {
+  const gate = evaluateAdminGate({
+    mode,
+    hasAccessJwt: false,
+    accessVerified: false,
+    hasSession: Boolean(session),
+  });
+  if (!gate.ok) {
     return {
       ok: false as const,
       session: null,
@@ -42,11 +57,6 @@ export async function requireAdmin(request?: Request) {
     };
   }
   return { ok: true as const, session, mode };
-}
-
-export function hasSessionCookie(cookieHeader: string | null): boolean {
-  if (!cookieHeader) return false;
-  return /(?:^|;\s*)(?:__Secure-)?better-auth\.session_token=/.test(cookieHeader);
 }
 
 /** RSC-safe gate: never write cookies during render (OpenNext/Workers 会因此 500). */

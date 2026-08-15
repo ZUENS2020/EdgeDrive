@@ -9,7 +9,11 @@ export const dynamic = "force-dynamic";
 
 /** cron_secret 不下发明文（可触发 purge 的凭证）——只回布尔。 */
 function toSafeSettings(settings: SiteSettings) {
-  return { ...settings, cron_secret: "", cron_secret_set: Boolean(settings.cron_secret) };
+  return {
+    ...settings,
+    cron_secret: "",
+    cron_secret_set: Boolean(settings.cron_secret_set),
+  };
 }
 
 export async function GET(request: Request) {

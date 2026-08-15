@@ -289,7 +289,10 @@ export function SettingsForm({
             )}
             <section className="settings-block">
               <h3>Cloudflare 用量（可选）</h3>
-              <p className="hint">填了账号 ID 和 Token（需 Account Analytics 读）后，统计页才显示 R2 / D1 / Worker 调用量。Token 只在保存时写入，不会再读出来。</p>
+              <p className="hint">
+                用量 Token 两种模式：① 公开 fork 方便部署——在此填入，存 D1；② 更安全——Worker Secret{" "}
+                <code>CF_API_TOKEN</code>（优先于 D1）。Account ID 仍在此填写。Token 不会再读出来。
+              </p>
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="cf_account_id">Account ID</Label>
@@ -300,7 +303,14 @@ export function SettingsForm({
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="cf_api_token">API Token{form.cf_api_token_set ? "（已保存，留空则保持）" : ""}</Label>
+                  <Label htmlFor="cf_api_token">
+                    API Token
+                    {form.cf_api_token_from_env
+                      ? "（Worker Secret CF_API_TOKEN）"
+                      : form.cf_api_token_set
+                        ? "（已保存，留空则保持）"
+                        : ""}
+                  </Label>
                   <Input
                     id="cf_api_token"
                     type="password"
@@ -309,7 +319,7 @@ export function SettingsForm({
                     value={cfApiToken}
                     onChange={(e) => setCfApiToken(e.target.value)}
                   />
-                  {form.cf_api_token_set ? (
+                  {form.cf_api_token_set && !form.cf_api_token_from_env ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -348,7 +358,10 @@ export function SettingsForm({
             </section>
             <section className="settings-block">
               <h3>定时清理</h3>
-              <p className="hint">外部定时器调用 POST /api/cron/purge，Header 为 Authorization: Bearer 下面这串。管理台点「立即清理」不用这个。</p>
+              <p className="hint">
+                Worker 已启用每天 04:00 UTC 的 Cron Trigger，会 GET /api/cron/purge（Bearer 令牌）。外部定时器也可
+                GET 或 POST 同一地址。管理台点「立即清理」不用这个令牌。
+              </p>
               <div className="grid gap-2">
                 <Label htmlFor="cron_secret">CRON 令牌</Label>
                 <Input id="cron_secret" readOnly value={form.cron_secret_set ? "已设置（可更换）" : "未设置（保存后自动生成）"} />
