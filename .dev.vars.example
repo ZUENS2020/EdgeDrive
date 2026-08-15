@@ -13,6 +13,6 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 OAUTH_ALLOW_EMAILS=
 CRON_SECRET=
-# NULL = unset. Replace with real values to load R2 / D1 / Worker analytics locally.
+# NULL = unset Encrypted secrets. Replace locally to load R2 / D1 / Worker analytics.
 CLOUDFLARE_ACCOUNT_ID=NULL
 CLOUDFLARE_API_TOKEN=NULL

@@ -25,10 +25,15 @@ jobs:
       - name: Build with OpenNext
         run: npx opennextjs-cloudflare build
       - name: Deploy Worker
-        # OPEN_NEXT_DEPLOY 避免 OpenNext 再包一层 wrangler，把 wrangler.jsonc
-        # 里的 CLOUDFLARE_API_TOKEN=NULL 注入进程、盖掉 GitHub Secret。
+        # OPEN_NEXT_DEPLOY 避免 OpenNext 再包一层 wrangler 把鉴权环境变量弄丢。
         run: npx wrangler deploy
         env:
           OPEN_NEXT_DEPLOY: "true"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Seed optional analytics secrets
+        # Dashboard 里以 Encrypted Secret 出现。已有值不覆盖。
+        run: node scripts/ensure-optional-secrets.mjs
+        env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

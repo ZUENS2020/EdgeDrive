@@ -51,7 +51,7 @@ export async function getAuthMode(): Promise<AuthMode> {
   }
 }
 
-/** wrangler vars 里的哨兵：未配置。空字符串同样视为没有值。 */
+/** Encrypted secret / wrangler var 哨兵：未配置。空字符串同样视为没有值。 */
 export function isUnsetEnvValue(value: unknown): boolean {
   if (value == null) return true;
   if (typeof value !== "string") return true;
