@@ -7,7 +7,7 @@ import { applyBrandColor } from "@/lib/brand";
 import { copyToClipboard } from "@/lib/clipboard";
 import type { AuthMode, FileView, FolderNode, SiteSettings, StatsPayload } from "@/lib/types";
 import { flattenFolderPaths } from "@/lib/types";
-import { BatchBar } from "./BatchBar";
+import { SelectionBar } from "./BatchBar";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FileTable } from "./FileTable";
@@ -103,14 +103,21 @@ export function AdminApp({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "/" && (e.target as HTMLElement).tagName !== "INPUT") {
+      const t = e.target as HTMLElement;
+      const typing = t.closest("input, textarea, select, [contenteditable='true']");
+      if (e.key === "/" && !typing) {
         e.preventDefault();
         document.getElementById("q")?.focus();
+        return;
+      }
+      if (e.key === "Escape") {
+        if (t.closest('[role="dialog"]') || expireOpen || moveOpen || confirm || prompt) return;
+        setSelected(new Set());
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [confirm, expireOpen, moveOpen, prompt]);
 
   const selectedList = useMemo(() => files.filter((f) => selected.has(f.id)), [files, selected]);
 
@@ -303,7 +310,7 @@ export function AdminApp({
             />
           </div>
         </div>
-        <div className={cn("content", selected.size && "has-sel")}>
+        <div className="content">
           {progress && (
             <div className="progress-wrap on">
               <div className="progress-meta">
@@ -331,6 +338,54 @@ export function AdminApp({
               </button>
             ))}
           </div>
+          <SelectionBar
+            count={selected.size}
+            single={selected.size === 1}
+            onCopyDownload={async () => {
+              const list = files.filter((f) => selected.has(f.id));
+              const text = list.map((f) => f.url).join("\n");
+              const ok = await copyToClipboard(text);
+              if (ok) toast.success(list.length > 1 ? `已复制 ${list.length} 条下载链接` : "已复制下载链接");
+              else toast.error("复制失败，请手动复制");
+            }}
+            onCopyView={async () => {
+              const file = files.find((f) => selected.has(f.id));
+              if (!file) return;
+              const ok = await copyToClipboard(file.viewUrl);
+              if (ok) toast.success("已复制预览链接");
+              else toast.error("复制失败，请手动复制");
+            }}
+            onRename={() => {
+              const file = files.find((f) => selected.has(f.id));
+              if (!file) return;
+              setPrompt({
+                title: "重命名文件",
+                label: "新文件名",
+                value: file.name,
+                run: async (name) => {
+                  const ok = await patchFiles({ id: file.id, name });
+                  if (ok) toast.success("已改名");
+                },
+              });
+            }}
+            onMove={() => {
+              setMoveIds([...selected]);
+              setMoveOpen(true);
+            }}
+            onExpire={() => {
+              setExpireIds([...selected]);
+              setExpireOpen(true);
+            }}
+            onDelete={() =>
+              setConfirm({
+                title: selected.size > 1 ? "删除文件" : "删除文件",
+                body: `确定删除 ${selected.size} 个文件？此操作无法撤销。`,
+                ok: "删除",
+                run: () => batch({ ids: [...selected], action: "delete" }),
+              })
+            }
+            onClear={() => setSelected(new Set())}
+          />
           <FileTable
             files={files}
             loading={loading}
@@ -345,8 +400,8 @@ export function AdminApp({
               if (files.every((f) => selected.has(f.id))) setSelected(new Set());
               else setSelected(new Set(files.map((f) => f.id)));
             }}
-            onExpire={(id) => {
-              setExpireIds([id]);
+            onExpire={(file) => {
+              setExpireIds([file.id]);
               setExpireOpen(true);
             }}
             onCopy={async (url, kind) => {
@@ -369,6 +424,14 @@ export function AdminApp({
               setMoveIds([file.id]);
               setMoveOpen(true);
             }}
+            onDelete={(file) =>
+              setConfirm({
+                title: "删除文件",
+                body: `确定删除「${file.name}」？此操作无法撤销。`,
+                ok: "删除",
+                run: () => batch({ ids: [file.id], action: "delete" }),
+              })
+            }
           />
           <PaginationBar page={page} pageSize={settings.page_size} total={total} onPage={setPage} />
         </div>
@@ -382,28 +445,6 @@ export function AdminApp({
           if (e.target.files?.length) uploadFiles(e.target.files);
           e.target.value = "";
         }}
-      />
-      <BatchBar
-        count={selected.size}
-        onExpire={() => {
-          setExpireIds([...selected]);
-          setExpireOpen(true);
-        }}
-        onPermanent={() => batch({ ids: [...selected], action: "permanent" })}
-        onExpireNow={() => batch({ ids: [...selected], action: "expireNow" })}
-        onMove={() => {
-          setMoveIds([...selected]);
-          setMoveOpen(true);
-        }}
-        onDelete={() =>
-          setConfirm({
-            title: "批量删除",
-            body: `确定删除 ${selected.size} 个文件？此操作无法撤销。`,
-            ok: "删除",
-            run: () => batch({ ids: [...selected], action: "delete" }),
-          })
-        }
-        onClear={() => setSelected(new Set())}
       />
       <ExpireDialog
         open={expireOpen}

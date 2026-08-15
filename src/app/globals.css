@@ -436,9 +436,6 @@ button {
   flex-direction: column;
   gap: 16px;
 }
-.content.has-sel {
-  padding-bottom: 96px;
-}
 
 .progress-wrap {
   display: none;
@@ -533,6 +530,13 @@ td {
   padding: 8px 14px;
   border-bottom: 1px solid var(--line-s);
   vertical-align: middle;
+}
+tbody tr {
+  cursor: pointer;
+}
+tbody tr:has(.empty),
+tbody tr:has(.load-hint) {
+  cursor: default;
 }
 tbody tr:hover {
   background: #fafaf8;
@@ -839,26 +843,31 @@ th .check {
   color: var(--text-3);
 }
 
-.batch-bar {
-  position: fixed;
-  left: calc(var(--sidebar-width) + 28px);
-  right: 28px;
-  bottom: 18px;
-  z-index: 30;
+.file-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: var(--shadow-dlg);
 }
-.batch-bar .n {
+.file-toolbar .n {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-2);
-  margin-right: 4px;
+  white-space: nowrap;
+}
+.file-toolbar .sp {
+  flex: 1;
+  min-width: 8px;
+}
+.file-toolbar-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--line);
+  flex-shrink: 0;
 }
 
 .tree {
@@ -985,13 +994,58 @@ th .check {
   color: var(--text-4);
 }
 
-.settings-page {
-  max-width: 560px;
+.settings-layout {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 36rem);
+  gap: 40px;
+  align-items: start;
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 16px;
+}
+.settings-nav button {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+.settings-nav button:hover {
+  background: var(--hover);
+  color: var(--text-2);
+}
+.settings-nav button.on {
+  background: var(--hover);
+  color: var(--text);
+}
+.settings-pane {
   display: flex;
   flex-direction: column;
   gap: 28px;
+  min-width: 0;
+  padding-bottom: 24px;
 }
-.settings-block h2 {
+.settings-pane-head h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+}
+.settings-pane-head p {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.settings-block h3 {
   font-size: 15px;
   font-weight: 600;
   margin: 0 0 4px;
@@ -1000,6 +1054,12 @@ th .check {
   color: var(--text-3);
   font-size: 13px;
   margin: 0 0 16px;
+}
+.settings-save {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
 }
 .settings-check {
   display: flex;
@@ -1098,14 +1158,39 @@ th .check {
     border: 0;
     background: rgba(23, 23, 23, 0.28);
   }
-  .batch-bar {
-    left: 12px;
-    right: 12px;
-  }
   .header,
   .content {
     padding-left: 16px;
     padding-right: 16px;
+  }
+  .settings-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    gap: 16px;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+  }
+  .settings-nav button {
+    height: 32px;
+    padding: 0 2px;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+  }
+  .settings-nav button:hover {
+    background: transparent;
+  }
+  .settings-nav button.on {
+    background: transparent;
+    border-bottom-color: var(--text);
+  }
+  .file-toolbar-sep {
+    display: none;
   }
   .app {
     min-height: calc(100vh - 52px);
