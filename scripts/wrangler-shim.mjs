@@ -3,7 +3,8 @@
  * Intercepts `wrangler deploy` / `versions upload` so Cloudflare's default
  * Deploy command works: `npx wrangler deploy` or `npx opennextjs-cloudflare deploy`.
  *
- * Adds --x-auto-create=false (do not create D1/R2) and --keep-vars.
+ * Adds --keep-vars. Wrangler auto-creates D1/R2 only when the Worker has no
+ * matching bindings yet; existing Dashboard bindings are inherited.
  * After a real upload, applies D1 migrations and seeds secret names.
  */
 import { spawnSync } from "node:child_process";
@@ -23,7 +24,6 @@ function hasFlag(name) {
 }
 
 if ((isDeploy || isUpload) && !dryRun) {
-  if (!hasFlag("--x-auto-create")) args.push("--x-auto-create=false");
   if (!hasFlag("--keep-vars") && !hasFlag("--no-keep-vars")) args.push("--keep-vars");
 }
 

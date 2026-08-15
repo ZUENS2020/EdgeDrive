@@ -22,7 +22,7 @@ function run(bin, args, extraEnv = env) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-run(process.execPath, [wranglerJs, "deploy", "--keep-vars", "--x-auto-create=false"]);
+run(process.execPath, [wranglerJs, "deploy", "--keep-vars"]);
 run(process.execPath, [path.join(process.cwd(), "scripts", "d1-migrate-remote.mjs")]);
 
 const seed = spawnSync(process.execPath, [path.join(process.cwd(), "scripts", "ensure-optional-secrets.mjs")], {
