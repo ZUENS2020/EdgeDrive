@@ -33,7 +33,7 @@ const wranglerBin = path.join(process.cwd(), "node_modules", ".bin", "wrangler")
 function loadName() {
   const cfgPath =
     process.env.CF_WRANGLER_CONFIG ||
-    ["wrangler.resolved.json", "wrangler.jsonc", "wrangler.json"].find((p) => existsSync(p));
+    ["wrangler.jsonc", "wrangler.json"].find((p) => existsSync(p));
   if (!cfgPath || !existsSync(cfgPath)) return DEFAULT_NAME;
   const text = readFileSync(cfgPath, "utf8").replace(/^\uFEFF/, "");
   const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");

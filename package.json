@@ -11,6 +11,7 @@
     "cf-build": "node scripts/cf-build.mjs",
     "cf-deploy": "node scripts/cf-deploy.mjs",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv",
+    "postinstall": "node scripts/install-wrangler-shim.mjs",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate": "wrangler d1 migrations apply DB --remote"
   },

@@ -32,17 +32,8 @@
    如果 Worker 已经建好：点进该 Worker → **Settings** → **Build** → **Connect**
 3. Worker 名称保持和仓库里的一致（默认 `edgedrive`）。若要换名，同时改 `wrangler.jsonc` 的 `name`
 4. 生产分支选 `main`
-5. 构建设置：
-
-| 项 | 填 |
-| --- | --- |
-| **Build command** | `npm run build`（默认即可） |
-| **Deploy command** | `npm run cf-deploy` |
-| **Root directory** | `/` |
-
-`npm run cf-deploy` 会：没有绑定就自动建 D1/R2，有绑定就沿用；然后跑数据库迁移，并种齐 Variables and Secrets 字段名。不要用默认的 `npx wrangler deploy`（缺迁移和密钥播种）。
-
-6. **Save and Deploy**。
+5. 创建页通常**只让填构建命令**。构建命令填 `npm run build`（默认即可），部署命令不用填——Cloudflare 会自己跑 `npx wrangler deploy`。仓库会拦住这次部署：没有绑定就自动建 D1/R2，有绑定就沿用，然后跑数据库迁移并种齐 Variables and Secrets 字段名。
+6. **Save and Deploy** / **部署**。
 
 ### 3. 想用已有的 D1 / R2（可选）
 

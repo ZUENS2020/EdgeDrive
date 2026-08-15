@@ -16,11 +16,7 @@ function loadWrangler(file) {
   return JSON.parse(stripped);
 }
 
-const configPath =
-  process.env.CF_WRANGLER_CONFIG ||
-  (existsSync("wrangler.resolved.json")
-    ? path.join(process.cwd(), "wrangler.resolved.json")
-    : path.join(process.cwd(), "wrangler.jsonc"));
+const configPath = process.env.CF_WRANGLER_CONFIG || path.join(process.cwd(), "wrangler.jsonc");
 const configArgs = path.basename(configPath) === "wrangler.jsonc" ? [] : ["--config", configPath];
 
 const d1 = loadWrangler(configPath)?.d1_databases?.[0];
