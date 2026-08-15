@@ -1,9 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  // Cloudflare Dashboard → 该 Worker → Settings → Build
+  // Build command:  npm run cf-build
+  // Deploy command: npm run cf-deploy
   "name": "zuens-dl-platform",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Dashboard 里改过的明文 vars 不要被下次部署清掉。Encrypted secrets 本来就会保留。
+  "keep_vars": true,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"

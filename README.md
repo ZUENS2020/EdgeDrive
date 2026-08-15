@@ -43,7 +43,7 @@ OpenNext 跑在 Workers 上，**不要在 RSC 渲染阶段写 cookie**，否则�
 
 ## 部署
 
-需要：Node.js 20.9+、Cloudflare 账号、Wrangler（随项目 `npm ci` 安装）。
+需要：Node.js 20.9+、Cloudflare 账号。线上用 **Workers Builds** 绑 Git 仓库自动部署，不要走 GitHub Actions。
 
 绑定名固定为 `DB` 和 `FILES`。Worker 名、D1 库名/ID、R2 桶名写在 `wrangler.jsonc`，必须指向你账号里真实存在的资源。复制到新账号时先创建资源，再改这个文件。
 
@@ -54,7 +54,7 @@ npx wrangler d1 create <你的-d1-名>
 npx wrangler r2 bucket create <你的-r2-桶名>
 ```
 
-把输出的 `database_id` 和名称填进 `wrangler.jsonc`，并改 `name`（Worker 名）。`package.json` 里的 `db:migrate*` 脚本也要改成同一个 D1 名。
+把输出的 `database_id` 和名称填进 `wrangler.jsonc`，并改 `name`（Worker 名）。`package.json` 里的 `db:migrate*` / `cf-deploy` 也要改成同一个 D1 名。
 
 已有绑定可跳过这一步。
 
@@ -75,7 +75,7 @@ npx wrangler r2 bucket create <你的-r2-桶名>
 
 打开 [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → 选中这个 Worker → **Settings** → **Variables and Secrets** → **Add** → 类型选 **Secret**（Encrypted）。也可以用下面的 CLI，效果相同。
 
-**不要**把这些写进 `wrangler.jsonc`、GitHub、或任何会提交的文件。选填项可以不创建。统计用的 `CLOUDFLARE_*` 由 CI 在 Worker 上建成 Encrypted Secret，默认值 `NULL`（程序当没配）；已有值不会被覆盖。
+**不要**把这些写进 `wrangler.jsonc`、GitHub、或任何会提交的文件。选填项可以不创建。统计用的 `CLOUDFLARE_*` 在首次 `cf-deploy` 时建成 Encrypted Secret，默认值 `NULL`（程序当没配）；已有值不会被覆盖。
 
 | Secret | 必填？ | 说明 |
 | --- | --- | --- |
@@ -87,8 +87,8 @@ npx wrangler r2 bucket create <你的-r2-桶名>
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `oauth` 选填 | 配了才显示 Google 登录 |
 | `OAUTH_ALLOW_EMAILS` | `oauth` 选填 | 额外允许的邮箱；也可在设置页改 |
 | `CRON_SECRET` | 选填 | `Authorization: Bearer <secret>` 调 `POST /api/cron/purge` |
-| `CLOUDFLARE_ACCOUNT_ID` | 选填 | 统计页拉 R2 / D1 / Worker 分析。CI 默认建成 Secret，值为 `NULL` |
-| `CLOUDFLARE_API_TOKEN` | 选填 | 需 **Account Analytics 读**。与 GitHub Actions 里那个部署用 Token 不是一回事 |
+| `CLOUDFLARE_ACCOUNT_ID` | 选填 | 统计页拉 R2 / D1 / Worker 分析。首次部署建成 Secret，值为 `NULL` |
+| `CLOUDFLARE_API_TOKEN` | 选填 | 需 **Account Analytics 读**。这是 Worker 运行时用的 Token，不是 GitHub 部署密钥 |
 
 CLI 示例（会提示你粘贴值，不会写进仓库）：
 
@@ -98,7 +98,7 @@ npx wrangler secret put BETTER_AUTH_URL
 npx wrangler secret put ADMIN_USERNAME
 npx wrangler secret put ADMIN_PASSWORD
 # oauth 时再 put GITHUB_* / GOOGLE_*
-# 统计：CI 会建成 CLOUDFLARE_* Encrypted Secret（默认 NULL）。要看 R2 A/B 时在 Dashboard 改成真值
+# 统计：首次部署会建成 CLOUDFLARE_* Encrypted Secret（默认 NULL）。要看 R2 A/B 时在 Dashboard 改成真值
 ```
 
 #### 本地
@@ -112,7 +112,37 @@ cp .dev.vars.example .dev.vars
 
 `.dev.vars` 里的键名与线上 Worker Secrets 一一对应。线上以 Dashboard / `wrangler secret` 为准。
 
-### 3. 本地开发
+### 3. 用 Cloudflare 绑定仓库部署
+
+**不要走 GitHub Actions。** 在 Cloudflare 里自建 Worker，把本仓库接上，push 生产分支就会构建、部署。
+
+Worker 名必须和 `wrangler.jsonc` 里的 `name` 一致（默认 `zuens-dl-platform`），否则 Builds 会失败。绑定名固定为 D1 `DB`、R2 `FILES`。
+
+1. 打开 [Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages) → **Create** → **Import a repository**，选这个 Git 仓库。  
+   若 Worker 已经建好：该 Worker → **Settings** → **Build** → **Connect**，再选仓库。
+2. 生产分支用 `main`。
+3. 构建设置填：
+
+| 项 | 值 |
+| --- | --- |
+| **Build command** | `npm run cf-build` |
+| **Deploy command** | `npm run cf-deploy` |
+| **Non-production deploy** | `npx wrangler versions upload`（预览，不要迁远程 D1） |
+| **Root directory** | `/`（仓库根） |
+
+不要用 `npm run build`：那是本地 `next build`，不会产出 `.open-next/worker.js`。
+
+`cf-deploy` 会：迁远程 D1 → `wrangler deploy --keep-vars` → 若还没有统计用 Secret，建成 `CLOUDFLARE_*` = `NULL`。
+
+4. **Save and Deploy**。之后每次 push `main` 由 [Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) 自动编、部。
+
+自定义域名在该 Worker 的设置里绑定。`BETTER_AUTH_URL` 必须与浏览器实际访问的 origin 一致。
+
+部署后到 **Settings → Variables and Secrets** 配账密等 Encrypted Secret。Dashboard 里改过的明文 vars 会保留（`keep_vars`）。
+
+本机临时发布仍可用 `npm run deploy`，日常以 Dashboard 绑定仓库为准。
+
+### 4. 本地开发
 
 ```bash
 npm ci
@@ -128,31 +158,6 @@ npm run dev
 ```bash
 npm run preview
 ```
-
-### 4. 发布到 Cloudflare
-
-先迁远程库，再构建部署：
-
-```bash
-npx wrangler d1 migrations apply <你的-d1-名> --remote
-npm run deploy
-# 等价于：npx opennextjs-cloudflare build && npx wrangler deploy
-```
-
-自定义域名在 Workers 设置里绑到该 Worker。`BETTER_AUTH_URL` 必须与浏览器实际访问的 origin 一致。
-
-部署后到该 Worker 的 **Settings → Variables and Secrets** 配账密等 Secret（见上一节）。`wrangler deploy` **不会**把 `.dev.vars` 推上去。
-
-### 5. GitHub Actions
-
-push `main` 会跑 `.github/workflows/deploy.yml`：应用 D1 迁移 → OpenNext build → `wrangler deploy`。
-
-仓库 Secrets（GitHub，**只给 CI 调 wrangler 部署**，不会进 Worker 运行时）：
-
-- `CLOUDFLARE_API_TOKEN`（Workers 编辑 + D1）
-- `CLOUDFLARE_ACCOUNT_ID`
-
-账密、`BETTER_AUTH_*`、统计用的 Analytics Token 只存在 **该 Worker 的 Secrets**，不要放进 GitHub。
 
 ## 鉴权
 
@@ -199,7 +204,7 @@ GET      /dl/<文件夹路径/文件名>/view  长链，落地页（可预览图
 
 时间范围：24 小时 / 7 天 / 本月。本月对照 Cloudflare 免费档（R2 10 GB / 100 万 A / 1000 万 B，D1 5 GB），**不是账单**。
 
-`CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 是 Worker **Encrypted Secret**（Dashboard → Settings → Variables and Secrets）。部署后 CI 会在还没有这两项时建成 Secret，值是哨兵 `NULL`（程序当没填）。不要写进 `wrangler.jsonc`（会和 GitHub Actions 部署鉴权撞名）。改成真值后（Token 需 Account Analytics 读）才走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/) 拉 R2 Class A/B、D1 查询量和 Worker 调用。过滤名：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。GitHub Actions 里同名 Secret 只给 **wrangler 部署**用，和 Worker 运行时这个 Token 不是一回事。
+`CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 是 Worker **Encrypted Secret**（Dashboard → Settings → Variables and Secrets）。首次 `cf-deploy` 若还没有这两项，会建成哨兵 `NULL`（程序当没填）。不要写进 `wrangler.jsonc`。改成真值后（Token 需 Account Analytics 读）才走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/) 拉 R2 Class A/B、D1 查询量和 Worker 调用。过滤名：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。
 
 `GET /api/usage?range=month|7d|24h`（需登录）返回同一份 JSON。未填时 `analytics.configured` 为 `false`。
 
