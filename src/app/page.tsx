@@ -1,8 +1,15 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  PRODUCT_DESCRIPTION,
+  PRODUCT_DL_HINT,
+  PRODUCT_HOME_CTA,
+  PRODUCT_NAME,
+  PRODUCT_SHORT,
+  PRODUCT_TAGLINE,
+} from "@/lib/product";
 import { DEFAULTS, getSettings } from "@/lib/settings";
-import { logoGlyph } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -18,24 +25,21 @@ export default async function Home() {
     <div className="home-wrap" style={{ ["--brand" as string]: settings.brand_color }}>
       <div className="home-card">
         <div className="brand" style={{ padding: "0 0 24px" }}>
-          <div className="logo">{logoGlyph(settings)}</div>
+          <div className="logo">{PRODUCT_SHORT}</div>
           <div>
-            <div className="brand-name">{settings.site_name}</div>
-            {settings.home_kicker ? <div className="brand-sub">{settings.home_kicker}</div> : null}
+            <div className="brand-name">{PRODUCT_NAME}</div>
+            <div className="brand-sub">{PRODUCT_TAGLINE}</div>
           </div>
         </div>
-        <h1>{settings.site_name}</h1>
-        {settings.site_description ? <p>{settings.site_description}</p> : null}
-        {settings.home_dl_hint ? <p>{settings.home_dl_hint}</p> : null}
-        {settings.show_admin_link ? (
-          <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground hover:no-underline">
-            <Link href="/admin">
-              {settings.home_cta}
-              <ArrowRight />
-            </Link>
-          </Button>
-        ) : null}
-        {settings.footer_note ? <p className="home-foot">{settings.footer_note}</p> : null}
+        <h1>{PRODUCT_NAME}</h1>
+        <p>{PRODUCT_DESCRIPTION}</p>
+        <p>{PRODUCT_DL_HINT}</p>
+        <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground hover:no-underline">
+          <Link href="/admin">
+            {PRODUCT_HOME_CTA}
+            <ArrowRight />
+          </Link>
+        </Button>
       </div>
     </div>
   );

@@ -3,23 +3,13 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { logoGlyph } from "@/lib/types";
+import { PRODUCT_LOGIN_SUBTITLE, PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
 import { safeInternalPath } from "@/lib/safe-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function LoginForm({
-  siteName,
-  subtitle,
-  logoText,
-  brandColor,
-}: {
-  siteName: string;
-  subtitle: string;
-  logoText: string;
-  brandColor: string;
-}) {
+export function LoginForm({ brandColor }: { brandColor: string }) {
   const search = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -46,10 +36,10 @@ export function LoginForm({
     <div className="login-wrap" style={{ ["--brand" as string]: brandColor }}>
       <div className="login-card">
         <div className="brand" style={{ padding: "0 0 18px" }}>
-          <div className="logo">{logoGlyph({ site_name: siteName, logo_text: logoText })}</div>
+          <div className="logo">{PRODUCT_SHORT}</div>
           <div>
-            <div className="brand-name">{siteName}</div>
-            {subtitle ? <div className="brand-sub">{subtitle}</div> : null}
+            <div className="brand-name">{PRODUCT_NAME}</div>
+            <div className="brand-sub">{PRODUCT_LOGIN_SUBTITLE}</div>
           </div>
         </div>
         {error ? <p className="err">{error}</p> : null}

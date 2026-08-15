@@ -191,16 +191,17 @@ button {
   padding: 4px 8px 16px;
 }
 .logo {
-  width: 28px;
+  min-width: 28px;
   height: 28px;
+  padding: 0 6px;
   border-radius: 6px;
   background: var(--brand);
   color: #fff;
   display: grid;
   place-items: center;
   font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0;
+  font-size: 10px;
+  letter-spacing: 0.06em;
 }
 .brand-name {
   font-size: 13px;
