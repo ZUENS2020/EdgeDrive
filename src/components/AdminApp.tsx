@@ -6,7 +6,6 @@ import { Search, Upload } from "lucide-react";
 import { applyBrandColor } from "@/lib/brand";
 import { copyToClipboard } from "@/lib/clipboard";
 import type { AuthMode, FileView, FolderNode, SiteSettings, StatsPayload } from "@/lib/types";
-import { flattenFolderPaths } from "@/lib/types";
 import { SelectionBar } from "./BatchBar";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
@@ -455,7 +454,7 @@ export function AdminApp({
       <MoveDialog
         open={moveOpen}
         count={moveIds.length}
-        folders={flattenFolderPaths(folders)}
+        folders={folders}
         onClose={() => setMoveOpen(false)}
         onSubmit={async (path) => {
           setMoveOpen(false);
