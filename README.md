@@ -1,14 +1,14 @@
-# Server Less Drive (SLD)
+# EdgeDrive
 
-带有效期的直链网盘。在后台上传文件、设有效期、按文件夹整理；别人用一条直链就能下载。跑在 Cloudflare Workers 上，不用自己买服务器。
+跑在 **Cloudflare Workers 边缘网络**上的 **Serverless** 文件服务：没有常驻服务器，按请求在就近节点执行。后台上传、设有效期、按文件夹整理；过期后下载返回 410。
 
 公开侧：
 
-- `/dl/文件路径` 直接下载
+- `/dl/文件路径` 下载
 - `/dl/文件路径/view` 落地页（图片、音视频、PDF 可预览）
 - 过期后返回 410
 
-管理台可改标记颜色、分页和默认有效期。产品名固定为 **Server Less Drive**，简称 **SLD**。
+管理台可改标记颜色、分页和默认有效期。产品名固定为 **EdgeDrive**。
 
 ---
 
@@ -18,7 +18,7 @@
 
 不要在 `wrangler.jsonc` 里填数据库 ID 或桶名。代码里的绑定名必须是 **DB**（D1）和 **FILES**（R2）。
 
-- **新 Worker**：第一次部署时还没有 Bindings，wrangler 会自动建一套 D1 和 R2 并绑上（名称类似 `zuens-dl-platform-db`、`zuens-dl-platform-files`）。
+- **新 Worker**：第一次部署时还没有 Bindings，wrangler 会自动建一套 D1 和 R2 并绑上（名称类似 `edgedrive-db`、`edgedrive-files`）。
 - **已经绑过**：Settings → Bindings 里已有 `DB` / `FILES` 时，部署会沿用，不会另建。
 
 ### 1. Fork 或导入本仓库
@@ -30,7 +30,7 @@
 1. 打开 [Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages)
 2. **Create** → **Import a repository**，选第 1 步的仓库  
    如果 Worker 已经建好：点进该 Worker → **Settings** → **Build** → **Connect**
-3. Worker 名称保持和仓库里的一致（默认 `zuens-dl-platform`）。若要换名，同时改 `wrangler.jsonc` 的 `name`
+3. Worker 名称保持和仓库里的一致（默认 `edgedrive`）。若要换名，同时改 `wrangler.jsonc` 的 `name`
 4. 生产分支选 `main`
 5. 构建设置：
 
@@ -69,7 +69,7 @@
 | 名称 | 填什么 |
 | --- | --- |
 | `BETTER_AUTH_SECRET` | 随机字符串，至少 32 位。可在本机执行 `openssl rand -hex 32` |
-| `BETTER_AUTH_URL` | 浏览器访问本站的地址，不要末尾斜杠。例如 `https://zuens-dl-platform.你的账号.workers.dev`，绑了自定义域名就填那个 |
+| `BETTER_AUTH_URL` | 浏览器访问本站的地址，不要末尾斜杠。例如 `https://edgedrive.你的账号.workers.dev`，绑了自定义域名就填那个 |
 | `ADMIN_USERNAME` | 管理员用户名 |
 | `ADMIN_PASSWORD` | 管理员密码 |
 
@@ -89,9 +89,9 @@
 
 打开站点首页，点「进入后台」（或直接访问 `/admin`）。用第 4 步设的账号登录。
 
-之后可以：上传文件、设有效期、建文件夹、改标记颜色。直链形式是 `/dl/文件夹/文件名`。
+之后可以：上传文件、设有效期、建文件夹、改标记颜色。下载路径是 `/dl/文件夹/文件名`。
 
-统计页默认只显示本盘数据。若要看 R2 / 数据库用量，把已有的 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN` 从 `NULL` 改成真值（Token 需 Account Analytics 读）。账号里有多套 Worker / R2 / D1 时，再改 `CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID` 用来过滤，不是绑定本身。
+统计页默认只显示本站数据。若要看 R2 / 数据库用量，把已有的 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN` 从 `NULL` 改成真值（Token 需 Account Analytics 读）。账号里有多套 Worker / R2 / D1 时，再改 `CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID` 用来过滤，不是绑定本身。
 
 ---
 

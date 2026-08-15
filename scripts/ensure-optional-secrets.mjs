@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 const SENTINEL = "NULL";
-const DEFAULT_NAME = "zuens-dl-platform";
+const DEFAULT_NAME = "edgedrive";
 const SECRETS = [
   ["AUTH_MODE", "password"],
   ["BETTER_AUTH_SECRET", SENTINEL],

@@ -93,7 +93,7 @@ export function SettingsForm({
   }
 
   const nav: { id: Section; label: string; hint: string }[] = [
-    { id: "look", label: "外观", hint: "产品名固定为 Server Less Drive（SLD），这里只改标记颜色。" },
+    { id: "look", label: "外观", hint: "产品名固定为 EdgeDrive，这里只改标记颜色。" },
     { id: "files", label: "文件", hint: "列表分页、新文件默认有效期，以及过期后如何清理。" },
     { id: "account", label: "账号", hint: "登录方式由部署环境决定，这里只改当前模式需要的项。" },
   ];
@@ -124,7 +124,7 @@ export function SettingsForm({
           <>
             <section className="settings-block">
               <h3>标记颜色</h3>
-              <p className="hint">用在左上角 SLD 标记和公开页点缀。名称、简介和按钮文案不再单独配置。</p>
+              <p className="hint">用在左上角 ED 标记和公开页点缀。名称、简介和按钮文案不再单独配置。</p>
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="brand_color">颜色</Label>
