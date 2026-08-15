@@ -17,7 +17,7 @@ export async function POST(request: Request) {
 }
 
 /** 单请求上传上限：超过请走 /api/files/mpu 分片上传（Workers 请求体上限：免费 100MB/付费 200MB）。 */
-const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
 /** multipart/form-data 解析需全量进内存——只接受小文件；大文件走裸流直传或分片。 */
 const MAX_FORM_SIZE = 10 * 1024 * 1024;
 
@@ -111,7 +111,8 @@ async function upload(request: Request) {
     return NextResponse.json(await saveUploaded(formParts, head?.size || file.size, guessMime(formParts.name), parsed.value));
   }
 
-  // 裸流直传：R2 直接吃 ReadableStream——内存 O(1)——不 OOM
+  // 直传：OpenNext 下 request.body 会丢失 known length（R2 put 流要求 length）——
+  // 用 arrayBuffer（≤MAX_UPLOAD_SIZE 内存可控）；大文件走前端自动分片（mpu）。
   if (!request.body) return NextResponse.json({ error: "empty body" }, { status: 400 });
   const cl = Number(request.headers.get("content-length") || "0");
   if (cl > MAX_UPLOAD_SIZE) {
@@ -120,8 +121,16 @@ async function upload(request: Request) {
       { status: 413 },
     );
   }
+  const buf = await request.arrayBuffer();
+  if (buf.byteLength === 0) return NextResponse.json({ error: "empty body" }, { status: 400 });
+  if (buf.byteLength > MAX_UPLOAD_SIZE) {
+    return NextResponse.json(
+      { error: "file-too-large", max: MAX_UPLOAD_SIZE, hint: "use-multipart-upload" },
+      { status: 413 },
+    );
+  }
   try {
-    await r2.put(key, request.body, opts);
+    await r2.put(key, buf, opts);
   } catch (err) {
     await r2.delete(key).catch(() => {});
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
