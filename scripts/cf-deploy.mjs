@@ -3,7 +3,7 @@
  * Local `npm run cf-deploy` / optional Workers Builds deploy command.
  * Assumes the OpenNext build already produced `.open-next/`.
  *
- * 1. wrangler deploy（沿用 Dashboard Bindings 里已有的 D1/R2，不自动建新的）
+ * 1. wrangler deploy（Worker 上已有 DB/FILES 就沿用；没有则自动建 D1 和 R2）
  * 2. 对绑定名 DB 跑远程迁移
  * 3. 种齐 Variables and Secrets 字段名（已有值不覆盖）
  *
@@ -23,7 +23,7 @@ function run(bin, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-run(wranglerBin, ["deploy", "--keep-vars", "--x-auto-create=false"]);
+run(wranglerBin, ["deploy", "--keep-vars"]);
 run(process.execPath, [path.join(process.cwd(), "scripts", "d1-migrate-remote.mjs")]);
 
 const seed = spawnSync(process.execPath, [path.join(process.cwd(), "scripts", "ensure-optional-secrets.mjs")], {
