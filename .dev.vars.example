@@ -1,6 +1,6 @@
 # Copy to `.dev.vars` for local `next dev` / `wrangler dev`.
 AUTH_MODE=better-auth
-BETTER_AUTH_SECRET=dev-only-change-me-use-32-chars-min
+BETTER_AUTH_SECRET=replace-with-a-32-char-random-string
 BETTER_AUTH_URL=http://localhost:3000
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin123
+ADMIN_PASSWORD=change-me

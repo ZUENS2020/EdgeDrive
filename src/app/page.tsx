@@ -1,43 +1,41 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getSettings } from "@/lib/settings";
+import { DEFAULTS, getSettings } from "@/lib/settings";
+import { logoGlyph } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  let settings = {
-    site_name: "ZUENS DL",
-    site_description: "下载资源管理平台",
-    brand_color: "#171717",
-  };
+  let settings = DEFAULTS;
   try {
     settings = await getSettings();
   } catch {
-    // D1 may be unavailable during first boot / static analysis
+    // D1 may be unavailable during first boot
   }
 
   return (
     <div className="home-wrap" style={{ ["--brand" as string]: settings.brand_color }}>
       <div className="home-card">
         <div className="brand" style={{ padding: "0 0 24px" }}>
-          <div className="logo">{settings.site_name.slice(0, 1).toUpperCase()}</div>
+          <div className="logo">{logoGlyph(settings)}</div>
           <div>
             <div className="brand-name">{settings.site_name}</div>
-            <div className="brand-sub">直链下载</div>
+            {settings.home_kicker ? <div className="brand-sub">{settings.home_kicker}</div> : null}
           </div>
         </div>
         <h1>{settings.site_name}</h1>
-        <p>{settings.site_description}</p>
-        <p>
-          公开地址：<code>/dl/文件路径</code>
-        </p>
-        <Button asChild>
-          <Link href="/admin">
-            管理后台
-            <ArrowRight />
-          </Link>
-        </Button>
+        {settings.site_description ? <p>{settings.site_description}</p> : null}
+        {settings.home_dl_hint ? <p>{settings.home_dl_hint}</p> : null}
+        {settings.show_admin_link ? (
+          <Button asChild>
+            <Link href="/admin">
+              {settings.home_cta}
+              <ArrowRight />
+            </Link>
+          </Button>
+        ) : null}
+        {settings.footer_note ? <p className="home-foot">{settings.footer_note}</p> : null}
       </div>
     </div>
   );

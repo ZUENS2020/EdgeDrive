@@ -39,11 +39,19 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 INSERT OR IGNORE INTO settings (key, value) VALUES
-  ('site_name', 'ZUENS DL'),
-  ('site_description', '下载资源管理平台'),
-  ('brand_color', '#5e6ad2'),
+  ('site_name', '直链盘'),
+  ('site_description', '带有效期的文件直链'),
+  ('brand_color', '#171717'),
   ('page_size', '50'),
-  ('default_expires', '24h');
+  ('default_expires', '24h'),
+  ('home_kicker', '直链下载'),
+  ('home_cta', '管理后台'),
+  ('home_dl_hint', '公开地址：/dl/文件路径'),
+  ('login_subtitle', '管理员登录'),
+  ('admin_subtitle', '管理'),
+  ('footer_note', ''),
+  ('show_admin_link', '1'),
+  ('logo_text', '');
 
 -- Better Auth (SQLite / D1)
 CREATE TABLE IF NOT EXISTS "user" (

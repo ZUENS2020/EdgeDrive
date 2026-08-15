@@ -5,16 +5,17 @@ import { usePathname } from "next/navigation";
 import { Files, LogOut, Settings } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { logoGlyph } from "@/lib/types";
 import type { SiteSettings } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 
 export function AppBrand({ settings }: { settings: SiteSettings }) {
   return (
     <div className="brand">
-      <div className="logo">{settings.site_name.slice(0, 1).toUpperCase()}</div>
+      <div className="logo">{logoGlyph(settings)}</div>
       <div>
         <div className="brand-name">{settings.site_name}</div>
-          <div className="brand-sub">管理</div>
+        {settings.admin_subtitle ? <div className="brand-sub">{settings.admin_subtitle}</div> : null}
       </div>
     </div>
   );

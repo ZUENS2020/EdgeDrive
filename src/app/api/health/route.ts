@@ -3,5 +3,5 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json({ ok: true, service: "zuens-dl-platform", ts: new Date().toISOString() });
+  return NextResponse.json({ ok: true, ts: new Date().toISOString() });
 }

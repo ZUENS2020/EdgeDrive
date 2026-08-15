@@ -3,12 +3,23 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { logoGlyph } from "@/lib/types";
 import { safeInternalPath } from "@/lib/safe-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function LoginForm({ siteName }: { siteName: string }) {
+export function LoginForm({
+  siteName,
+  subtitle,
+  logoText,
+  brandColor,
+}: {
+  siteName: string;
+  subtitle: string;
+  logoText: string;
+  brandColor: string;
+}) {
   const search = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -28,18 +39,17 @@ export function LoginForm({ siteName }: { siteName: string }) {
       setError(err.message || "登录失败");
       return;
     }
-    // Full document navigation avoids OpenNext RSC 500 on login → /admin.
     window.location.assign(safeInternalPath(search.get("next")));
   }
 
   return (
-    <div className="login-wrap">
+    <div className="login-wrap" style={{ ["--brand" as string]: brandColor }}>
       <form className="login-card" onSubmit={onSubmit}>
         <div className="brand" style={{ padding: "0 0 18px" }}>
-          <div className="logo">{siteName.slice(0, 1).toUpperCase()}</div>
+          <div className="logo">{logoGlyph({ site_name: siteName, logo_text: logoText })}</div>
           <div>
             <div className="brand-name">{siteName}</div>
-            <div className="brand-sub">管理员登录</div>
+            {subtitle ? <div className="brand-sub">{subtitle}</div> : null}
           </div>
         </div>
         {error ? <p className="err">{error}</p> : null}
