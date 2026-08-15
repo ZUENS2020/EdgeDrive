@@ -1,15 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Search, Upload } from "lucide-react";
 import { applyBrandColor } from "@/lib/brand";
 import { copyToClipboard } from "@/lib/clipboard";
 import type { FileView, FolderNode, SiteSettings, StatsPayload } from "@/lib/types";
 import { BatchBar } from "./BatchBar";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FileTable } from "./FileTable";
+import { PaginationBar } from "./PaginationBar";
+import { PromptDialog } from "./PromptDialog";
 import { Sidebar } from "./Sidebar";
-import { Modal } from "./ui/Modal";
-import { Button } from "./ui/Button";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 const PART = 8 * 1024 * 1024;
 
@@ -19,6 +25,7 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
   const [settings, setSettings] = useState(initialSettings);
   const [files, setFiles] = useState<FileView[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [stats, setStats] = useState<StatsPayload | null>(null);
   const [path, setPath] = useState<string | null>(null);
@@ -29,15 +36,15 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
   const [expireOpen, setExpireOpen] = useState(false);
   const [expireIds, setExpireIds] = useState<string[]>([]);
   const [confirm, setConfirm] = useState<{ title: string; body: string; ok: string; run: () => void } | null>(null);
+  const [prompt, setPrompt] = useState<{
+    title: string;
+    label: string;
+    value: string;
+    run: (name: string) => void;
+  } | null>(null);
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
   const [pageDrop, setPageDrop] = useState(false);
-  const [toast, setToast] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
-
-  function flash(msg: string) {
-    setToast(msg);
-    window.setTimeout(() => setToast(""), 2200);
-  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,6 +52,7 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
     if (q.trim()) params.set("q", q.trim());
     else if (path != null) params.set("path", path);
     params.set("filter", filter);
+    params.set("page", String(page));
     params.set("pageSize", String(settings.page_size));
     const [fileRes, folderRes, statsRes, settingsRes] = await Promise.all([
       fetch(`/api/files?${params}`),
@@ -67,11 +75,16 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
       if (data.settings) setSettings(data.settings);
     }
     setLoading(false);
-  }, [filter, path, q, settings.page_size]);
+  }, [filter, page, path, q, settings.page_size]);
 
   useEffect(() => {
     applyBrandColor(settings.brand_color);
   }, [settings.brand_color]);
+
+  useEffect(() => {
+    const pages = Math.max(1, Math.ceil(total / settings.page_size));
+    if (page > pages) setPage(pages);
+  }, [page, settings.page_size, total]);
 
   useEffect(() => {
     const t = setTimeout(load, q ? 180 : 0);
@@ -99,7 +112,7 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
     });
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { error?: string };
-      alert(err.error || "操作失败");
+      toast.error(err.error || "操作失败");
       return;
     }
     setSelected(new Set());
@@ -127,55 +140,75 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
         );
         if (uploaded.id) ids.push(uploaded.id);
       } catch (err) {
-        alert(`${file.name}: ${String(err)}`);
+        toast.error(`${file.name}: ${String(err)}`);
       }
     }
     setProgress(null);
     await load();
     if (ids.length) {
       setSelected(new Set(ids));
-      flash(`已上传 ${ids.length} 个并勾选`);
+      toast.success(`已上传 ${ids.length} 个并勾选`);
     }
   }
 
-  async function onCreateFolder(parentId: string) {
-    const name = window.prompt("文件夹名称");
-    if (!name) return;
-    const res = await fetch("/api/folders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, parent_id: parentId }),
+  function onCreateFolder(parentId: string) {
+    setPrompt({
+      title: parentId ? "新建子文件夹" : "新建文件夹",
+      label: "文件夹名称",
+      value: "",
+      run: async (name) => {
+        const res = await fetch("/api/folders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, parent_id: parentId }),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          toast.error(err.error || "创建失败");
+          return;
+        }
+        toast.success("文件夹已创建");
+        await load();
+      },
     });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string };
-      alert(err.error || "创建失败");
-      return;
-    }
-    await load();
   }
 
-  async function onRenameFolder(id: string, name: string) {
-    const res = await fetch("/api/folders", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, name }),
+  function onRenameFolder(id: string, name: string) {
+    setPrompt({
+      title: "重命名文件夹",
+      label: "新名称",
+      value: name,
+      run: async (next) => {
+        const res = await fetch("/api/folders", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, name: next }),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          toast.error(err.error || "重命名失败");
+          return;
+        }
+        toast.success("已重命名");
+        await load();
+      },
     });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string };
-      alert(err.error || "重命名失败");
-      return;
-    }
-    await load();
   }
 
-  function onDeleteFolder(id: string, name: string) {
+  function onDeleteFolder(id: string, folderPath: string, name: string) {
     setConfirm({
       title: "删除文件夹",
       body: `确定删除「${name}」及其内所有文件？此操作无法撤销。`,
       ok: "删除",
       run: async () => {
-        await fetch(`/api/folders?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-        if (path === name || (path && path.startsWith(name + "/"))) setPath(null);
+        const res = await fetch(`/api/folders?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          toast.error(err.error || "删除失败");
+          return;
+        }
+        if (path === folderPath || (path && path.startsWith(`${folderPath}/`))) setPath(null);
+        toast.success("文件夹已删除");
         await load();
       },
     });
@@ -206,6 +239,7 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
         onSelectPath={(p) => {
           setPath(p);
           setQ("");
+          setPage(1);
           setSelected(new Set());
         }}
         onCreateFolder={onCreateFolder}
@@ -219,18 +253,26 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
           <h1>{q.trim() ? "搜索" : path == null ? "全部文件" : path || "根目录"}</h1>
           <span className="count-pill">{total}</span>
           <div className="header-sp" />
-          <Button className="mobile-upload" variant="primary" type="button" onClick={() => fileInput.current?.click()}>
+          <Button className="mobile-upload" type="button" onClick={() => fileInput.current?.click()}>
+            <Upload />
             上传
           </Button>
           <div className="search">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="7" cy="7" r="4.5" />
-              <path d="M10.5 10.5 14 14" />
-            </svg>
-            <input id="q" type="search" placeholder="搜索文件名" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Search />
+            <Input
+              id="q"
+              type="search"
+              className="pl-8"
+              placeholder="搜索文件名"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1);
+              }}
+            />
           </div>
         </div>
-        <div className={`content ${selected.size ? "has-sel" : ""}`}>
+        <div className={cn("content", selected.size && "has-sel")}>
           {progress && (
             <div className="progress-wrap on">
               <div className="progress-meta">
@@ -246,10 +288,13 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
             {(["all", "ok", "soon", "expired"] as Filter[]).map((f) => (
               <button
                 key={f}
-                className={`filter ${filter === f ? "on" : ""}`}
+                className={cn("filter", filter === f && "on")}
                 data-f={f}
                 type="button"
-                onClick={() => setFilter(f)}
+                onClick={() => {
+                  setFilter(f);
+                  setPage(1);
+                }}
               >
                 {f !== "all" && <i className="dot" />}
                 {f === "all" ? "全部" : f === "ok" ? "正常" : f === "soon" ? "即将过期" : "已过期"}
@@ -276,9 +321,11 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
             }}
             onCopy={async (url) => {
               const ok = await copyToClipboard(url);
-              flash(ok ? "已复制下载链接" : "复制失败，请手动复制");
+              if (ok) toast.success("已复制下载链接");
+              else toast.error("复制失败，请手动复制");
             }}
           />
+          <PaginationBar page={page} pageSize={settings.page_size} total={total} onPage={setPage} />
         </div>
       </div>
       <input
@@ -315,27 +362,32 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
         onClose={() => setExpireOpen(false)}
         onSubmit={(payload) => applyExpire(expireIds.length ? expireIds : [...selected], payload)}
       />
-      <Modal open={!!confirm} title={confirm?.title || ""} onClose={() => setConfirm(null)}>
-        <p>{confirm?.body}</p>
-        <div className="modal-acts">
-          <Button type="button" onClick={() => setConfirm(null)}>
-            取消
-          </Button>
-          <Button
-            variant="danger"
-            type="button"
-            onClick={() => {
-              const run = confirm?.run;
-              setConfirm(null);
-              run?.();
-            }}
-          >
-            {confirm?.ok || "确定"}
-          </Button>
-        </div>
-      </Modal>
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title || ""}
+        body={confirm?.body || ""}
+        ok={confirm?.ok}
+        danger
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          const run = confirm?.run;
+          setConfirm(null);
+          run?.();
+        }}
+      />
+      <PromptDialog
+        open={!!prompt}
+        title={prompt?.title || ""}
+        label={prompt?.label || ""}
+        defaultValue={prompt?.value}
+        onClose={() => setPrompt(null)}
+        onSubmit={(value) => {
+          const run = prompt?.run;
+          setPrompt(null);
+          run?.(value);
+        }}
+      />
       <div className={`page-drop ${pageDrop ? "on" : ""}`}>放开以上传</div>
-      {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );
 }
@@ -357,40 +409,50 @@ async function uploadOne(file: File, folderPath: string, onPct: (n: number) => v
     return (await res.json()) as { id?: string };
   }
 
-  const create = await fetch(
-    `/api/files/mpu?action=create&key=${encodeURIComponent(key)}`,
-    { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" } },
-  );
-  if (!create.ok) {
-    const err = (await create.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error || "mpu create failed");
-  }
-  const created = (await create.json()) as { uploadId: string };
-  const { uploadId } = created;
-  const parts: { partNumber: number; etag: string }[] = [];
-  const total = Math.ceil(file.size / PART);
-  for (let i = 0; i < total; i++) {
-    const blob = file.slice(i * PART, Math.min(file.size, (i + 1) * PART));
-    const partRes = await fetch(
-      `/api/files/mpu?action=part&key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${i + 1}`,
-      { method: "PUT", body: blob },
-    );
-    if (!partRes.ok) throw new Error("part failed");
-    const uploaded = (await partRes.json()) as { etag?: string; ETag?: string };
-    parts.push({ partNumber: i + 1, etag: uploaded.etag || uploaded.ETag || "" });
-    onPct(Math.round(((i + 1) / total) * 100));
-  }
-  const done = await fetch(
-    `/api/files/mpu?action=complete&key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}`,
-    {
+  let uploadId = "";
+  try {
+    const create = await fetch(`/api/files/mpu?action=create&key=${encodeURIComponent(key)}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ parts }),
-    },
-  );
-  if (!done.ok) {
-    const err = (await done.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error || "complete failed");
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+    });
+    if (!create.ok) {
+      const err = (await create.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error || "mpu create failed");
+    }
+    const created = (await create.json()) as { uploadId: string };
+    uploadId = created.uploadId;
+    const parts: { partNumber: number; etag: string }[] = [];
+    const total = Math.ceil(file.size / PART);
+    for (let i = 0; i < total; i++) {
+      const blob = file.slice(i * PART, Math.min(file.size, (i + 1) * PART));
+      const partRes = await fetch(
+        `/api/files/mpu?action=part&key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${i + 1}`,
+        { method: "PUT", body: blob },
+      );
+      if (!partRes.ok) throw new Error("part failed");
+      const uploaded = (await partRes.json()) as { etag?: string; ETag?: string };
+      parts.push({ partNumber: i + 1, etag: uploaded.etag || uploaded.ETag || "" });
+      onPct(Math.round(((i + 1) / total) * 100));
+    }
+    const done = await fetch(
+      `/api/files/mpu?action=complete&key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parts }),
+      },
+    );
+    if (!done.ok) {
+      const err = (await done.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error || "complete failed");
+    }
+    return (await done.json()) as { id?: string };
+  } catch (err) {
+    if (uploadId) {
+      await fetch(`/api/files/mpu?key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
+    throw err;
   }
-  return (await done.json()) as { id?: string };
 }

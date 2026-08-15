@@ -1,9 +1,10 @@
 "use client";
 
+import { Copy, Timer } from "lucide-react";
 import { extLabel, fileKind, formatSize, formatTime } from "@/lib/format";
 import type { FileView } from "@/lib/types";
 import { Badge } from "./ui/Badge";
-import { Button } from "./ui/Button";
+import { Button } from "@/components/ui/button";
 
 function statusOf(file: FileView) {
   if (!file.expires) return { kind: "perm" as const, label: "永久", when: "不过期" };
@@ -104,11 +105,13 @@ export function FileTable({
                     </td>
                     <td className="acts-td">
                       <div className="acts">
-                        <Button className="setexp" type="button" onClick={() => onExpire(file.id)}>
+                        <Button variant="ghost" size="sm" type="button" onClick={() => onExpire(file.id)}>
+                          <Timer />
                           有效期
                         </Button>
-                        <Button className="copy" type="button" onClick={() => onCopy(file.url)}>
-                          复制链接
+                        <Button variant="ghost" size="sm" type="button" onClick={() => onCopy(file.url)}>
+                          <Copy />
+                          复制
                         </Button>
                       </div>
                     </td>

@@ -43,7 +43,7 @@ export async function createAuth() {
       }),
       nextCookies(),
     ],
-    trustedOrigins: baseURL ? [baseURL, "http://localhost:3001", "http://192.168.100.1:3001"] : undefined,
+    trustedOrigins: authTrustedOrigins(baseURL),
     advanced: {
       csrf: { enabled: process.env.NODE_ENV === "development" ? false : true },
       database: {
@@ -102,6 +102,20 @@ export async function ensureAdmin(env?: CloudflareEnv) {
     )
     .bind(crypto.randomUUID(), userId, "credential", userId, admin.password_hash, now, now)
     .run();
+}
+
+function authTrustedOrigins(baseURL?: string): string[] | undefined {
+  const origins = new Set<string>();
+  if (baseURL) origins.add(baseURL.replace(/\/$/, ""));
+  if (process.env.NODE_ENV !== "production") {
+    origins.add("http://localhost:3000");
+    origins.add("http://localhost:3001");
+    origins.add("http://127.0.0.1:3000");
+    origins.add("http://127.0.0.1:3001");
+    origins.add("http://192.168.100.1:3000");
+    origins.add("http://192.168.100.1:3001");
+  }
+  return origins.size ? [...origins] : undefined;
 }
 
 export { adminEmail };

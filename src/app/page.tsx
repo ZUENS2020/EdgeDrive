@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ArrowRight, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -30,14 +32,19 @@ export default async function Home() {
         <p>
           公开直链格式：<code>/dl/文件路径</code>
         </p>
-        <p>
-          管理后台：<Link href="/admin">/admin</Link>
-          <span style={{ color: "var(--text-4)" }}>
-            {" "}
-            · AUTH_MODE=better-auth 走登录；AUTH_MODE=none 时请用 Cloudflare Access 保护{" "}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button asChild>
+            <Link href="/admin">
+              进入管理后台
+              <ArrowRight />
+            </Link>
+          </Button>
+          <span className="inline-flex items-center gap-1 text-[var(--text-4)] text-xs">
+            <Download className="size-3.5" />
+            AUTH_MODE=better-auth 走登录；AUTH_MODE=none 时请用 Cloudflare Access 保护{" "}
             <code>/admin*</code>
           </span>
-        </p>
+        </div>
       </div>
     </div>
   );

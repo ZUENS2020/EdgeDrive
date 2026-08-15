@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const folder = await createFolder(body.name || "", body.parent_id || "");
     return NextResponse.json({ ok: true, folder });
   } catch (err) {
-    return NextResponse.json({ error: String((err as Error).message || err) }, { status: 400 });
+    return folderError(err);
   }
 }
 
@@ -42,7 +42,7 @@ export async function PATCH(request: Request) {
     const folder = await renameFolder(body.id, body.name);
     return NextResponse.json({ ok: true, folder });
   } catch (err) {
-    return NextResponse.json({ error: String((err as Error).message || err) }, { status: 400 });
+    return folderError(err);
   }
 }
 
@@ -56,6 +56,20 @@ export async function DELETE(request: Request) {
     const result = await deleteFolder(id);
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
-    return NextResponse.json({ error: String((err as Error).message || err) }, { status: 400 });
+    return folderError(err);
   }
+}
+
+function folderError(err: unknown) {
+  const message = String((err as Error).message || err);
+  if (message === "folder-exists") {
+    return NextResponse.json({ error: "同名文件夹已存在" }, { status: 409 });
+  }
+  if (message === "not-found" || message === "parent-not-found") {
+    return NextResponse.json({ error: "文件夹不存在" }, { status: 404 });
+  }
+  if (message === "invalid-name" || message === "empty" || message === "too-long" || message === "control-chars") {
+    return NextResponse.json({ error: "文件夹名称无效" }, { status: 400 });
+  }
+  return NextResponse.json({ error: "文件夹操作失败" }, { status: 400 });
 }

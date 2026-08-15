@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function MobileNav({ siteName }: { siteName: string }) {
   const [open, setOpen] = useState(false);
@@ -23,7 +25,7 @@ export function MobileNav({ siteName }: { siteName: string }) {
     }
     function onClick(e: MouseEvent) {
       const t = e.target as HTMLElement;
-      if (t.closest(".sidebar a, .sidebar .tree-item, .sidebar .btn-primary")) {
+      if (t.closest(".sidebar a, .sidebar .tree-item, .sidebar [data-slot='button']")) {
         setOpen(false);
       }
     }
@@ -38,17 +40,24 @@ export function MobileNav({ siteName }: { siteName: string }) {
   return (
     <>
       <div className="mobile-bar">
-        <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? <X /> : <Menu />}
           {open ? "关闭" : "菜单"}
-        </button>
+        </Button>
         <strong>{siteName}</strong>
         <span className="header-sp" />
-        <Link className="btn" href="/admin">
-          文件
-        </Link>
-        <Link className="btn" href="/admin/settings">
-          设置
-        </Link>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/admin">文件</Link>
+        </Button>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/admin/settings">设置</Link>
+        </Button>
       </div>
       <button
         type="button"
