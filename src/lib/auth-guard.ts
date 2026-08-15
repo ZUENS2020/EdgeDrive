@@ -1,22 +1,23 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { verifyAccessJwt } from "./access-jwt";
 import { createAuth } from "./auth";
 import { getAuthMode, isAccessMode } from "./cloudflare";
 
 const SESSION_QUERY = { disableRefresh: true, disableCookieCache: true } as const;
 
-/** Cloudflare Access 模式：校验 CF Access 注入的请求头（fail-closed——头不存在一律拒绝）。 */
-function accessVerified(hdrs: Headers): boolean {
-  const email = hdrs.get("cf-access-authenticated-user-email");
+/** Cloudflare Access 模式：验证 CF Access JWT（签名/iss/aud/exp）——fail-closed（未配置或无效一律拒绝）。 */
+async function accessVerified(hdrs: Headers): Promise<boolean> {
   const jwt = hdrs.get("cf-access-jwt-assertion");
-  return Boolean(email || jwt);
+  if (!jwt) return false;
+  return verifyAccessJwt(jwt);
 }
 
 export async function requireAdmin(request?: Request) {
   const mode = await getAuthMode();
   if (isAccessMode(mode)) {
     const hdrs = request ? request.headers : await headers();
-    if (!accessVerified(hdrs)) {
+    if (!(await accessVerified(hdrs))) {
       return {
         ok: false as const,
         session: null,
@@ -53,7 +54,7 @@ export async function requireAdminPage() {
   const mode = await getAuthMode();
   if (isAccessMode(mode)) {
     const hdrs = await headers();
-    return { ok: accessVerified(hdrs), mode };
+    return { ok: await accessVerified(hdrs), mode };
   }
   const hdrs = await headers();
   if (!hasSessionCookie(hdrs.get("cookie"))) {
