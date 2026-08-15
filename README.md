@@ -60,28 +60,37 @@ npx wrangler r2 bucket create <你的-r2-桶名>
 
 ### 2. 环境变量
 
-复制模板：
+分两类：**明文 vars** 可以写在 `wrangler.jsonc`；**高危字段一律进 Cloudflare Worker 的 Encrypted secrets**，不要写进仓库。
 
-```bash
-cp .env.example .env.local
-cp .dev.vars.example .dev.vars
-```
+#### 明文（`wrangler.jsonc` → `vars`）
 
 | 变量 | 说明 |
 | --- | --- |
 | `AUTH_MODE` | `password`（默认，别名 `better-auth`）、`oauth`、`access`（别名 `none`） |
-| `BETTER_AUTH_SECRET` | 会话密钥，至少 32 字符。`password` / `oauth` 必填 |
-| `BETTER_AUTH_URL` | 站点 origin，本地 `http://localhost:3000`，线上换成绑到 Worker 的域名 |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 仅 `password` 模式、且 `admin` 表为空时写入 |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | `oauth` 模式可选，配了才显示 GitHub 按钮 |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `oauth` 模式可选，配了才显示 Google 按钮 |
-| `OAUTH_ALLOW_EMAILS` | 可选，额外允许的邮箱。也可在设置页改 |
-| `CRON_SECRET` | 可选。定时清理：`Authorization: Bearer <secret>` 调 `POST /api/cron/purge` |
-| `CLOUDFLARE_ACCOUNT_ID` | 可选。管理台「统计」拉 R2 / D1 / Worker 分析 |
-| `CLOUDFLARE_API_TOKEN` | 可选。需 **Account Analytics 读** 权限。不要提交真实值 |
-| `CF_WORKER_NAME` / `CF_R2_BUCKET` / `CF_D1_DATABASE_ID` | 统计过滤用，与 `wrangler.jsonc` 里的 Worker 名、R2 桶名、D1 `database_id` 一致 |
+| `CF_WORKER_NAME` / `CF_R2_BUCKET` / `CF_D1_DATABASE_ID` | 统计页过滤用，与本文件里的 Worker 名、R2 桶名、D1 `database_id` 一致 |
 
-**密钥不要写进 `wrangler.jsonc` 或源码。** 线上用 Worker secrets：
+改绑定资源时，这三个 `CF_*` 一并改。
+
+#### 高危（Cloudflare Worker Secrets）
+
+打开 [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → 选中这个 Worker → **Settings** → **Variables and Secrets** → **Add** → 类型选 **Secret**（Encrypted）。也可以用下面的 CLI，效果相同。
+
+**不要**把这些写进 `wrangler.jsonc`、GitHub、或任何会提交的文件。选填项可以不创建，缺了就当空。
+
+| Secret | 必填？ | 说明 |
+| --- | --- | --- |
+| `BETTER_AUTH_SECRET` | `password` / `oauth` 必填 | 会话密钥，至少 32 字符 |
+| `BETTER_AUTH_URL` | `password` / `oauth` 必填 | 站点 origin，须与浏览器访问地址一致 |
+| `ADMIN_USERNAME` | `password` 首次启动 | 管理员用户名；`admin` 表已有账号后忽略 |
+| `ADMIN_PASSWORD` | `password` 首次启动 | 管理员密码；同上 |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | `oauth` 选填 | 配了才显示 GitHub 登录 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `oauth` 选填 | 配了才显示 Google 登录 |
+| `OAUTH_ALLOW_EMAILS` | `oauth` 选填 | 额外允许的邮箱；也可在设置页改 |
+| `CRON_SECRET` | 选填 | `Authorization: Bearer <secret>` 调 `POST /api/cron/purge` |
+| `CLOUDFLARE_ACCOUNT_ID` | 选填 | 统计页拉 R2 / D1 / Worker 分析 |
+| `CLOUDFLARE_API_TOKEN` | 选填 | 需 **Account Analytics 读**。与 GitHub Actions 里那个部署用 Token 不是一回事 |
+
+CLI 示例（会提示你粘贴值，不会写进仓库）：
 
 ```bash
 npx wrangler secret put BETTER_AUTH_SECRET
@@ -89,11 +98,19 @@ npx wrangler secret put BETTER_AUTH_URL
 npx wrangler secret put ADMIN_USERNAME
 npx wrangler secret put ADMIN_PASSWORD
 # oauth 时再 put GITHUB_* / GOOGLE_*
-npx wrangler secret put CLOUDFLARE_ACCOUNT_ID
-npx wrangler secret put CLOUDFLARE_API_TOKEN
+# 要看统计里的 R2 A/B 时再 put CLOUDFLARE_ACCOUNT_ID 与 CLOUDFLARE_API_TOKEN
 ```
 
-`AUTH_MODE`、`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID` 已在 `wrangler.jsonc` 的 `vars` 里，改绑定时一并改这些值。
+#### 本地
+
+本地没有 Dashboard，用 `.dev.vars`（`wrangler` / `next dev` 会读）。从模板复制后改，**不要提交**：
+
+```bash
+cp .env.example .env.local
+cp .dev.vars.example .dev.vars
+```
+
+`.dev.vars` 里的键名与线上 Worker Secrets 一一对应。线上以 Dashboard / `wrangler secret` 为准。
 
 ### 3. 本地开发
 
@@ -128,12 +145,12 @@ npm run deploy
 
 push `main` 会跑 `.github/workflows/deploy.yml`：应用 D1 迁移 → OpenNext build → `wrangler deploy`。
 
-仓库 Secrets（GitHub）：
+仓库 Secrets（GitHub，**只给 CI 调 wrangler 部署**，不会进 Worker 运行时）：
 
 - `CLOUDFLARE_API_TOKEN`（Workers 编辑 + D1）
 - `CLOUDFLARE_ACCOUNT_ID`
 
-管理员密码和 Better Auth 密钥只存在 Cloudflare Worker secrets，不要放进 GitHub。
+账密、`BETTER_AUTH_*`、统计用的 Analytics Token 只存在 **该 Worker 的 Secrets**，不要放进 GitHub。
 
 ## 鉴权
 
@@ -180,9 +197,9 @@ GET      /dl/<文件夹路径/文件名>/view  长链，落地页（可预览图
 
 时间范围：24 小时 / 7 天 / 本月。本月对照 Cloudflare 免费档（R2 10 GB / 100 万 A / 1000 万 B，D1 5 GB），**不是账单**。
 
-R2 / D1 / Worker 分析走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/)，需要 Worker secret：`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`（Account Analytics 读）。过滤名在 `wrangler.jsonc` 的 `vars`：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。
+`CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 是 Worker **选填 Secret**（Dashboard → Settings → Variables and Secrets，或不创建）。不要写进 `wrangler.jsonc`。空着时统计页只有本盘数据；配上后（Token 需 Account Analytics 读）才走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/) 拉 R2 Class A/B、D1 查询量和 Worker 调用。过滤名用明文 vars：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。
 
-`GET /api/usage?range=month|7d|24h`（需登录）返回同一份 JSON。未配 Token 时 `analytics.configured` 为 `false`，本盘数据仍有。
+`GET /api/usage?range=month|7d|24h`（需登录）返回同一份 JSON。未填时 `analytics.configured` 为 `false`。
 
 ## 数据模型
 

@@ -1,15 +1,17 @@
-# Copy to `.dev.vars` for local `next dev` / `wrangler dev`.
+# Copy to `.dev.vars` for local `next dev` / `wrangler dev`. Do not commit `.dev.vars`.
+# Production: add the same keys as Encrypted secrets on the Worker
+# (Dashboard → Workers & Pages → this Worker → Settings → Variables and Secrets).
+
 AUTH_MODE=password
 BETTER_AUTH_SECRET=replace-with-a-32-char-random-string
 BETTER_AUTH_URL=http://localhost:3000
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-me
-# GITHUB_CLIENT_ID=
-# GITHUB_CLIENT_SECRET=
-# GOOGLE_CLIENT_ID=
-# GOOGLE_CLIENT_SECRET=
-# OAUTH_ALLOW_EMAILS=
-# CRON_SECRET=
-# Optional, for /admin/usage analytics (Account Analytics Read):
-# CLOUDFLARE_ACCOUNT_ID=
-# CLOUDFLARE_API_TOKEN=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+OAUTH_ALLOW_EMAILS=
+CRON_SECRET=
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=

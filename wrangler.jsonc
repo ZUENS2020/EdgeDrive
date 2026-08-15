@@ -23,6 +23,7 @@
     }
   ],
   "vars": {
+    // 非密钥。账密、Token 等一律到 Dashboard → 该 Worker → Settings → Variables and Secrets 加 Encrypted。
     "AUTH_MODE": "better-auth",
     "CF_WORKER_NAME": "zuens-dl-platform",
     "CF_R2_BUCKET": "zuens-dl",
