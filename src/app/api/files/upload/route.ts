@@ -16,6 +16,9 @@ export async function POST(request: Request) {
   return upload(request);
 }
 
+/** 单次请求上传上限：超过请走 /api/files/mpu 分片上传（100MB 为 Workers 请求体上限）。 */
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+
 async function upload(request: Request) {
   const gate = await requireAdmin(request);
   if (!gate.ok) return gate.response;
@@ -27,6 +30,14 @@ async function upload(request: Request) {
   let body: ArrayBuffer | null = null;
   let mime = request.headers.get("content-type") || "";
   let size = Number(request.headers.get("content-length") || "0");
+
+  // 有 content-length 先查（读取前拦截大请求）
+  if (size > MAX_UPLOAD_SIZE) {
+    return NextResponse.json(
+      { error: "file-too-large", max: MAX_UPLOAD_SIZE, hint: "use-multipart-upload" },
+      { status: 413 },
+    );
+  }
 
   if (mime.includes("multipart/form-data")) {
     const form = await request.formData();
@@ -51,6 +62,13 @@ async function upload(request: Request) {
   const key = keyRes.value;
   const parts = splitKey(key);
   if (!body || body.byteLength === 0) return NextResponse.json({ error: "empty body" }, { status: 400 });
+  // 读取后复查（multipart/无 content-length 时兜底）
+  if (body.byteLength > MAX_UPLOAD_SIZE) {
+    return NextResponse.json(
+      { error: "file-too-large", max: MAX_UPLOAD_SIZE, hint: "use-multipart-upload" },
+      { status: 413 },
+    );
+  }
 
   const expireInput = expireFromSearchParams(url.searchParams);
   const hasExplicit =
