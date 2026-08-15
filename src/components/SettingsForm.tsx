@@ -65,7 +65,7 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="brand_color">主色（应用到 --brand / --accent）</Label>
+        <Label htmlFor="brand_color">标志色（只用于左上角标记，不影响整体界面）</Label>
         <div className="color-row">
           <input
             type="color"

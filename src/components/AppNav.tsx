@@ -14,7 +14,7 @@ export function AppBrand({ settings }: { settings: SiteSettings }) {
       <div className="logo">{settings.site_name.slice(0, 1).toUpperCase()}</div>
       <div>
         <div className="brand-name">{settings.site_name}</div>
-        <div className="brand-sub">Admin</div>
+          <div className="brand-sub">管理</div>
       </div>
     </div>
   );

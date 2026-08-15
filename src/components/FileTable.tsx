@@ -1,7 +1,7 @@
 "use client";
 
 import { Copy, Timer } from "lucide-react";
-import { extLabel, fileKind, formatSize, formatTime } from "@/lib/format";
+import { extLabel, formatSize, formatTime } from "@/lib/format";
 import type { FileView } from "@/lib/types";
 import { Badge } from "./ui/Badge";
 import { Button } from "@/components/ui/button";
@@ -85,7 +85,7 @@ export function FileTable({
                     </td>
                     <td>
                       <div className="file">
-                        <span className={`fico ${fileKind(file.name, file.mime)}`}>{extLabel(file.name)}</span>
+                        <span className="fico">{extLabel(file.name)}</span>
                         <div>
                           <a className="name" href={file.url} title={file.key}>
                             {file.name}
