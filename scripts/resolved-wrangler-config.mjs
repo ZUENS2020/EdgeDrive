@@ -43,7 +43,8 @@ export async function resolvedWranglerConfigPath(root = process.cwd()) {
   let settings;
   try {
     settings = await cfApi(account, token, `/workers/scripts/${scriptName}/settings`);
-  } catch {
+  } catch (err) {
+    console.warn(`could not read Worker settings (${err.message}); will match default-named D1/R2 if unbound`);
     settings = { bindings: [] };
   }
   const bound = new Set((settings?.bindings || []).map((b) => b.name));
