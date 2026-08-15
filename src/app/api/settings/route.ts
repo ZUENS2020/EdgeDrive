@@ -6,10 +6,14 @@ import type { SiteSettings } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const gate = await requireAdmin(request);
-  if (!gate.ok) return gate.response;
-  const settings = await getSettings();
-  return NextResponse.json({ settings, authMode: gate.mode });
+  try {
+    const gate = await requireAdmin(request);
+    if (!gate.ok) return gate.response;
+    const settings = await getSettings();
+    return NextResponse.json({ settings, authMode: gate.mode });
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || e), stack: String(e?.stack || "").slice(0, 500) }, { status: 500 });
+  }
 }
 
 export async function PUT(request: Request) {
