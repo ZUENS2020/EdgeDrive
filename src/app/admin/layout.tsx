@@ -1,26 +1,29 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { createAuth } from "@/lib/auth";
-import { getAuthMode } from "@/lib/cloudflare";
+import { MobileNav } from "@/components/MobileNav";
+import { requireAdminPage } from "@/lib/auth-guard";
 import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  const mode = await getAuthMode();
-  if (mode === "better-auth") {
-    const auth = await createAuth();
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) redirect("/login");
-  }
+  const gate = await requireAdminPage();
+  if (!gate.ok) redirect("/login");
 
   let brand = "#5e6ad2";
+  let siteName = "ZUENS DL";
   try {
-    brand = (await getSettings()).brand_color;
+    const settings = await getSettings();
+    brand = settings.brand_color;
+    siteName = settings.site_name;
   } catch {
     // ignore
   }
 
-  return <div style={{ ["--brand" as string]: brand, flex: 1 }}>{children}</div>;
+  return (
+    <div className="admin-root" style={{ ["--brand" as string]: brand, flex: 1 }}>
+      <MobileNav siteName={siteName} />
+      {children}
+    </div>
+  );
 }

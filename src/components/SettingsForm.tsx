@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { applyBrandColor } from "@/lib/brand";
 import type { SiteSettings } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { Field, Input, Select, Textarea } from "./ui/Input";
 
 export function SettingsForm({ initial }: { initial: SiteSettings }) {
+  const router = useRouter();
   const [form, setForm] = useState(initial);
   const [saved, setSaved] = useState("");
+
+  useEffect(() => {
+    applyBrandColor(form.brand_color);
+  }, [form.brand_color]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,7 +29,9 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
     }
     const data = (await res.json()) as { settings: SiteSettings };
     setForm(data.settings);
-    setSaved("已保存");
+    applyBrandColor(data.settings.brand_color);
+    setSaved("已保存，界面已应用");
+    router.refresh();
   }
 
   return (
@@ -36,12 +45,20 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
           onChange={(e) => setForm({ ...form, site_description: e.target.value })}
         />
       </Field>
-      <Field label="主色（CSS 变量 --brand）">
-        <Input
-          type="text"
-          value={form.brand_color}
-          onChange={(e) => setForm({ ...form, brand_color: e.target.value })}
-        />
+      <Field label="主色（应用到 --brand / --accent）">
+        <div className="color-row">
+          <input
+            type="color"
+            aria-label="主色选择"
+            value={form.brand_color}
+            onChange={(e) => setForm({ ...form, brand_color: e.target.value })}
+          />
+          <Input
+            type="text"
+            value={form.brand_color}
+            onChange={(e) => setForm({ ...form, brand_color: e.target.value })}
+          />
+        </div>
       </Field>
       <Field label="每页条数">
         <Input

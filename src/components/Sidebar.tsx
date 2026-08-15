@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import type { FolderNode, SiteSettings, StatsPayload } from "@/lib/types";
 import { Button } from "./ui/Button";
@@ -23,21 +22,19 @@ export function Sidebar({
 }: {
   settings: SiteSettings;
   folders: FolderNode[];
-  currentPath: string;
+  currentPath: string | null;
   stats: StatsPayload | null;
-  onSelectPath: (path: string) => void;
+  onSelectPath: (path: string | null) => void;
   onCreateFolder: (parentId: string) => void;
   onRenameFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string, name: string) => void;
   onUpload: () => void;
   onPickFiles: (files: FileList | File[]) => void;
 }) {
-  const router = useRouter();
 
   async function logout() {
     await authClient.signOut();
-    router.push("/login");
-    router.refresh();
+    window.location.assign("/login");
   }
 
   return (

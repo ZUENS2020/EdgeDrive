@@ -11,8 +11,9 @@ export async function GET(request: Request) {
     if (!gate.ok) return gate.response;
     const settings = await getSettings();
     return NextResponse.json({ settings, authMode: gate.mode });
-  } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || e), stack: String(e?.stack || "").slice(0, 500) }, { status: 500 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

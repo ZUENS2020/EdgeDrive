@@ -12,8 +12,8 @@ export function FolderTree({
   onDelete,
 }: {
   folders: FolderNode[];
-  currentPath: string;
-  onSelect: (path: string) => void;
+  currentPath: string | null;
+  onSelect: (path: string | null) => void;
   onCreate: (parentId: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string, name: string) => void;
@@ -29,10 +29,17 @@ export function FolderTree({
       <div className="tree">
         <button
           type="button"
+          className={`tree-item ${currentPath === null ? "on" : ""}`}
+          onClick={() => onSelect(null)}
+        >
+          <span className="nm">全部</span>
+        </button>
+        <button
+          type="button"
           className={`tree-item ${currentPath === "" ? "on" : ""}`}
           onClick={() => onSelect("")}
         >
-          <span className="nm">全部 / 根目录</span>
+          <span className="nm">根目录</span>
         </button>
         {folders.map((node) => (
           <TreeNode
@@ -59,8 +66,8 @@ function TreeNode({
   onDelete,
 }: {
   node: FolderNode;
-  currentPath: string;
-  onSelect: (path: string) => void;
+  currentPath: string | null;
+  onSelect: (path: string | null) => void;
   onCreate: (parentId: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string, name: string) => void;

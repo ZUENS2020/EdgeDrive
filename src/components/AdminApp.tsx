@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { applyBrandColor } from "@/lib/brand";
+import { copyToClipboard } from "@/lib/clipboard";
 import type { FileView, FolderNode, SiteSettings, StatsPayload } from "@/lib/types";
 import { BatchBar } from "./BatchBar";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
@@ -19,7 +21,7 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
   const [total, setTotal] = useState(0);
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [stats, setStats] = useState<StatsPayload | null>(null);
-  const [path, setPath] = useState("");
+  const [path, setPath] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
@@ -29,13 +31,19 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
   const [confirm, setConfirm] = useState<{ title: string; body: string; ok: string; run: () => void } | null>(null);
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
   const [pageDrop, setPageDrop] = useState(false);
+  const [toast, setToast] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+
+  function flash(msg: string) {
+    setToast(msg);
+    window.setTimeout(() => setToast(""), 2200);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (q.trim()) params.set("q", q.trim());
-    else params.set("path", path);
+    else if (path != null) params.set("path", path);
     params.set("filter", filter);
     params.set("pageSize", String(settings.page_size));
     const [fileRes, folderRes, statsRes, settingsRes] = await Promise.all([
@@ -60,6 +68,10 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
     }
     setLoading(false);
   }, [filter, path, q, settings.page_size]);
+
+  useEffect(() => {
+    applyBrandColor(settings.brand_color);
+  }, [settings.brand_color]);
 
   useEffect(() => {
     const t = setTimeout(load, q ? 180 : 0);
@@ -104,17 +116,26 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
   async function uploadFiles(list: FileList | File[]) {
     const arr = Array.from(list);
     if (!arr.length) return;
+    const folder = path || "";
+    const ids: string[] = [];
     for (let i = 0; i < arr.length; i++) {
       const file = arr[i];
       setProgress({ label: `上传 ${file.name}（${i + 1}/${arr.length}）`, pct: 0 });
       try {
-        await uploadOne(file, path, (pct) => setProgress({ label: `上传 ${file.name}（${i + 1}/${arr.length}）`, pct }));
+        const uploaded = await uploadOne(file, folder, (pct) =>
+          setProgress({ label: `上传 ${file.name}（${i + 1}/${arr.length}）`, pct }),
+        );
+        if (uploaded.id) ids.push(uploaded.id);
       } catch (err) {
         alert(`${file.name}: ${String(err)}`);
       }
     }
     setProgress(null);
     await load();
+    if (ids.length) {
+      setSelected(new Set(ids));
+      flash(`已上传 ${ids.length} 个并勾选`);
+    }
   }
 
   async function onCreateFolder(parentId: string) {
@@ -154,7 +175,7 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
       ok: "删除",
       run: async () => {
         await fetch(`/api/folders?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-        if (path === name || path.startsWith(name + "/")) setPath("");
+        if (path === name || (path && path.startsWith(name + "/"))) setPath(null);
         await load();
       },
     });
@@ -195,9 +216,12 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
       />
       <div className="main">
         <div className="header">
-          <h1>{q.trim() ? "搜索" : path || "文件"}</h1>
+          <h1>{q.trim() ? "搜索" : path == null ? "全部文件" : path || "根目录"}</h1>
           <span className="count-pill">{total}</span>
           <div className="header-sp" />
+          <Button className="mobile-upload" variant="primary" type="button" onClick={() => fileInput.current?.click()}>
+            上传
+          </Button>
           <div className="search">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <circle cx="7" cy="7" r="4.5" />
@@ -251,7 +275,8 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
               setExpireOpen(true);
             }}
             onCopy={async (url) => {
-              await navigator.clipboard.writeText(url);
+              const ok = await copyToClipboard(url);
+              flash(ok ? "已复制下载链接" : "复制失败，请手动复制");
             }}
           />
         </div>
@@ -310,11 +335,12 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
         </div>
       </Modal>
       <div className={`page-drop ${pageDrop ? "on" : ""}`}>放开以上传</div>
+      {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );
 }
 
-async function uploadOne(file: File, folderPath: string, onPct: (n: number) => void) {
+async function uploadOne(file: File, folderPath: string, onPct: (n: number) => void): Promise<{ id?: string }> {
   const key = folderPath ? `${folderPath}/${file.name}` : file.name;
   if (file.size <= PART) {
     const params = new URLSearchParams({ name: file.name, path: folderPath });
@@ -328,7 +354,7 @@ async function uploadOne(file: File, folderPath: string, onPct: (n: number) => v
       throw new Error(err.error || res.statusText);
     }
     onPct(100);
-    return;
+    return (await res.json()) as { id?: string };
   }
 
   const create = await fetch(
@@ -366,4 +392,5 @@ async function uploadOne(file: File, folderPath: string, onPct: (n: number) => v
     const err = (await done.json().catch(() => ({}))) as { error?: string };
     throw new Error(err.error || "complete failed");
   }
+  return (await done.json()) as { id?: string };
 }

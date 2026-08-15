@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 
 export function LoginForm({ siteName }: { siteName: string }) {
-  const router = useRouter();
   const search = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -27,8 +26,8 @@ export function LoginForm({ siteName }: { siteName: string }) {
       setError(err.message || "登录失败");
       return;
     }
-    router.push(search.get("next") || "/admin");
-    router.refresh();
+    // Full document navigation avoids OpenNext RSC 500 on login → /admin.
+    window.location.assign(search.get("next") || "/admin");
   }
 
   return (

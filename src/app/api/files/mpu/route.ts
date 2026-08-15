@@ -54,8 +54,9 @@ export async function POST(request: Request) {
     try {
       const object = await mpu.complete(parts);
       const { path, name } = splitKey(key);
+      const id = crypto.randomUUID();
       await upsertFile({
-        id: crypto.randomUUID(),
+        id,
         name,
         path,
         size: object.size,
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({
         ok: true,
+        id,
         key,
         etag: object.httpEtag,
         url: `/dl/${key.split("/").map(encodeURIComponent).join("/")}`,

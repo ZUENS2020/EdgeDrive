@@ -7,9 +7,9 @@
 ## 功能
 
 - **双模式鉴权**：`AUTH_MODE=better-auth`（默认，Better Auth 单管理员账号密码）或 `AUTH_MODE=none`（应用层不鉴权，用 Cloudflare Access 保护 `/admin*`）
-- **文件管理**：拖拽/批量上传、文件夹树、有效期三档（永久 / 限时 / 自定义）、批量操作、文件名搜索、仪表盘统计
+- **文件管理**：拖拽/批量上传（上传后自动勾选）、文件夹树（全部 / 根目录 / 子目录）、有效期三档（永久 / 限时 / 自定义）、批量操作、文件名搜索、仪表盘统计
 - **下载**：`/dl/<路径>` 流式返回，`Content-Disposition: attachment`，Range，过期 410，下载计数 +1
-- **可配置 UI**：站点名、描述、主色、每页条数、默认有效期（D1 `settings`）
+- **可配置 UI**：站点名、描述、主色、每页条数、默认有效期（D1 `settings`）；主色写入 `--brand` / `--accent`
 - **零密钥**：代码不含 Cloudflare / 管理员密钥，全部走环境变量
 
 ## 技术栈
@@ -73,7 +73,8 @@ npx wrangler secret put BETTER_AUTH_URL
 ### 1. `AUTH_MODE=better-auth`（默认）
 
 - 登录页 `/login`，Better Auth 会话 cookie
-- Next.js 16 `proxy.ts` 保护 `/admin*`（未登录跳转 `/login`）
+- `src/app/admin/layout.tsx` 服务端守卫 `/admin*`（未登录跳转 `/login`）。RSC 里 `getSession` 使用 `disableRefresh` + `disableCookieCache`，避免在渲染阶段写 cookie（OpenNext Worker 上会 500）
+- 登录成功后整页跳到 `/admin`（不用 App Router 软导航）
 - API `/api/files*` `/api/folders` `/api/stats` `/api/settings` 再校验 session
 - 首次请求若 `admin` 表为空，用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 初始化（bcrypt）
 

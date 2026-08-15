@@ -73,8 +73,9 @@ async function upload(request: Request) {
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
   }
   const head = await r2.head(key);
+  const id = crypto.randomUUID();
   await upsertFile({
-    id: crypto.randomUUID(),
+    id,
     name: parts.name,
     path: parts.path,
     size: head?.size || size,
@@ -85,6 +86,7 @@ async function upload(request: Request) {
   });
   return NextResponse.json({
     ok: true,
+    id,
     key,
     url: `/dl/${key.split("/").map(encodeURIComponent).join("/")}`,
     expires: parsed.value,
