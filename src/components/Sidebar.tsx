@@ -35,7 +35,7 @@ export function Sidebar({
 }) {
   return (
     <aside className="sidebar">
-      <AppBrand settings={settings} />
+      <AppBrand />
       <AppNav />
       <FolderTree
         folders={folders}

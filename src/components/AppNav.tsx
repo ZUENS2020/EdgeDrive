@@ -4,18 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChartNoAxesColumnIncreasing, Files, LogOut, Settings } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { PRODUCT_ADMIN_SUBTITLE, PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
 import { cn } from "@/lib/utils";
-import { logoGlyph } from "@/lib/types";
-import type { SiteSettings } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 
-export function AppBrand({ settings }: { settings: SiteSettings }) {
+export function AppBrand() {
   return (
     <div className="brand">
-      <div className="logo">{logoGlyph(settings)}</div>
+      <div className="logo">{PRODUCT_SHORT}</div>
       <div>
-        <div className="brand-name">{settings.site_name}</div>
-        {settings.admin_subtitle ? <div className="brand-sub">{settings.admin_subtitle}</div> : null}
+        <div className="brand-name">{PRODUCT_NAME}</div>
+        <div className="brand-sub">{PRODUCT_ADMIN_SUBTITLE}</div>
       </div>
     </div>
   );

@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server";
 import { getR2 } from "@/lib/cloudflare";
+import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { fileKind, formatSize, formatTime } from "@/lib/format";
 import { guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
 import { getFileByKey, incrementDownload } from "@/lib/store";
-import { isExpired, logoGlyph, type FileRow, type SiteSettings } from "@/lib/types";
+import { isExpired, type FileRow, type SiteSettings } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -195,14 +196,14 @@ function renderViewPage(origin: string, key: string, meta: FileRow, settings: Si
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${esc(meta.name)} · ${esc(settings.site_name)}</title>
+  <title>${esc(meta.name)} · ${esc(PRODUCT_NAME)}</title>
   <style>
     :root { --brand:${esc(settings.brand_color)}; --bg:#f6f5f2; --text:#171717; --text-3:#737373; --surface:#fff; --line:rgba(23,23,23,.1); }
     * { box-sizing: border-box; }
     body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font:16px/1.5 "Noto Sans SC","PingFang SC","Hiragino Sans GB",sans-serif; }
     .wrap { max-width:720px; margin:0 auto; padding:48px 20px 64px; }
     .brand { display:flex; gap:10px; align-items:center; margin-bottom:24px; }
-    .logo { width:28px; height:28px; border-radius:6px; background:var(--brand); color:#fff; display:grid; place-items:center; font-weight:600; font-size:13px; }
+    .logo { min-width:28px; height:28px; padding:0 6px; border-radius:6px; background:var(--brand); color:#fff; display:grid; place-items:center; font-weight:600; font-size:10px; letter-spacing:.06em; }
     h1 { font-size:22px; font-weight:600; letter-spacing:-.03em; margin:0 0 8px; word-break:break-all; }
     .meta { color:var(--text-3); font-size:14px; margin:0 0 20px; }
     a.btn { display:inline-flex; align-items:center; height:32px; padding:0 12px; background:#171717; color:#fafafa; text-decoration:none; border-radius:8px; font-size:14px; font-weight:500; }
@@ -214,8 +215,8 @@ function renderViewPage(origin: string, key: string, meta: FileRow, settings: Si
 <body>
   <div class="wrap">
     <div class="brand">
-      <div class="logo">${esc(logoGlyph(settings))}</div>
-      <div>${esc(settings.site_name)}</div>
+      <div class="logo">${esc(PRODUCT_SHORT)}</div>
+      <div>${esc(PRODUCT_NAME)}</div>
     </div>
     <h1>${esc(meta.name)}</h1>
     <p class="meta">${esc(formatSize(meta.size))} · ${esc(status)}${meta.path ? ` · ${esc(meta.path)}` : ""}</p>

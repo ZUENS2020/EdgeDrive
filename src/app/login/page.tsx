@@ -19,12 +19,7 @@ export default async function LoginPage() {
 
   return (
     <Suspense>
-      <LoginForm
-        siteName={settings.site_name}
-        subtitle={settings.login_subtitle}
-        logoText={settings.logo_text}
-        brandColor={settings.brand_color}
-      />
+      <LoginForm brandColor={settings.brand_color} />
     </Suspense>
   );
 }
