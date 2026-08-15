@@ -101,7 +101,7 @@ export async function PUT(request: Request) {
   const r2 = await getR2();
   const mpu = r2.resumeMultipartUpload(keyRes.value, uploadId);
   try {
-    const uploaded = await mpu.uploadPart(partNumber, await request.arrayBuffer());
+    const uploaded = await mpu.uploadPart(partNumber, request.body);
     return NextResponse.json(uploaded);
   } catch (err) {
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 400 });
