@@ -25,8 +25,9 @@ jobs:
       - name: Build with OpenNext
         run: npx opennextjs-cloudflare build
       - name: Deploy Worker
-        # OpenNext 产出 Worker（.open-next/worker.js），用 wrangler deploy。
+        # OPEN_NEXT_DEPLOY 避免 wrangler 再包一层 opennext deploy 把鉴权环境变量弄丢。
         run: npx wrangler deploy
         env:
+          OPEN_NEXT_DEPLOY: "true"
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
