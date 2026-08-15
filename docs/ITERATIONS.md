@@ -20,6 +20,17 @@
 - 设置页主色选择器，保存后 `--brand/--accent` 立刻生效
 - `initOpenNextCloudflareForDev()` 补回 `next.config.ts`；README 去掉已删除的 `proxy.ts`
 
+### 线上验收（workers.dev，Playwright Chromium）
+
+1. 登录后 `/admin` 200，侧栏 + 文件表完整渲染（桌面/手机截图 `docs/screenshots/r2-0815/`）
+2. 新建文件夹 → 上传进文件夹并自动勾选 → 行内设永久 → 复制链接 Toast → 搜索 LIKE → 筛选 → 统计数值 → 批量立即过期/转永久
+3. `/dl/<folder>/<file>` 200 + `Content-Disposition: attachment`
+4. 设置页改站点名/主色，首页与按钮色立即变化；再改回
+5. 过期直链 410
+6. 手机顶栏 + 菜单抽屉可进文件夹/上传/设置
+
+curl 带非法 `Next-Router-State-Tree` 仍会 500（Next 16 schema），真实浏览器登录跳转不再走这条路径（硬跳 `/admin`）。
+
 ## 2026-08-15 — v1 平台化
 
 按任务书 `cursor-dl-platform-0815.md` 从 create-next-app 骨架做到可部署的下载资源管理平台。
