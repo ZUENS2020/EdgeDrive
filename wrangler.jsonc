@@ -7,7 +7,7 @@
   // 只声明绑定名。不要填 database_id / bucket_name，否则会写死某一套资源。
   // 新 Worker 第一次部署会自动建 D1（DB）和 R2（FILES）。
   // 已经在 Settings → Bindings 里绑过的，会沿用，不会另建。
-  "name": "dl-platform",
+  "name": "zuens-dl-platform",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
