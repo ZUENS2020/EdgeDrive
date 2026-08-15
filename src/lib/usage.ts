@@ -131,8 +131,8 @@ type GqlAccount = {
       rowsRead?: number;
       rowsWritten?: number;
       queryBatchResponseBytes?: number;
-      queryBatchTimeMs?: number;
     };
+    avg?: { queryBatchTimeMs?: number };
   }[];
   d1StorageAdaptiveGroups?: { max?: { databaseSizeBytes?: number } }[];
   workersInvocationsAdaptive?: {
@@ -202,7 +202,8 @@ async function graphqlAnalytics(
             limit: 1
             filter: { ${d1Filter} }
           ) {
-            sum { readQueries writeQueries rowsRead rowsWritten queryBatchResponseBytes queryBatchTimeMs }
+            sum { readQueries writeQueries rowsRead rowsWritten queryBatchResponseBytes }
+            avg { queryBatchTimeMs }
           }
           d1StorageAdaptiveGroups(
             limit: 1
@@ -277,7 +278,9 @@ async function graphqlAnalytics(
     const otherOps = byAction.filter((r) => r.klass === "other").reduce((n, r) => n + r.requests, 0);
     const storage = acc.r2StorageAdaptiveGroups?.[0]?.max;
 
-    const d1Sum = acc.d1AnalyticsAdaptiveGroups?.[0]?.sum;
+    const d1Row = acc.d1AnalyticsAdaptiveGroups?.[0];
+    const d1Sum = d1Row?.sum;
+    const d1AvgMs = d1Row?.avg?.queryBatchTimeMs;
     const d1Size = acc.d1StorageAdaptiveGroups?.[0]?.max?.databaseSizeBytes;
 
     const workerRows = acc.workersInvocationsAdaptive || [];
@@ -308,7 +311,7 @@ async function graphqlAnalytics(
             rowsRead: Number(d1Sum.rowsRead || 0),
             rowsWritten: Number(d1Sum.rowsWritten || 0),
             responseBytes: Number(d1Sum.queryBatchResponseBytes || 0),
-            queryTimeMs: Number(d1Sum.queryBatchTimeMs || 0),
+            queryTimeMs: Number(d1AvgMs || 0),
             databaseBytes: d1Size != null ? Number(d1Size) : null,
           }
         : {
