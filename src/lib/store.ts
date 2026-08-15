@@ -1,14 +1,15 @@
 import { getDB, getR2 } from "./cloudflare";
 import { escapeLike } from "./like";
-import { fileKey, isExpired, type FileRow, type FileView, type FolderNode, type FolderRow, type StatsPayload } from "./types";
-import { sanitizeFolderName, sanitizeKey, splitKey } from "./sanitize";
+import { dlUrl, fileKey, flattenFolderPaths, isExpired, type FileRow, type FileView, type FolderNode, type FolderRow, type StatsPayload } from "./types";
+import { sanitizeFileName, sanitizeFolderName, sanitizeKey, splitKey } from "./sanitize";
 
 function toView(row: FileRow, origin: string, now = Date.now()): FileView {
   const key = fileKey(row.path, row.name);
   return {
     ...row,
     key,
-    url: `${origin}/dl/${key.split("/").map(encodeURIComponent).join("/")}`,
+    url: dlUrl(origin, key),
+    viewUrl: dlUrl(origin, key, true),
     expired: isExpired(row.expires, now),
   };
 }
@@ -65,6 +66,11 @@ export async function listFiles(opts: {
     files: (rows.results || []).map((r) => toView(r, opts.origin, now)),
     total: count?.n || 0,
   };
+}
+
+export async function getFileById(id: string): Promise<FileRow | null> {
+  const db = await getDB();
+  return (await db.prepare("SELECT * FROM files WHERE id = ?").bind(id).first<FileRow>()) || null;
 }
 
 export async function getFileByKey(key: string): Promise<FileRow | null> {
@@ -331,6 +337,98 @@ export async function getStats(origin: string): Promise<StatsPayload> {
     soonCount: agg?.soonCount || 0,
     soon: (soonRows.results || []).map((r) => toView(r, origin, now)),
   };
+}
+
+export async function purgeExpired(graceDays: number): Promise<{ deleted: number; batches: number }> {
+  const days = Math.max(0, Math.floor(graceDays));
+  const cutoff = new Date(Date.now() - days * 86400e3).toISOString();
+  const db = await getDB();
+  let deleted = 0;
+  let batches = 0;
+  for (let i = 0; i < 20; i++) {
+    const rows = await db
+      .prepare(
+        "SELECT id FROM files WHERE expires IS NOT NULL AND expires < ? ORDER BY expires ASC LIMIT 50",
+      )
+      .bind(cutoff)
+      .all<{ id: string }>();
+    const ids = (rows.results || []).map((r) => r.id);
+    if (!ids.length) break;
+    const result = await deleteFiles(ids);
+    deleted += result.deleted;
+    batches += 1;
+    if (ids.length < 50) break;
+  }
+  return { deleted, batches };
+}
+
+export async function folderPathExists(path: string): Promise<boolean> {
+  if (path === "") return true;
+  const folders = await listFolders();
+  return flattenFolderPaths(folders).some((f) => f.path === path);
+}
+
+export async function moveFiles(
+  ids: string[],
+  destPath: string,
+  newName?: string,
+): Promise<{ moved: number }> {
+  if (!ids.length) return { moved: 0 };
+  if (newName != null && ids.length !== 1) throw new Error("rename-single");
+  let dest = destPath;
+  if (dest) {
+    const keyRes = sanitizeKey(dest);
+    if (keyRes.error || !keyRes.value) throw new Error(keyRes.error || "bad-path");
+    dest = keyRes.value;
+  }
+  if (!(await folderPathExists(dest))) throw new Error("folder-not-found");
+
+  let nameOverride: string | undefined;
+  if (newName != null) {
+    const clean = sanitizeFileName(newName);
+    if (clean.error || !clean.value) throw new Error(clean.error || "invalid-name");
+    nameOverride = clean.value;
+  }
+
+  const db = await getDB();
+  const r2 = await getR2();
+  const placeholders = ids.map(() => "?").join(",");
+  const rows = await db
+    .prepare(`SELECT * FROM files WHERE id IN (${placeholders})`)
+    .bind(...ids)
+    .all<FileRow>();
+  const files = rows.results || [];
+  if (!files.length) throw new Error("not-found");
+
+  let moved = 0;
+  for (const file of files) {
+    const nextName = nameOverride ?? file.name;
+    const nextPath = dest;
+    const fromKey = fileKey(file.path, file.name);
+    const toKey = fileKey(nextPath, nextName);
+    if (fromKey === toKey) continue;
+
+    const clash = await db
+      .prepare("SELECT id FROM files WHERE path = ? AND name = ? AND id != ?")
+      .bind(nextPath, nextName, file.id)
+      .first<{ id: string }>();
+    if (clash) throw new Error("file-exists");
+
+    const obj = await r2.get(fromKey);
+    if (obj) {
+      await r2.put(toKey, await obj.arrayBuffer(), {
+        httpMetadata: obj.httpMetadata,
+        customMetadata: obj.customMetadata,
+      });
+    }
+    await db
+      .prepare("UPDATE files SET path = ?, name = ? WHERE id = ?")
+      .bind(nextPath, nextName, file.id)
+      .run();
+    if (obj) await r2.delete(fromKey);
+    moved += 1;
+  }
+  return { moved };
 }
 
 export function assertKey(raw: string) {

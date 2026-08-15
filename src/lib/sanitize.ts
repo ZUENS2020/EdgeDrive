@@ -43,9 +43,17 @@ export function sanitizeKey(raw: string | null | undefined): {
 }
 
 export function sanitizeFolderName(raw: string): { value?: string; error?: string } {
+  return sanitizeName(raw, 180);
+}
+
+export function sanitizeFileName(raw: string): { value?: string; error?: string } {
+  return sanitizeName(raw, 255);
+}
+
+function sanitizeName(raw: string, max: number): { value?: string; error?: string } {
   const name = raw.normalize("NFC").trim();
   if (!name) return { error: "empty" };
-  if (name.length > 180) return { error: "too-long" };
+  if (name.length > max) return { error: "too-long" };
   if (name.includes("/") || name.includes("\\") || name.includes("..")) {
     return { error: "invalid-name" };
   }

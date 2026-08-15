@@ -6,9 +6,11 @@ import { AppBrand, AppNav, LogoutButton } from "./AppNav";
 
 export function SettingsShell({
   settings,
+  showLogout = true,
   children,
 }: {
   settings: SiteSettings;
+  showLogout?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -17,7 +19,7 @@ export function SettingsShell({
         <AppBrand settings={settings} />
         <AppNav />
         <div className="side-foot">
-          <LogoutButton />
+          {showLogout ? <LogoutButton /> : null}
         </div>
       </aside>
       {children}
