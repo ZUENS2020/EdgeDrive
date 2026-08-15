@@ -109,11 +109,7 @@ function authTrustedOrigins(baseURL?: string): string[] | undefined {
   if (baseURL) origins.add(baseURL.replace(/\/$/, ""));
   if (process.env.NODE_ENV !== "production") {
     origins.add("http://localhost:3000");
-    origins.add("http://localhost:3001");
     origins.add("http://127.0.0.1:3000");
-    origins.add("http://127.0.0.1:3001");
-    origins.add("http://192.168.100.1:3000");
-    origins.add("http://192.168.100.1:3001");
   }
   return origins.size ? [...origins] : undefined;
 }

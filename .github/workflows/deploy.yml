@@ -25,8 +25,7 @@ jobs:
       - name: Build with OpenNext
         run: npx opennextjs-cloudflare build
       - name: Deploy Worker
-        # OpenNext 1.x 产出 Worker（.open-next/worker.js），对应 wrangler deploy。
-        # 任务书中的 wrangler pages deploy 适用于旧 Pages 产物，本仓库已切 Workers。
+        # OpenNext 产出 Worker（.open-next/worker.js），用 wrangler deploy。
         run: npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

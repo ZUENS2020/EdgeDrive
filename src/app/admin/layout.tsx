@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { MobileNav } from "@/components/MobileNav";
 import { requireAdminPage } from "@/lib/auth-guard";
-import { getSettings } from "@/lib/settings";
+import { DEFAULTS, getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +10,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const gate = await requireAdminPage();
   if (!gate.ok) redirect("/login");
 
-  let brand = "#171717";
-  let siteName = "ZUENS DL";
+  let brand = DEFAULTS.brand_color;
+  let siteName = DEFAULTS.site_name;
   try {
     const settings = await getSettings();
     brand = settings.brand_color;

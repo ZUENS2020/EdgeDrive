@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { LoginForm } from "@/components/LoginForm";
 import { getAuthMode } from "@/lib/cloudflare";
-import { getSettings } from "@/lib/settings";
+import { DEFAULTS, getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -10,15 +10,20 @@ export default async function LoginPage() {
   if ((await getAuthMode()) === "none") {
     redirect("/admin");
   }
-  let siteName = "ZUENS DL";
+  let settings = DEFAULTS;
   try {
-    siteName = (await getSettings()).site_name;
+    settings = await getSettings();
   } catch {
     // ignore
   }
   return (
     <Suspense>
-      <LoginForm siteName={siteName} />
+      <LoginForm
+        siteName={settings.site_name}
+        subtitle={settings.login_subtitle}
+        logoText={settings.logo_text}
+        brandColor={settings.brand_color}
+      />
     </Suspense>
   );
 }

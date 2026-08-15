@@ -36,6 +36,14 @@ export type SiteSettings = {
   brand_color: string;
   page_size: number;
   default_expires: string;
+  home_kicker: string;
+  home_cta: string;
+  home_dl_hint: string;
+  login_subtitle: string;
+  admin_subtitle: string;
+  footer_note: string;
+  show_admin_link: boolean;
+  logo_text: string;
 };
 
 export type StatsPayload = {
@@ -46,6 +54,13 @@ export type StatsPayload = {
   soonCount: number;
   soon: FileView[];
 };
+
+export function logoGlyph(settings: Pick<SiteSettings, "site_name" | "logo_text">): string {
+  const custom = settings.logo_text.trim();
+  if (custom) return [...custom].slice(0, 2).join("");
+  const first = [...settings.site_name].find((ch) => ch.trim());
+  return (first || "D").toUpperCase();
+}
 
 export function fileKey(path: string, name: string): string {
   return path ? `${path}/${name}` : name;

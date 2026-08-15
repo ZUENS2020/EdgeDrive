@@ -13,7 +13,7 @@ export default async function SettingsPage() {
           <h1>设置</h1>
         </div>
         <p style={{ color: "var(--text-3)", marginTop: 0 }}>
-          站点名、描述、主色、每页条数、默认有效期保存在 D1 <code>settings</code> 表。
+          首页、登录页和管理侧栏的文案都在这里改，保存后立即生效。
         </p>
         <SettingsForm initial={settings} />
       </div>
