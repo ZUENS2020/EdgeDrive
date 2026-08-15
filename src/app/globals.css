@@ -140,13 +140,22 @@ code,
   font-family: var(--font-mono);
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  /* Button-as-link: keep label contrast, no underline */
+  a[data-slot="button"] {
+    text-decoration: none;
+  }
+  a[data-slot="button"]:hover {
+    text-decoration: none;
+  }
 }
 
 button {
@@ -970,6 +979,14 @@ th .check {
 }
 .home-card {
   width: min(640px, 100%);
+}
+.home-card a[data-slot="button"] {
+  color: var(--primary-foreground);
+  text-decoration: none;
+}
+.home-card a[data-slot="button"]:hover {
+  color: var(--primary-foreground);
+  text-decoration: none;
 }
 .home-card h1 {
   margin: 0 0 8px;

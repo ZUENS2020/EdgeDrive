@@ -28,7 +28,7 @@ export default async function Home() {
         {settings.site_description ? <p>{settings.site_description}</p> : null}
         {settings.home_dl_hint ? <p>{settings.home_dl_hint}</p> : null}
         {settings.show_admin_link ? (
-          <Button asChild>
+          <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground hover:no-underline">
             <Link href="/admin">
               {settings.home_cta}
               <ArrowRight />
