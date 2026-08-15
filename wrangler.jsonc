@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   // Cloudflare Dashboard → 该 Worker → Settings → Build
-  // Build command:  npm run cf-build
+  // Build command:  npm run build
   // Deploy command: npm run cf-deploy
   //
   // name / D1 / R2 都是占位默认值。先在账号里创建资源，再把名称和 database_id 改成真实的。
