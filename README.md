@@ -77,6 +77,9 @@ cp .dev.vars.example .dev.vars
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `oauth` 模式可选，配了才显示 Google 按钮 |
 | `OAUTH_ALLOW_EMAILS` | 可选，额外允许的邮箱。也可在设置页改 |
 | `CRON_SECRET` | 可选。定时清理：`Authorization: Bearer <secret>` 调 `POST /api/cron/purge` |
+| `CLOUDFLARE_ACCOUNT_ID` | 可选。管理台「统计」拉 R2 / D1 / Worker 分析 |
+| `CLOUDFLARE_API_TOKEN` | 可选。需 **Account Analytics 读** 权限。不要提交真实值 |
+| `CF_WORKER_NAME` / `CF_R2_BUCKET` / `CF_D1_DATABASE_ID` | 统计过滤用，与 `wrangler.jsonc` 里的 Worker 名、R2 桶名、D1 `database_id` 一致 |
 
 **密钥不要写进 `wrangler.jsonc` 或源码。** 线上用 Worker secrets：
 
@@ -86,9 +89,11 @@ npx wrangler secret put BETTER_AUTH_URL
 npx wrangler secret put ADMIN_USERNAME
 npx wrangler secret put ADMIN_PASSWORD
 # oauth 时再 put GITHUB_* / GOOGLE_*
+npx wrangler secret put CLOUDFLARE_ACCOUNT_ID
+npx wrangler secret put CLOUDFLARE_API_TOKEN
 ```
 
-`AUTH_MODE` 已在 `wrangler.jsonc` 的 `vars` 里。
+`AUTH_MODE`、`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID` 已在 `wrangler.jsonc` 的 `vars` 里，改绑定时一并改这些值。
 
 ### 3. 本地开发
 
@@ -163,6 +168,21 @@ GET      /dl/<文件夹路径/文件名>/view  长链，落地页（可预览图
 过期返回 `410`。完整下载（非 `?inline=1`、非续传）时 `download_count + 1`。
 
 管理台可改文件名、把文件挪到其它文件夹（目标有同名则拒绝）。过期文件可按「保留天数」手动或 `POST /api/cron/purge` 清理，永久文件不会被删。
+
+## 统计
+
+管理页 `/admin/usage`：
+
+- **本盘**：D1 目录里的文件数、文件夹、合计大小、下载次数、各表行数
+- **R2**：对象容量、对象数、**Class A**（写 / 列举 / 分片）、**Class B**（读 / Head）、免费删除类操作
+- **D1**：库体积、读/写查询次数、扫描行、写入行
+- **Worker**：请求数、错误、子请求、CPU p50/p99、调用状态
+
+时间范围：24 小时 / 7 天 / 本月。本月对照 Cloudflare 免费档（R2 10 GB / 100 万 A / 1000 万 B，D1 5 GB），**不是账单**。
+
+R2 / D1 / Worker 分析走 [GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/)，需要 Worker secret：`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`（Account Analytics 读）。过滤名在 `wrangler.jsonc` 的 `vars`：`CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`。
+
+`GET /api/usage?range=month|7d|24h`（需登录）返回同一份 JSON。未配 Token 时 `analytics.configured` 为 `false`，本盘数据仍有。
 
 ## 数据模型
 

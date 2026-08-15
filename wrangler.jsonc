@@ -23,6 +23,9 @@
     }
   ],
   "vars": {
-    "AUTH_MODE": "better-auth"
+    "AUTH_MODE": "better-auth",
+    "CF_WORKER_NAME": "zuens-dl-platform",
+    "CF_R2_BUCKET": "zuens-dl",
+    "CF_D1_DATABASE_ID": "ce85bf1b-9a70-4827-b11b-0df8c3387fd9"
   }
 }

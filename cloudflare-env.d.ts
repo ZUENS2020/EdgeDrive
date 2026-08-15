@@ -16,6 +16,11 @@ declare global {
     GOOGLE_CLIENT_ID?: string;
     GOOGLE_CLIENT_SECRET?: string;
     OAUTH_ALLOW_EMAILS?: string;
+    CLOUDFLARE_ACCOUNT_ID?: string;
+    CLOUDFLARE_API_TOKEN?: string;
+    CF_WORKER_NAME?: string;
+    CF_R2_BUCKET?: string;
+    CF_D1_DATABASE_ID?: string;
   }
 }
 
