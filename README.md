@@ -78,13 +78,12 @@ npx wrangler r2 bucket create 你的桶名
 
 部署成功后，打开该 Worker → **Settings** → **Variables and Secrets**。字段名已经在，不用再 Add，点进去把 `NULL` 改成真值即可。
 
-`AUTH_MODE` 默认是 `password`（账密）。三种写法：
+`AUTH_MODE` 默认是 `password`（账密）。两种写法：
 
 | `AUTH_MODE` | 还要改哪些 |
 | --- | --- |
 | `password` | `BETTER_AUTH_SECRET`、`BETTER_AUTH_URL`、`ADMIN_USERNAME`、`ADMIN_PASSWORD` |
-| `oauth` | `BETTER_AUTH_SECRET`、`BETTER_AUTH_URL`，以及 GitHub / Google 的 `CLIENT_ID` 和 `CLIENT_SECRET` |
-| `access` | 管理入口由 Cloudflare Access 保护，站点不再弹登录页 |
+| `access` | 管理入口由 Cloudflare Access 保护。GitHub / Google 等 OAuth 在 Access 里配，站点不再弹登录页 |
 
 账密登录至少改这四项：
 
@@ -99,14 +98,7 @@ npx wrangler r2 bucket create 你的桶名
 
 改完 Secret 不用重新部署，刷新即可。值为 `NULL` 的项表示未配置，程序会当成没填。
 
-OAuth 回调地址填：
-
-```
-https://你的站点/api/auth/callback/github
-https://你的站点/api/auth/callback/google
-```
-
-可选：`OAUTH_ALLOW_EMAILS` 限制哪些邮箱能登录（也可在设置页改）；`CRON_SECRET` 给定时清理过期文件用。
+可选：`CRON_SECRET` 给定时清理过期文件用。
 
 ### 6. 自定义域名（可选）
 

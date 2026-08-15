@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { LoginForm } from "@/components/LoginForm";
-import { getAuthMode, getCfEnv, isAccessMode, listOAuthProviders } from "@/lib/cloudflare";
+import { getAuthMode, isAccessMode } from "@/lib/cloudflare";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +16,6 @@ export default async function LoginPage() {
   } catch {
     // ignore
   }
-  let oauthProviders: Array<"github" | "google"> = [];
-  try {
-    oauthProviders = listOAuthProviders(await getCfEnv());
-  } catch {
-    oauthProviders = listOAuthProviders();
-  }
 
   return (
     <Suspense>
@@ -30,8 +24,6 @@ export default async function LoginPage() {
         subtitle={settings.login_subtitle}
         logoText={settings.logo_text}
         brandColor={settings.brand_color}
-        mode={mode}
-        oauthProviders={oauthProviders}
       />
     </Suspense>
   );

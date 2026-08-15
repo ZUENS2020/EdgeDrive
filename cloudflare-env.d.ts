@@ -11,11 +11,6 @@ declare global {
     BETTER_AUTH_SECRET?: string;
     BETTER_AUTH_URL?: string;
     CRON_SECRET?: string;
-    GITHUB_CLIENT_ID?: string;
-    GITHUB_CLIENT_SECRET?: string;
-    GOOGLE_CLIENT_ID?: string;
-    GOOGLE_CLIENT_SECRET?: string;
-    OAUTH_ALLOW_EMAILS?: string;
     CLOUDFLARE_ACCOUNT_ID?: string;
     CLOUDFLARE_API_TOKEN?: string;
     /** Optional analytics filters (Dashboard vars). Not used for D1/R2 bindings. */
