@@ -53,7 +53,7 @@ export function ExpireDialog({
         <DialogHeader>
           <DialogTitle>{count > 1 ? `设置有效期（${count} 个文件）` : "设置有效期"}</DialogTitle>
           <DialogDescription>
-            永久 / 限时（小时、天、截止时间）。到期后直链返回 410，文件仍保留。
+            永久 / 限时（小时、天、截止时间）。到期后下载返回 410，文件仍保留。
           </DialogDescription>
         </DialogHeader>
         <div className="seg">

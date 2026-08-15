@@ -9,7 +9,7 @@ import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const FLAG = "DL_PLATFORM_INNER_NEXT_BUILD";
+const FLAG = "EDGEDRIVE_INNER_NEXT_BUILD";
 const env = { ...process.env };
 const nextBin = path.join(process.cwd(), "node_modules", ".bin", "next");
 const opennextBin = path.join(process.cwd(), "node_modules", ".bin", "opennextjs-cloudflare");
