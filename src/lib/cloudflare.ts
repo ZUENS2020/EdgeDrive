@@ -1,4 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { ensureD1Schema } from "./d1-bootstrap";
 import type { AuthMode } from "./types";
 
 export async function getCfEnv(): Promise<CloudflareEnv> {
@@ -9,15 +10,20 @@ export async function getCfEnv(): Promise<CloudflareEnv> {
 export async function getDB(): Promise<D1Database> {
   const env = await getCfEnv();
   if (!env.DB) {
-    throw new Error("D1 binding DB is missing. Check wrangler.jsonc.");
+    throw new Error(
+      "D1 binding DB is missing. In the Worker go to Settings → Bindings and add a D1 database named DB.",
+    );
   }
+  await ensureD1Schema(env.DB);
   return env.DB;
 }
 
 export async function getR2(): Promise<R2Bucket> {
   const env = await getCfEnv();
   if (!env.FILES) {
-    throw new Error("R2 binding FILES is missing. Check wrangler.jsonc.");
+    throw new Error(
+      "R2 binding FILES is missing. In the Worker go to Settings → Bindings and add an R2 bucket named FILES.",
+    );
   }
   return env.FILES;
 }

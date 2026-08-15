@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+/**
+ * Apply remote D1 migrations using the binding name (default DB).
+ * After auto-provision / Dashboard inherit, wrangler resolves the real database.
+ */
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -11,13 +15,14 @@ function loadWrangler() {
   return JSON.parse(stripped);
 }
 
-const d1Name = loadWrangler()?.d1_databases?.[0]?.database_name;
-if (!d1Name) {
-  console.error("Set d1_databases[0].database_name in wrangler.jsonc before deploying.");
+const d1 = loadWrangler()?.d1_databases?.[0];
+const target = d1?.database_name || d1?.binding;
+if (!target) {
+  console.error("Set d1_databases[0].binding in wrangler.jsonc before migrating.");
   process.exit(1);
 }
 
-const result = spawnSync(wranglerBin, ["d1", "migrations", "apply", d1Name, "--remote"], {
+const result = spawnSync(wranglerBin, ["d1", "migrations", "apply", target, "--remote"], {
   stdio: "inherit",
   env: process.env,
 });
