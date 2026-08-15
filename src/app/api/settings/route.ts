@@ -3,8 +3,14 @@ import { ensureCronSecret } from "@/lib/app-config";
 import { requireAdmin } from "@/lib/auth-guard";
 import { getDB } from "@/lib/cloudflare";
 import { getSettings, updateSettings, type SettingsPatch } from "@/lib/settings";
+import type { SiteSettings } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+/** cron_secret 不下发明文（可触发 purge 的凭证）——只回布尔。 */
+function toSafeSettings(settings: SiteSettings) {
+  return { ...settings, cron_secret: "", cron_secret_set: Boolean(settings.cron_secret) };
+}
 
 export async function GET(request: Request) {
   const gate = await requireAdmin(request);
@@ -12,9 +18,7 @@ export async function GET(request: Request) {
   const db = await getDB();
   await ensureCronSecret(db);
   const settings = await getSettings(db);
-  // cron_secret 不下发明文（可触发 purge 的凭证）——只回布尔
-  const safe = { ...settings, cron_secret: "", cron_secret_set: Boolean(settings.cron_secret) };
-  return NextResponse.json({ settings: safe, authMode: gate.mode });
+  return NextResponse.json({ settings: toSafeSettings(settings), authMode: gate.mode });
 }
 
 export async function PUT(request: Request) {
@@ -27,6 +31,5 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
   const settings = await updateSettings(body);
-  const safe = { ...settings, cron_secret: "", cron_secret_set: Boolean(settings.cron_secret) };
-  return NextResponse.json({ ok: true, settings: safe });
+  return NextResponse.json({ ok: true, settings: toSafeSettings(settings) });
 }

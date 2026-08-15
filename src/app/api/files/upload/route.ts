@@ -21,6 +21,23 @@ const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
 /** multipart/form-data 解析需全量进内存——只接受小文件；大文件走裸流直传或分片。 */
 const MAX_FORM_SIZE = 10 * 1024 * 1024;
 
+/** 落库 + 组响应（form 与裸流两个分支共用）。 */
+async function saveUploaded(parts: { path: string; name: string }, size: number, mime: string, expires: string | null) {
+  const id = crypto.randomUUID();
+  await upsertFile({
+    id,
+    name: parts.name,
+    path: parts.path,
+    size,
+    mime,
+    expires,
+    created_at: new Date().toISOString(),
+    tags: "",
+  });
+  const key = parts.path ? `${parts.path}/${parts.name}` : parts.name;
+  return { ok: true as const, id, key, url: `/dl/${key.split("/").map(encodeURIComponent).join("/")}`, expires };
+}
+
 async function upload(request: Request) {
   const gate = await requireAdmin(request);
   if (!gate.ok) return gate.response;
@@ -84,24 +101,7 @@ async function upload(request: Request) {
       return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
     }
     const head = await r2.head(key);
-    const id = crypto.randomUUID();
-    await upsertFile({
-      id,
-      name: parts.name,
-      path: parts.path,
-      size: head?.size || file.size,
-      mime: guessMime(parts.name),
-      expires: parsed.value,
-      created_at: new Date().toISOString(),
-      tags: "",
-    });
-    return NextResponse.json({
-      ok: true,
-      id,
-      key,
-      url: `/dl/${key.split("/").map(encodeURIComponent).join("/")}`,
-      expires: parsed.value,
-    });
+    return NextResponse.json(await saveUploaded(parts, head?.size || file.size, guessMime(parts.name), parsed.value));
   }
 
   // 裸流直传：R2 直接吃 ReadableStream——内存 O(1)——不 OOM
@@ -124,22 +124,5 @@ async function upload(request: Request) {
     await r2.delete(key).catch(() => {});
     return NextResponse.json({ error: "empty body" }, { status: 400 });
   }
-  const id = crypto.randomUUID();
-  await upsertFile({
-    id,
-    name: parts.name,
-    path: parts.path,
-    size: head.size,
-    mime: contentType,
-    expires: parsed.value,
-    created_at: new Date().toISOString(),
-    tags: "",
-  });
-  return NextResponse.json({
-    ok: true,
-    id,
-    key,
-    url: `/dl/${key.split("/").map(encodeURIComponent).join("/")}`,
-    expires: parsed.value,
-  });
+  return NextResponse.json(await saveUploaded(parts, head.size, contentType, parsed.value));
 }
