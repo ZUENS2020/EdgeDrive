@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Files, LogOut, Settings } from "lucide-react";
+import { ChartNoAxesColumnIncreasing, Files, LogOut, Settings } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { logoGlyph } from "@/lib/types";
@@ -24,6 +24,7 @@ export function AppBrand({ settings }: { settings: SiteSettings }) {
 export function AppNav() {
   const pathname = usePathname();
   const filesOn = pathname === "/admin";
+  const usageOn = pathname.startsWith("/admin/usage");
   const settingsOn = pathname.startsWith("/admin/settings");
   return (
     <nav className="nav">
@@ -31,6 +32,10 @@ export function AppNav() {
       <Link className={cn("nav-item", filesOn && "active")} href="/admin">
         <Files />
         文件
+      </Link>
+      <Link className={cn("nav-item", usageOn && "active")} href="/admin/usage">
+        <ChartNoAxesColumnIncreasing />
+        统计
       </Link>
       <Link className={cn("nav-item", settingsOn && "active")} href="/admin/settings">
         <Settings />

@@ -56,6 +56,9 @@ export function MobileNav({ siteName }: { siteName: string }) {
           <Link href="/admin">文件</Link>
         </Button>
         <Button variant="ghost" size="sm" asChild>
+          <Link href="/admin/usage">统计</Link>
+        </Button>
+        <Button variant="ghost" size="sm" asChild>
           <Link href="/admin/settings">设置</Link>
         </Button>
       </div>

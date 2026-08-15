@@ -10,3 +10,6 @@ ADMIN_PASSWORD=change-me
 # GOOGLE_CLIENT_SECRET=
 # OAUTH_ALLOW_EMAILS=
 # CRON_SECRET=
+# Optional, for /admin/usage analytics (Account Analytics Read):
+# CLOUDFLARE_ACCOUNT_ID=
+# CLOUDFLARE_API_TOKEN=
