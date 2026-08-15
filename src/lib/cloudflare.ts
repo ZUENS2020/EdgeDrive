@@ -1,7 +1,9 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { parseAuthMode, readAuthModeFromDb } from "./app-config";
 import { ensureD1Schema } from "./d1-bootstrap";
-import type { AuthMode } from "./types";
+import { isAccessMode, type AuthMode } from "./types";
+
+export { isAccessMode };
 
 export async function getCfEnv(): Promise<CloudflareEnv> {
   const { env } = await getCloudflareContext({ async: true });
@@ -27,10 +29,6 @@ export async function getR2(): Promise<R2Bucket> {
     );
   }
   return env.FILES;
-}
-
-export function isAccessMode(mode: AuthMode): boolean {
-  return mode === "access";
 }
 
 export async function getAuthMode(): Promise<AuthMode> {

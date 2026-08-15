@@ -1,5 +1,6 @@
 import { getKv, KV } from "./app-config";
-import { getDB } from "./cloudflare";
+import { resolveCfApiToken } from "./cf-credentials";
+import { getCfEnv, getDB } from "./cloudflare";
 import type { UsagePayload, UsageRange } from "./usage-types";
 
 export type { UsagePayload, UsageRange } from "./usage-types";
@@ -381,7 +382,13 @@ async function fetchWorker(
 
 async function graphqlAnalytics(range: UsageRange): Promise<UsagePayload["analytics"]> {
   const db = await getDB();
-  const token = await getKv(db, KV.cfApiToken);
+  let envBag: Record<string, unknown> | undefined;
+  try {
+    envBag = (await getCfEnv()) as unknown as Record<string, unknown>;
+  } catch {
+    envBag = undefined;
+  }
+  const token = await resolveCfApiToken(db, envBag);
   const account = await getKv(db, KV.cfAccountId);
   if (!token || !account) {
     return { configured: false, r2: null, d1: null, worker: null };

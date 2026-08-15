@@ -12,6 +12,10 @@
 const JWK_CACHE_TTL_MS = 6 * 3600e3;
 let jwksCache: { keys: Record<string, CryptoKey>; fetchedAt: number } | null = null;
 
+export function resetAccessJwtCacheForTests() {
+  jwksCache = null;
+}
+
 function teamDomain(): string | null {
   const team = process.env.CF_ACCESS_TEAM || "";
   return team ? `https://${team}.cloudflareaccess.com` : null;

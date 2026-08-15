@@ -18,6 +18,7 @@ import { Sidebar } from "./Sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { MPU_CONCURRENCY, uploadMpuParts } from "@/lib/mpu-pool";
 
 const PART = 8 * 1024 * 1024;
 
@@ -525,19 +526,22 @@ async function uploadOne(file: File, folderPath: string, onPct: (n: number) => v
     }
     const created = (await create.json()) as { uploadId: string };
     uploadId = created.uploadId;
-    const parts: { partNumber: number; etag: string }[] = [];
     const total = Math.ceil(file.size / PART);
-    for (let i = 0; i < total; i++) {
-      const blob = file.slice(i * PART, Math.min(file.size, (i + 1) * PART));
-      const partRes = await fetch(
-        `/api/files/mpu?action=part&key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${i + 1}`,
-        { method: "PUT", body: blob },
-      );
-      if (!partRes.ok) throw new Error("part failed");
-      const uploaded = (await partRes.json()) as { etag?: string; ETag?: string };
-      parts.push({ partNumber: i + 1, etag: uploaded.etag || uploaded.ETag || "" });
-      onPct(Math.round(((i + 1) / total) * 100));
-    }
+    const parts = await uploadMpuParts({
+      total,
+      concurrency: MPU_CONCURRENCY,
+      onProgress: (completed, n) => onPct(Math.round((completed / n) * 100)),
+      uploadPart: async (partNumber) => {
+        const blob = file.slice((partNumber - 1) * PART, Math.min(file.size, partNumber * PART));
+        const partRes = await fetch(
+          `/api/files/mpu?action=part&key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}&partNumber=${partNumber}`,
+          { method: "PUT", body: blob },
+        );
+        if (!partRes.ok) throw new Error("part failed");
+        const uploaded = (await partRes.json()) as { etag?: string; ETag?: string };
+        return { partNumber, etag: uploaded.etag || uploaded.ETag || "" };
+      },
+    });
     const done = await fetch(
       `/api/files/mpu?action=complete&key=${encodeURIComponent(key)}&uploadId=${encodeURIComponent(uploadId)}`,
       {

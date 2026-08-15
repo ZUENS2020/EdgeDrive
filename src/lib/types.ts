@@ -1,5 +1,9 @@
 export type AuthMode = "access" | "password";
 
+export function isAccessMode(mode: string): boolean {
+  return mode === "access";
+}
+
 export type FileRow = {
   id: string;
   name: string;
@@ -39,6 +43,8 @@ export type SiteSettings = {
   auth_mode: AuthMode;
   cf_account_id: string;
   cf_api_token_set: boolean;
+  /** Token 来自 Worker Secret CF_API_TOKEN，而不是 D1。 */
+  cf_api_token_from_env?: boolean;
   cf_worker_name: string;
   cf_r2_bucket: string;
   cf_d1_database_id: string;

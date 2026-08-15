@@ -3,8 +3,10 @@
  * Point wrangler at scripts/wrangler-shim.mjs so Cloudflare's default
  * `npx wrangler deploy` still binds D1/R2 when missing and runs migrations.
  *
- * Only rewrite node_modules/wrangler/bin/wrangler.js. npm's
- * node_modules/.bin/wrangler is a symlink to that file.
+ * This rewrites node_modules/wrangler/bin/wrangler.js. That is brittle:
+ * if wrangler moves its CLI entry, this script MUST fail loudly.
+ * Prefer `npm run deploy` (scripts/cf-deploy.mjs) when you control the
+ * deploy command.
  */
 import {
   chmodSync,
@@ -20,29 +22,47 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const pkgBin = path.join(root, "node_modules", "wrangler", "bin", "wrangler.js");
-const realBin = path.join(root, "node_modules", "wrangler", "bin", "wrangler.real.js");
+const pkgDir = path.join(root, "node_modules", "wrangler");
+const pkgBin = path.join(pkgDir, "bin", "wrangler.js");
+const realBin = path.join(pkgDir, "bin", "wrangler.real.js");
 const shimSrc = path.join(root, "scripts", "wrangler-shim.mjs");
+const pkgJson = path.join(pkgDir, "package.json");
 
-if (!existsSync(pkgBin)) process.exit(0);
-
-function restoreReal() {
-  if (!existsSync(realBin)) return;
-  writeFileSync(pkgBin, readFileSync(realBin));
-  try {
-    chmodSync(pkgBin, 0o755);
-  } catch {
-    // ignore
-  }
+function fail(message) {
+  console.error(`[edgedrive] wrangler shim: ${message}`);
+  console.error("[edgedrive] Do not ignore this. Use `npm run deploy`, or reinstall wrangler (`npm ci`).");
+  process.exit(1);
 }
 
 if (!existsSync(shimSrc)) {
-  restoreReal();
-  process.exit(0);
+  fail("scripts/wrangler-shim.mjs is missing");
+}
+
+if (!existsSync(pkgDir) || !existsSync(pkgJson)) {
+  fail("node_modules/wrangler is missing (expected wrangler as a dependency)");
+}
+
+if (!existsSync(pkgBin)) {
+  fail(
+    "node_modules/wrangler/bin/wrangler.js not found — wrangler package layout changed. Update scripts/install-wrangler-shim.mjs or deploy with `npm run deploy`.",
+  );
 }
 
 const original = readFileSync(pkgBin, "utf8");
+const looksLikeWranglerCli =
+  original.includes("wrangler-shim.mjs") ||
+  /wrangler/i.test(original) ||
+  existsSync(path.join(pkgDir, "wrangler-dist")) ||
+  existsSync(path.join(pkgDir, "bin"));
+
+if (!looksLikeWranglerCli) {
+  fail("wrangler/bin/wrangler.js does not look like the wrangler CLI (package layout changed)");
+}
+
 if (!original.includes("wrangler-shim.mjs")) {
+  if (original.length < 40) {
+    fail("wrangler/bin/wrangler.js is unexpectedly small; refusing to wrap it");
+  }
   writeFileSync(realBin, original);
   try {
     chmodSync(realBin, 0o755);
@@ -50,10 +70,7 @@ if (!original.includes("wrangler-shim.mjs")) {
     // ignore
   }
 } else if (!existsSync(realBin)) {
-  console.warn(
-    "wrangler bin is already a shim but wrangler.real.js is missing; reinstall wrangler (`npm ci`)",
-  );
-  process.exit(0);
+  fail("wrangler bin is already a shim but wrangler.real.js is missing; reinstall wrangler (`npm ci`)");
 }
 
 const launcher = `#!/usr/bin/env node

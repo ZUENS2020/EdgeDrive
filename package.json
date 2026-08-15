@@ -8,6 +8,9 @@
     "start": "next start",
     "preview": "opennextjs-cloudflare build && wrangler dev",
     "deploy": "npm run build && npm run cf-deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
     "cf-build": "node scripts/cf-build.mjs",
     "cf-deploy": "node scripts/cf-deploy.mjs",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv",
@@ -43,6 +46,7 @@
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "vitest": "^3.2.7",
     "wrangler": "^4.123.0"
   }
 }

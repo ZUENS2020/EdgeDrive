@@ -1,4 +1,5 @@
 import { ensureCronSecret, getKv, KV, parseAuthMode, setKv } from "./app-config";
+import { cfApiTokenConfigured, readEnvSecret } from "./cf-credentials";
 import { getDB } from "./cloudflare";
 import type { SiteSettings } from "./types";
 
@@ -50,7 +51,9 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
     purge_after_days: clampDays(map.get("purge_after_days"), DEFAULTS.purge_after_days),
     auth_mode: parseAuthMode(map.get(KV.authMode)),
     cf_account_id: unset(map.get(KV.cfAccountId)),
-    cf_api_token_set: Boolean(unset(map.get(KV.cfApiToken))),
+    cf_api_token_from_env: Boolean(readEnvSecret("CF_API_TOKEN")),
+    cf_api_token_set: cfApiTokenConfigured(unset(map.get(KV.cfApiToken))),
+    cron_secret_set: Boolean(unset(map.get(KV.cronSecret))),
     cf_worker_name: unset(map.get(KV.cfWorkerName)),
     cf_r2_bucket: unset(map.get(KV.cfR2Bucket)),
     cf_d1_database_id: unset(map.get(KV.cfD1DatabaseId)),
@@ -62,7 +65,12 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
 export async function updateSettings(patch: SettingsPatch, db?: D1Database): Promise<SiteSettings> {
   const conn = db ?? (await getDB());
   const current = await getSettings(conn);
-  const next: SiteSettings = { ...current, ...patch, cf_api_token_set: current.cf_api_token_set };
+  const next: SiteSettings = {
+    ...current,
+    ...patch,
+    cf_api_token_set: current.cf_api_token_set,
+    cf_api_token_from_env: current.cf_api_token_from_env,
+  };
 
   if (patch.page_size != null) {
     const n = Number(patch.page_size);
@@ -102,12 +110,12 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
     const token = patch.cf_api_token.trim();
     if (!token) {
       await conn.prepare("DELETE FROM settings WHERE key = ?").bind(KV.cfApiToken).run();
-      next.cf_api_token_set = false;
     } else {
       await setKv(conn, KV.cfApiToken, token);
-      next.cf_api_token_set = true;
     }
   }
+  next.cf_api_token_from_env = Boolean(readEnvSecret("CF_API_TOKEN"));
+  next.cf_api_token_set = cfApiTokenConfigured(await getKv(conn, KV.cfApiToken));
 
   if (patch.rotate_cron_secret) {
     await conn.prepare("DELETE FROM settings WHERE key = ?").bind(KV.cronSecret).run();
