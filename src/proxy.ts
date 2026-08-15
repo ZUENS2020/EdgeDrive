@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { hasSessionCookie } from "@/lib/auth-guard";
 
+export const runtime = "edge";
+
 export function proxy(request: NextRequest) {
   const mode = (process.env.AUTH_MODE || "better-auth").trim().toLowerCase();
   if (mode === "none") return NextResponse.next();
