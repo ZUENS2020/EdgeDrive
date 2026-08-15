@@ -43,8 +43,9 @@ export async function createAuth() {
       }),
       nextCookies(),
     ],
-    trustedOrigins: baseURL ? [baseURL] : undefined,
+    trustedOrigins: baseURL ? [baseURL, "http://localhost:3001", "http://192.168.100.1:3001"] : undefined,
     advanced: {
+      csrf: { enabled: process.env.NODE_ENV === "development" ? false : true },
       database: {
         generateId: () => crypto.randomUUID(),
       },

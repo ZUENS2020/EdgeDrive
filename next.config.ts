@@ -1,13 +1,8 @@
 import type { NextConfig } from "next";
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    // Uploads can be large; proxy must not truncate the body.
-    proxyClientMaxBodySize: "100mb",
-  },
+  allowedDevOrigins: ["192.168.100.1", "localhost"],
+  /* config here */
 };
 
 export default nextConfig;
-
-initOpenNextCloudflareForDev();
