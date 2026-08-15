@@ -24,6 +24,7 @@
 .wrangler
 .dev.vars
 wrangler.toml
+wrangler.resolved.json
 
 # misc
 .DS_Store

@@ -5,11 +5,15 @@
  * Existing secrets are never overwritten.
  *
  * Sentinel value NULL is treated as unset by envString().
+ * Do not copy process.env.CLOUDFLARE_API_TOKEN into the Worker —
+ * that value is the deploy CLI credential, not a runtime secret.
  */
+import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 const SENTINEL = "NULL";
+const DEFAULT_NAME = "zuens-dl-platform";
 const SECRETS = [
   ["AUTH_MODE", "password"],
   ["BETTER_AUTH_SECRET", SENTINEL],
@@ -25,33 +29,54 @@ const SECRETS = [
 ];
 
 const wranglerBin = path.join(process.cwd(), "node_modules", ".bin", "wrangler");
-const env = { ...process.env, WRANGLER_LOG: process.env.WRANGLER_LOG || "error" };
+
+function loadName() {
+  const cfgPath =
+    process.env.CF_WRANGLER_CONFIG ||
+    ["wrangler.resolved.json", "wrangler.jsonc", "wrangler.json"].find((p) => existsSync(p));
+  if (!cfgPath || !existsSync(cfgPath)) return DEFAULT_NAME;
+  const text = readFileSync(cfgPath, "utf8").replace(/^\uFEFF/, "");
+  const stripped = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  try {
+    const parsed = JSON.parse(stripped);
+    return typeof parsed?.name === "string" && parsed.name.trim()
+      ? parsed.name.trim()
+      : DEFAULT_NAME;
+  } catch {
+    return DEFAULT_NAME;
+  }
+}
 
 function wrangler(args, { input, inherit } = {}) {
   const result = spawnSync(wranglerBin, args, {
     encoding: "utf8",
     input,
     stdio: inherit ? ["pipe", "inherit", "inherit"] : ["ignore", "pipe", "pipe"],
-    env,
+    env: process.env,
   });
   if (result.status !== 0) {
     const err = (result.stderr || result.stdout || "").trim() || `wrangler ${args.join(" ")} failed`;
     throw new Error(err);
   }
-  return (result.stdout || "").trim();
+  return `${result.stdout || ""}\n${result.stderr || ""}`.trim();
 }
 
 function parseSecretNames(text) {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
+  const trimmed = (text || "").trim();
+  if (!trimmed) {
+    throw new Error("wrangler secret list returned empty output");
+  }
+  const start = trimmed.indexOf("[");
+  const end = trimmed.lastIndexOf("]");
   if (start === -1 || end === -1) {
     throw new Error(`Could not find JSON array in wrangler secret list output:\n${text}`);
   }
-  const parsed = JSON.parse(text.slice(start, end + 1));
+  const parsed = JSON.parse(trimmed.slice(start, end + 1));
   return new Set((Array.isArray(parsed) ? parsed : []).map((item) => item?.name).filter(Boolean));
 }
 
-const names = parseSecretNames(wrangler(["secret", "list", "--format", "json"]));
+const workerName = loadName();
+const names = parseSecretNames(wrangler(["secret", "list", "--format", "json", "--name", workerName]));
 
 for (const [key, value] of SECRETS) {
   if (names.has(key)) {
@@ -59,5 +84,5 @@ for (const [key, value] of SECRETS) {
     continue;
   }
   console.log(`creating encrypted secret ${key}`);
-  wrangler(["secret", "put", key], { input: value, inherit: true });
+  wrangler(["secret", "put", key, "--name", workerName], { input: value, inherit: true });
 }

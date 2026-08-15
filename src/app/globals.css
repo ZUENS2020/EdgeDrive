@@ -1079,19 +1079,6 @@ th .check {
   gap: 8px;
   padding-top: 4px;
 }
-.settings-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  cursor: pointer;
-  user-select: none;
-}
-.settings-check input {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--text);
-}
 
 .usage-lead {
   margin: 0 0 20px;

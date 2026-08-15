@@ -3,7 +3,7 @@
  * Local `npm run cf-deploy` / optional Workers Builds deploy command.
  * Assumes the OpenNext build already produced `.open-next/`.
  *
- * 1. wrangler deploy（Worker 上已有 DB/FILES 就沿用；没有则自动建 D1 和 R2）
+ * 1. wrangler deploy（已有 DB/FILES 就沿用；没有则自动建；若默认名资源已存在则绑上）
  * 2. 对绑定名 DB 跑远程迁移
  * 3. 种齐 Variables and Secrets 字段名（已有值不覆盖）
  *
@@ -11,6 +11,7 @@
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { resolvedWranglerConfigPath } from "./resolved-wrangler-config.mjs";
 
 const wranglerBin = path.join(process.cwd(), "node_modules", ".bin", "wrangler");
 const env = {
@@ -23,7 +24,11 @@ function run(bin, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-run(wranglerBin, ["deploy", "--keep-vars"]);
+const configPath = await resolvedWranglerConfigPath();
+const configArgs = path.basename(configPath) === "wrangler.jsonc" ? [] : ["--config", configPath];
+env.CF_WRANGLER_CONFIG = configPath;
+
+run(wranglerBin, ["deploy", "--keep-vars", ...configArgs]);
 run(process.execPath, [path.join(process.cwd(), "scripts", "d1-migrate-remote.mjs")]);
 
 const seed = spawnSync(process.execPath, [path.join(process.cwd(), "scripts", "ensure-optional-secrets.mjs")], {

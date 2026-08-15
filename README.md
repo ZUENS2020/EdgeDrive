@@ -18,7 +18,7 @@
 
 不要在 `wrangler.jsonc` 里填数据库 ID 或桶名。代码里的绑定名必须是 **DB**（D1）和 **FILES**（R2）。
 
-- **新 Worker**：第一次部署时还没有 Bindings，wrangler 会自动建一套 D1 和 R2 并绑上（名称类似 `dl-platform-db`、`dl-platform-files`）。
+- **新 Worker**：第一次部署时还没有 Bindings，wrangler 会自动建一套 D1 和 R2 并绑上（名称类似 `zuens-dl-platform-db`、`zuens-dl-platform-files`）。
 - **已经绑过**：Settings → Bindings 里已有 `DB` / `FILES` 时，部署会沿用，不会另建。
 
 ### 1. Fork 或导入本仓库
@@ -30,7 +30,7 @@
 1. 打开 [Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages)
 2. **Create** → **Import a repository**，选第 1 步的仓库  
    如果 Worker 已经建好：点进该 Worker → **Settings** → **Build** → **Connect**
-3. Worker 名称保持和仓库里的一致（默认 `dl-platform`）。若要换名，同时改 `wrangler.jsonc` 的 `name`
+3. Worker 名称保持和仓库里的一致（默认 `zuens-dl-platform`）。若要换名，同时改 `wrangler.jsonc` 的 `name`
 4. 生产分支选 `main`
 5. 构建设置：
 
@@ -69,7 +69,7 @@
 | 名称 | 填什么 |
 | --- | --- |
 | `BETTER_AUTH_SECRET` | 随机字符串，至少 32 位。可在本机执行 `openssl rand -hex 32` |
-| `BETTER_AUTH_URL` | 浏览器访问本站的地址，不要末尾斜杠。例如 `https://dl-platform.你的账号.workers.dev`，绑了自定义域名就填那个 |
+| `BETTER_AUTH_URL` | 浏览器访问本站的地址，不要末尾斜杠。例如 `https://zuens-dl-platform.你的账号.workers.dev`，绑了自定义域名就填那个 |
 | `ADMIN_USERNAME` | 管理员用户名 |
 | `ADMIN_PASSWORD` | 管理员密码 |
 
