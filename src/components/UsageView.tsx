@@ -110,7 +110,7 @@ function UsageBody({ data }: { data: UsagePayload }) {
       {!a.configured ? (
         <p className="usage-banner">
           <code>CLOUDFLARE_ACCOUNT_ID</code> 与 <code>CLOUDFLARE_API_TOKEN</code>{" "}
-          是 Worker Encrypted Secret。首次部署会建成 <code>NULL</code>（未配置）。不配也能看本盘；在 Dashboard 改成真值（Token 需 Account Analytics 读）后，才会显示 R2 Class A/B、D1 查询量与 Worker 调用。
+          是 Worker Encrypted Secret，选填。不配也能看本盘；在 Dashboard 加上真值（Token 需 Account Analytics 读）后，才会显示 R2 Class A/B、D1 查询量与 Worker 调用。
         </p>
       ) : null}
       {a.configured && a.error ? <p className="err">{a.error}</p> : null}

@@ -18,6 +18,7 @@ declare global {
     OAUTH_ALLOW_EMAILS?: string;
     CLOUDFLARE_ACCOUNT_ID?: string;
     CLOUDFLARE_API_TOKEN?: string;
+    /** Optional analytics filters (Dashboard vars). Not used for D1/R2 bindings. */
     CF_WORKER_NAME?: string;
     CF_R2_BUCKET?: string;
     CF_D1_DATABASE_ID?: string;

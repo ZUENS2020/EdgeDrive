@@ -1,10 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Cloudflare Dashboard → 该 Worker → Settings → Build
-  // Build command:  npm run build
-  // Deploy command: npm run cf-deploy
+  // Cloudflare Workers Builds：
+  //   Build command:  npm run build
+  //   Deploy command: npx wrangler deploy --x-auto-create=false
   //
-  // name / D1 / R2 都是占位默认值。先在账号里创建资源，再把名称和 database_id 改成真实的。
+  // 只声明绑定名。不要填 database_id / bucket_name，否则会写死资源、
+  // 也会在第一次部署时自动建新库和新桶。
+  // 请先在账号里自己创建 D1 和 R2，再到该 Worker → Settings → Bindings
+  // 把 D1 绑成 DB、R2 绑成 FILES。之后部署会沿用界面上的绑定。
   "name": "dl-platform",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-01",
@@ -18,22 +21,16 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "dl-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
     {
-      "binding": "FILES",
-      "bucket_name": "dl-files"
+      "binding": "FILES"
     }
   ],
   "vars": {
     // 非密钥明文。账密、CLOUDFLARE_* 走 Encrypted secrets，不要写在这里。
-    "AUTH_MODE": "password",
-    "CF_WORKER_NAME": "dl-platform",
-    "CF_R2_BUCKET": "dl-files",
-    "CF_D1_DATABASE_ID": "00000000-0000-0000-0000-000000000000"
+    "AUTH_MODE": "password"
   }
 }

@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 /**
- * Cloudflare Workers Builds deploy step (and local `npm run cf-deploy`).
+ * Local `npm run cf-deploy` / optional Workers Builds deploy command.
  * Assumes the OpenNext build already produced `.open-next/`.
+ *
+ * 1. wrangler deploy（沿用 Dashboard Bindings 里已有的 D1/R2，不自动建新的）
+ * 2. 对绑定名 DB 跑远程迁移
+ * 3. 种可选 CLOUDFLARE_* Encrypted Secret 占位
  *
  * OPEN_NEXT_DEPLOY 避免 wrangler 再包一层 `opennextjs-cloudflare deploy`。
  */
@@ -19,8 +23,8 @@ function run(bin, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+run(wranglerBin, ["deploy", "--keep-vars", "--x-auto-create=false"]);
 run(process.execPath, [path.join(process.cwd(), "scripts", "d1-migrate-remote.mjs")]);
-run(wranglerBin, ["deploy", "--keep-vars"]);
 
 const seed = spawnSync(process.execPath, [path.join(process.cwd(), "scripts", "ensure-optional-secrets.mjs")], {
   stdio: "inherit",

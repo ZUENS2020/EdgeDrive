@@ -16,7 +16,7 @@ Serverless 下载管理工具。在后台上传文件、设有效期、按文件
 
 需要：Cloudflare 账号、本仓库的 Git 权限。线上用 Cloudflare 绑定仓库自动部署，不要走 GitHub Actions。
 
-仓库里的 `dl-platform`、`dl-db`、`dl-files` 和全 0 的数据库 ID 只是占位，必须换成你账号里真实创建出来的名称和 ID。
+不要在 `wrangler.jsonc` 里填数据库 ID 或桶名。先自己建 D1 和 R2，再到该 Worker 的 **Settings → Bindings** 里选中它们。代码里的绑定名必须是 **DB**（D1）和 **FILES**（R2）。部署不会自动新建库或桶。
 
 ### 1. Fork 或导入本仓库
 
@@ -24,70 +24,55 @@ Serverless 下载管理工具。在后台上传文件、设有效期、按文件
 
 ### 2. 创建存储
 
-打开 [Cloudflare Dashboard](https://dash.cloudflare.com/)。
+打开 [Cloudflare Dashboard](https://dash.cloudflare.com/)。名称可以自定，不必和仓库里的 Worker 名一致。
 
 **数据库（D1）**
 
 1. 左侧 **Workers & Pages** → **D1** → **Create**
-2. 名称填 `dl-db`（想换名也可以，后面要一起改）
-3. 创建完成后复制 **database ID**
+2. 填一个你认得的名称，创建即可（不用复制 ID）
 
 **文件桶（R2）**
 
 1. 左侧 **R2** → **Create bucket**
-2. 名称填 `dl-files`（想换名也可以，后面要一起改）
+2. 填一个你认得的名称，创建即可
 
-也可以在本机装好 Node 后用命令创建：
+也可以在本机：
 
 ```bash
 npx wrangler login
-npx wrangler d1 create dl-db
-npx wrangler r2 bucket create dl-files
+npx wrangler d1 create 你的库名
+npx wrangler r2 bucket create 你的桶名
 ```
 
-第一条命令会打印 `database_id`，记下。
-
-### 3. 填进配置
-
-打开仓库根目录的 `wrangler.jsonc`，改这几处，保持和上一步一致：
-
-| 字段 | 改成 |
-| --- | --- |
-| `name` | Worker 名，默认 `dl-platform`。Dashboard 里创建的 Worker 必须同名 |
-| `d1_databases[0].database_name` | D1 名称，默认 `dl-db` |
-| `d1_databases[0].database_id` | 上一步复制的数据库 ID（不要留全 0） |
-| `r2_buckets[0].bucket_name` | R2 桶名，默认 `dl-files` |
-| `vars.CF_WORKER_NAME` | 与 `name` 相同 |
-| `vars.CF_R2_BUCKET` | 与桶名相同 |
-| `vars.CF_D1_DATABASE_ID` | 与数据库 ID 相同 |
-
-如果 D1 不叫 `dl-db`，把 `package.json` 里 `db:migrate` / `db:migrate:local` 后面的库名一并改掉。
-
-提交并推送到你的仓库。
-
-### 4. 在 Cloudflare 里接上仓库
+### 3. 在 Cloudflare 里接上仓库
 
 1. 打开 [Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages)
-2. **Create** → **Import a repository**，选上一步的仓库  
+2. **Create** → **Import a repository**，选第 1 步的仓库  
    如果 Worker 已经建好：点进该 Worker → **Settings** → **Build** → **Connect**
-3. Worker 名称必须和 `wrangler.jsonc` 里的 `name` 完全一致（默认 `dl-platform`）
+3. Worker 名称保持和仓库里的一致（默认 `dl-platform`）。若要换名，同时改 `wrangler.jsonc` 的 `name`
 4. 生产分支选 `main`
-5. 构建设置填下面这几项。Cloudflare 可能会自动填成 `npm run build` 和 `npx wrangler deploy`，请改成：
+5. 构建设置：
 
 | 项 | 填 |
 | --- | --- |
-| **Build command** | `npm run build` |
-| **Deploy command** | `npm run cf-deploy` |
-| **Non-production deploy** | `npx wrangler versions upload` |
+| **Build command** | `npm run build`（默认即可） |
+| **Deploy command** | `npx wrangler deploy --x-auto-create=false` |
 | **Root directory** | `/` |
 
-`npm run build` 会编出 Cloudflare Worker。如果 Deploy 仍是 `npx wrangler deploy`，会报找不到 OpenNext 配置，必须改成 `npm run cf-deploy`。
+`--x-auto-create=false` 是为了禁止第一次部署自动建新的 D1 / R2。不要用默认的 `npx wrangler deploy`。
 
-6. **Save and Deploy**。第一次会自动构建并发布。之后每次 push `main` 都会再部署一次。
+6. 先 **Save**。若已经自动跑过一次部署并因缺少绑定失败，先做下一步再 **Retry**。
 
-若已经失败过：改好构建设置后，在该 Worker 的 **Deployments / Builds** 里点 **Retry**。
+### 4. 绑定已有 D1 / R2
 
-部署失败时，先核对：Worker 名是否一致、`database_id` 是否已换成真实 ID、D1 / R2 是否在同一个账号里。
+打开该 Worker → **Settings → Bindings**：
+
+1. 添加 D1，变量名填 `DB`，下拉选第 2 步建的数据库
+2. 添加 R2，变量名填 `FILES`，下拉选第 2 步建的桶
+
+配置文件只声明了绑定名、没有写资源 ID，之后再部署会沿用这里选的资源，不会冲掉，也不会另建一套。
+
+绑好后，在 **Deployments / Builds** 里点 **Retry**（或 **Save and Deploy**）。
 
 ### 5. 配置登录（必做）
 
@@ -139,8 +124,9 @@ https://你的站点/api/auth/callback/google
 统计页默认只显示本盘数据。若要看 R2 / 数据库用量：
 
 1. 在 Cloudflare 建一个有 **Account Analytics 读** 权限的 API Token
-2. 把 Worker 上的 Secret `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN` 从 `NULL` 改成真实值  
-   （第一次部署如果还没有这两项，会自动建成值为 `NULL` 的 Secret，直接改即可）
+2. 在该 Worker 的 Encrypted secrets 里加上 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`
+
+账号里如果有多套 Worker / R2 / D1，可再加明文变量 `CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`，用来过滤统计，不是绑定本身。
 
 ---
 
