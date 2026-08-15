@@ -3,7 +3,9 @@
   // Cloudflare Dashboard → 该 Worker → Settings → Build
   // Build command:  npm run cf-build
   // Deploy command: npm run cf-deploy
-  "name": "zuens-dl-platform",
+  //
+  // name / D1 / R2 都是占位默认值。先在账号里创建资源，再把名称和 database_id 改成真实的。
+  "name": "dl-platform",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -16,22 +18,22 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "zuens-dl-db",
-      "database_id": "ce85bf1b-9a70-4827-b11b-0df8c3387fd9",
+      "database_name": "dl-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
     {
       "binding": "FILES",
-      "bucket_name": "zuens-dl"
+      "bucket_name": "dl-files"
     }
   ],
   "vars": {
     // 非密钥明文。账密、CLOUDFLARE_* 走 Encrypted secrets，不要写在这里。
-    "AUTH_MODE": "better-auth",
-    "CF_WORKER_NAME": "zuens-dl-platform",
-    "CF_R2_BUCKET": "zuens-dl",
-    "CF_D1_DATABASE_ID": "ce85bf1b-9a70-4827-b11b-0df8c3387fd9"
+    "AUTH_MODE": "password",
+    "CF_WORKER_NAME": "dl-platform",
+    "CF_R2_BUCKET": "dl-files",
+    "CF_D1_DATABASE_ID": "00000000-0000-0000-0000-000000000000"
   }
 }

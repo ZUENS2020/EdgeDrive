@@ -1,5 +1,5 @@
 {
-  "name": "zuens-dl-platform",
+  "name": "dl-platform",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,8 +11,8 @@
     "cf-build": "opennextjs-cloudflare build",
     "cf-deploy": "node scripts/cf-deploy.mjs",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv",
-    "db:migrate:local": "wrangler d1 migrations apply zuens-dl-db --local",
-    "db:migrate": "wrangler d1 migrations apply zuens-dl-db --remote"
+    "db:migrate:local": "wrangler d1 migrations apply dl-db --local",
+    "db:migrate": "wrangler d1 migrations apply dl-db --remote"
   },
   "engines": {
     "node": ">=20.9.0"

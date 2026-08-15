@@ -50,11 +50,11 @@ OpenNext 跑在 Workers 上，**不要在 RSC 渲染阶段写 cookie**，否则�
 ### 1. 创建 Cloudflare 资源（新账号）
 
 ```bash
-npx wrangler d1 create <你的-d1-名>
-npx wrangler r2 bucket create <你的-r2-桶名>
+npx wrangler d1 create dl-db
+npx wrangler r2 bucket create dl-files
 ```
 
-把输出的 `database_id` 和名称填进 `wrangler.jsonc`，并改 `name`（Worker 名）。`package.json` 里的 `db:migrate*` / `cf-deploy` 也要改成同一个 D1 名。
+把输出的 `database_id` 和名称填进 `wrangler.jsonc`，并改 `name`（Worker 名）。`package.json` 里的 `db:migrate*` 也要改成同一个 D1 名。仓库里的 `dl-platform` / `dl-db` / `dl-files` 和全 0 的 `database_id` 只是占位。
 
 已有绑定可跳过这一步。
 
@@ -116,7 +116,7 @@ cp .dev.vars.example .dev.vars
 
 **不要走 GitHub Actions。** 在 Cloudflare 里自建 Worker，把本仓库接上，push 生产分支就会构建、部署。
 
-Worker 名必须和 `wrangler.jsonc` 里的 `name` 一致（默认 `zuens-dl-platform`），否则 Builds 会失败。绑定名固定为 D1 `DB`、R2 `FILES`。
+Worker 名必须和 `wrangler.jsonc` 里的 `name` 一致（默认占位 `dl-platform`），否则 Builds 会失败。绑定名固定为 D1 `DB`、R2 `FILES`。
 
 1. 打开 [Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages) → **Create** → **Import a repository**，选这个 Git 仓库。  
    若 Worker 已经建好：该 Worker → **Settings** → **Build** → **Connect**，再选仓库。
