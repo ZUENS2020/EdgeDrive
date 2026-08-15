@@ -197,7 +197,7 @@ function UsageBody({ data }: { data: UsagePayload }) {
           <Metric k="扫描行" v={n(a.d1?.rowsRead)} />
           <Metric k="写入行" v={n(a.d1?.rowsWritten)} />
           <Metric k="响应体" v={a.d1 ? formatSize(a.d1.responseBytes) : "—"} />
-          <Metric k="查询耗时合计" v={a.d1 ? `${n(a.d1.queryTimeMs)} ms` : "—"} />
+          <Metric k="查询平均耗时" v={a.d1 ? `${a.d1.queryTimeMs.toFixed(2)} ms` : "—"} />
         </div>
         {showQuota && d1Bytes != null ? (
           <div className="usage-quotas">
