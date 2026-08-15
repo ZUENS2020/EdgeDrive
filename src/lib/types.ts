@@ -43,6 +43,8 @@ export type SiteSettings = {
   cf_r2_bucket: string;
   cf_d1_database_id: string;
   cron_secret: string;
+  /** GET 响应中 cron_secret 已遮罩——此字段指示是否已设置。 */
+  cron_secret_set?: boolean;
 };
 
 export type StatsPayload = {

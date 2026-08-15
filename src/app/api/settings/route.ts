@@ -12,7 +12,9 @@ export async function GET(request: Request) {
   const db = await getDB();
   await ensureCronSecret(db);
   const settings = await getSettings(db);
-  return NextResponse.json({ settings, authMode: gate.mode });
+  // cron_secret 不下发明文（可触发 purge 的凭证）——只回布尔
+  const safe = { ...settings, cron_secret: "", cron_secret_set: Boolean(settings.cron_secret) };
+  return NextResponse.json({ settings: safe, authMode: gate.mode });
 }
 
 export async function PUT(request: Request) {
@@ -25,5 +27,6 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
   const settings = await updateSettings(body);
-  return NextResponse.json({ ok: true, settings });
+  const safe = { ...settings, cron_secret: "", cron_secret_set: Boolean(settings.cron_secret) };
+  return NextResponse.json({ ok: true, settings: safe });
 }

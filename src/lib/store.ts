@@ -3,6 +3,13 @@ import { escapeLike } from "./like";
 import { dlUrl, fileKey, flattenFolderPaths, isExpired, type FileRow, type FileView, type FolderNode, type FolderRow, type StatsPayload } from "./types";
 import { sanitizeFileName, sanitizeFolderName, sanitizeKey, splitKey } from "./sanitize";
 
+/** D1 单查询绑定参数上限 100——分批用。 */
+function chunkIds(ids: string[], size = 90): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
 function toView(row: FileRow, origin: string, now = Date.now()): FileView {
   const key = fileKey(row.path, row.name);
   return {
@@ -34,8 +41,10 @@ export async function listFiles(opts: {
   const binds: unknown[] = [];
 
   if (opts.q && opts.q.trim()) {
+    // D1 LIKE 模式限 50 字节——截断到 40 字符防 500
+    const q = opts.q.trim().slice(0, 40);
     where.push("name LIKE ? ESCAPE '\\'");
-    binds.push(`%${escapeLike(opts.q.trim())}%`);
+    binds.push(`%${escapeLike(q)}%`);
   } else if (opts.path != null) {
     where.push("path = ?");
     binds.push(opts.path);
@@ -115,11 +124,14 @@ export async function upsertFile(row: Omit<FileRow, "download_count"> & { downlo
 export async function setFileExpires(ids: string[], expires: string | null) {
   const db = await getDB();
   if (!ids.length) return;
-  const placeholders = ids.map(() => "?").join(",");
-  await db
-    .prepare(`UPDATE files SET expires = ? WHERE id IN (${placeholders})`)
-    .bind(expires, ...ids)
-    .run();
+  // D1 单查询绑定参数上限 100——分批执行
+  for (const chunk of chunkIds(ids)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    await db
+      .prepare(`UPDATE files SET expires = ? WHERE id IN (${placeholders})`)
+      .bind(expires, ...chunk)
+      .run();
+  }
 }
 
 export async function incrementDownload(id: string) {
@@ -131,17 +143,21 @@ export async function deleteFiles(ids: string[]) {
   if (!ids.length) return { deleted: 0 };
   const db = await getDB();
   const r2 = await getR2();
-  const placeholders = ids.map(() => "?").join(",");
-  const rows = await db
-    .prepare(`SELECT * FROM files WHERE id IN (${placeholders})`)
-    .bind(...ids)
-    .all<FileRow>();
-  const files = rows.results || [];
-  for (const f of files) {
-    await r2.delete(fileKey(f.path, f.name));
+  let deleted = 0;
+  for (const chunk of chunkIds(ids)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const rows = await db
+      .prepare(`SELECT * FROM files WHERE id IN (${placeholders})`)
+      .bind(...chunk)
+      .all<FileRow>();
+    const files = rows.results || [];
+    for (const f of files) {
+      await r2.delete(fileKey(f.path, f.name));
+    }
+    await db.prepare(`DELETE FROM files WHERE id IN (${placeholders})`).bind(...chunk).run();
+    deleted += files.length;
   }
-  await db.prepare(`DELETE FROM files WHERE id IN (${placeholders})`).bind(...ids).run();
-  return { deleted: files.length };
+  return { deleted };
 }
 
 export async function listFolders(): Promise<FolderNode[]> {
@@ -242,7 +258,8 @@ async function rewriteFilePaths(oldPath: string, newPath: string) {
     if (fromKey !== toKey) {
       const obj = await r2.get(fromKey);
       if (obj) {
-        await r2.put(toKey, await obj.arrayBuffer(), {
+        // 流式搬运（不 arrayBuffer 进内存——大文件零内存开销）
+        await r2.put(toKey, obj.body, {
           httpMetadata: obj.httpMetadata,
           customMetadata: obj.customMetadata,
         });
@@ -392,12 +409,16 @@ export async function moveFiles(
 
   const db = await getDB();
   const r2 = await getR2();
-  const placeholders = ids.map(() => "?").join(",");
-  const rows = await db
-    .prepare(`SELECT * FROM files WHERE id IN (${placeholders})`)
-    .bind(...ids)
-    .all<FileRow>();
-  const files = rows.results || [];
+  // D1 绑定参数上限 100——分块查询
+  const files: FileRow[] = [];
+  for (const chunk of chunkIds(ids)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const rows = await db
+      .prepare(`SELECT * FROM files WHERE id IN (${placeholders})`)
+      .bind(...chunk)
+      .all<FileRow>();
+    files.push(...(rows.results || []));
+  }
   if (!files.length) throw new Error("not-found");
 
   let moved = 0;
@@ -416,7 +437,7 @@ export async function moveFiles(
 
     const obj = await r2.get(fromKey);
     if (obj) {
-      await r2.put(toKey, await obj.arrayBuffer(), {
+      await r2.put(toKey, obj.body, {
         httpMetadata: obj.httpMetadata,
         customMetadata: obj.customMetadata,
       });

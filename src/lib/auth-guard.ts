@@ -5,9 +5,25 @@ import { getAuthMode, isAccessMode } from "./cloudflare";
 
 const SESSION_QUERY = { disableRefresh: true, disableCookieCache: true } as const;
 
+/** Cloudflare Access 模式：校验 CF Access 注入的请求头（fail-closed——头不存在一律拒绝）。 */
+function accessVerified(hdrs: Headers): boolean {
+  const email = hdrs.get("cf-access-authenticated-user-email");
+  const jwt = hdrs.get("cf-access-jwt-assertion");
+  return Boolean(email || jwt);
+}
+
 export async function requireAdmin(request?: Request) {
   const mode = await getAuthMode();
   if (isAccessMode(mode)) {
+    const hdrs = request ? request.headers : await headers();
+    if (!accessVerified(hdrs)) {
+      return {
+        ok: false as const,
+        session: null,
+        mode,
+        response: NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+      };
+    }
     return { ok: true as const, session: null, mode };
   }
   const hdrs = request ? request.headers : await headers();
@@ -35,7 +51,10 @@ export function hasSessionCookie(cookieHeader: string | null): boolean {
 /** RSC-safe gate: never write cookies during render (OpenNext/Workers 会因此 500). */
 export async function requireAdminPage() {
   const mode = await getAuthMode();
-  if (isAccessMode(mode)) return { ok: true as const, mode };
+  if (isAccessMode(mode)) {
+    const hdrs = await headers();
+    return { ok: accessVerified(hdrs), mode };
+  }
   const hdrs = await headers();
   if (!hasSessionCookie(hdrs.get("cookie"))) {
     return { ok: false as const, mode };

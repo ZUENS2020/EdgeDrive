@@ -351,7 +351,7 @@ export function SettingsForm({
               <p className="hint">外部定时器调用 POST /api/cron/purge，Header 为 Authorization: Bearer 下面这串。管理台点「立即清理」不用这个。</p>
               <div className="grid gap-2">
                 <Label htmlFor="cron_secret">CRON 令牌</Label>
-                <Input id="cron_secret" readOnly value={form.cron_secret} />
+                <Input id="cron_secret" readOnly value={form.cron_secret_set ? "已设置（可更换）" : "未设置（保存后自动生成）"} />
               </div>
             </section>
             <div className="settings-save">
