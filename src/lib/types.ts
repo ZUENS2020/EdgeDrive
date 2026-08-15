@@ -1,5 +1,4 @@
-export type AuthMode = "access" | "password" | "oauth";
-export type OAuthProviderId = "github" | "google";
+export type AuthMode = "access" | "password";
 
 export type FileRow = {
   id: string;

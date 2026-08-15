@@ -2,35 +2,12 @@ import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
 import { username } from "better-auth/plugins";
 import { compare, hash } from "bcryptjs";
-import {
-  envString,
-  getCfEnv,
-  listOAuthProviders,
-  readAuthMode,
-} from "./cloudflare";
-import { getSettings, parseEmailList } from "./settings";
+import { envString, getCfEnv, readAuthMode } from "./cloudflare";
 
 const BCRYPT_ROUNDS = 10;
 
 function adminEmail(usernameValue: string) {
   return `${usernameValue.toLowerCase()}@admin.local`;
-}
-
-async function oauthEmailAllowed(email: string, env: CloudflareEnv): Promise<boolean> {
-  const normalized = email.trim().toLowerCase();
-  if (!normalized) return false;
-  let fromSettings: string[] = [];
-  try {
-    const settings = await getSettings(env.DB);
-    fromSettings = parseEmailList(settings.oauth_allow_emails);
-  } catch {
-    fromSettings = [];
-  }
-  const fromEnv = parseEmailList(envString(env, "OAUTH_ALLOW_EMAILS"));
-  const allow = new Set([...fromSettings, ...fromEnv]);
-  if (allow.size) return allow.has(normalized);
-  const count = await env.DB.prepare('SELECT COUNT(*) as n FROM "user"').first<{ n: number }>();
-  return (count?.n || 0) === 0;
 }
 
 export async function createAuth() {
@@ -43,84 +20,36 @@ export async function createAuth() {
     envString(env, "BETTER_AUTH_SECRET") ||
     (process.env.NODE_ENV !== "production" ? "dev-only-change-me-use-32-chars-min" : "");
   if (!secret) {
-    throw new Error("BETTER_AUTH_SECRET is required when AUTH_MODE is password or oauth");
+    throw new Error("BETTER_AUTH_SECRET is required when AUTH_MODE=password");
   }
   const baseURL = envString(env, "BETTER_AUTH_URL") || process.env.BETTER_AUTH_URL;
 
-  if (mode === "password") await ensureAdmin(env);
-
-  const providers = listOAuthProviders(env);
-  const socialProviders: {
-    github?: { clientId: string; clientSecret: string; scope?: string[] };
-    google?: { clientId: string; clientSecret: string };
-  } = {};
-  if (mode === "oauth") {
-    if (providers.includes("github")) {
-      socialProviders.github = {
-        clientId: envString(env, "GITHUB_CLIENT_ID")!,
-        clientSecret: envString(env, "GITHUB_CLIENT_SECRET")!,
-        scope: ["read:user", "user:email"],
-      };
-    }
-    if (providers.includes("google")) {
-      socialProviders.google = {
-        clientId: envString(env, "GOOGLE_CLIENT_ID")!,
-        clientSecret: envString(env, "GOOGLE_CLIENT_SECRET")!,
-      };
-    }
-  }
+  await ensureAdmin(env);
 
   return betterAuth({
     secret,
     baseURL,
     database: env.DB,
     emailAndPassword: {
-      enabled: mode === "password",
+      enabled: true,
       disableSignUp: true,
-      minPasswordLength: mode === "password" ? 1 : 8,
+      minPasswordLength: 1,
       password: {
         hash: (password) => hash(password, BCRYPT_ROUNDS),
         verify: ({ hash: hashed, password }) => compare(password, hashed),
       },
     },
-    socialProviders: mode === "oauth" ? socialProviders : undefined,
     plugins: [
-      ...(mode === "password"
-        ? [
-            username({
-              minUsernameLength: 1,
-              maxUsernameLength: 64,
-              usernameValidator: (value) => /^[a-zA-Z0-9._-]+$/.test(value),
-            }),
-          ]
-        : []),
+      username({
+        minUsernameLength: 1,
+        maxUsernameLength: 64,
+        usernameValidator: (value) => /^[a-zA-Z0-9._-]+$/.test(value),
+      }),
       nextCookies(),
     ],
     trustedOrigins: authTrustedOrigins(baseURL),
-    databaseHooks:
-      mode === "oauth"
-        ? {
-            user: {
-              create: {
-                before: async (user) => {
-                  if (!(await oauthEmailAllowed(user.email, env))) return false;
-                  const existing = await env.DB.prepare('SELECT COUNT(*) as n FROM "user"').first<{
-                    n: number;
-                  }>();
-                  if ((existing?.n || 0) > 0) return false;
-                },
-              },
-            },
-          }
-        : undefined,
     onAPIError: {
       errorURL: "/login",
-    },
-    account: {
-      accountLinking: {
-        enabled: true,
-        trustedProviders: ["github", "google"],
-      },
     },
     advanced: {
       csrf: { enabled: process.env.NODE_ENV === "development" ? false : true },

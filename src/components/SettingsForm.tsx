@@ -348,29 +348,10 @@ export function SettingsForm({
                 </Button>
               </div>
             </form>
-          ) : authMode === "oauth" ? (
-            <section className="settings-block">
-              <h3>OAuth</h3>
-              <p className="hint">允许登录的邮箱，逗号或换行分隔。名单为空时，第一个成功登录的账号成为管理员。</p>
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="oauth_allow_emails">允许的邮箱</Label>
-                  <Textarea
-                    id="oauth_allow_emails"
-                    maxLength={2000}
-                    value={form.oauth_allow_emails}
-                    onChange={(e) => setForm({ ...form, oauth_allow_emails: e.target.value })}
-                  />
-                </div>
-                <Button type="button" disabled={pending} onClick={saveSettings}>
-                  {pending ? "保存中…" : "保存允许名单"}
-                </Button>
-              </div>
-            </section>
           ) : (
             <section className="settings-block">
               <h3>Cloudflare Access</h3>
-              <p className="hint">当前应用不处理登录。后台由 Access（或同等网关）保护，账号在网关里管理。</p>
+              <p className="hint">当前应用不处理登录。后台由 Access（或同等网关）保护，GitHub / Google 等 OAuth 也在网关里配置，账号在网关里管理。</p>
             </section>
           )
         ) : null}

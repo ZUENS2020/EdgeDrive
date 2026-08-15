@@ -1,15 +1,29 @@
 #!/usr/bin/env node
 /**
- * After wrangler deploy, create Encrypted Secrets that should show up in
- * Dashboard but are optional at runtime. Existing secrets are never overwritten.
+ * After wrangler deploy, create Encrypted Secrets so Dashboard →
+ * Variables and Secrets already lists every field name.
+ * Existing secrets are never overwritten.
  *
  * Sentinel value NULL is treated as unset by envString().
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
-const KEYS = ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"];
 const SENTINEL = "NULL";
+const SECRETS = [
+  ["AUTH_MODE", "password"],
+  ["BETTER_AUTH_SECRET", SENTINEL],
+  ["BETTER_AUTH_URL", SENTINEL],
+  ["ADMIN_USERNAME", SENTINEL],
+  ["ADMIN_PASSWORD", SENTINEL],
+  ["CRON_SECRET", SENTINEL],
+  ["CLOUDFLARE_ACCOUNT_ID", SENTINEL],
+  ["CLOUDFLARE_API_TOKEN", SENTINEL],
+  ["CF_WORKER_NAME", SENTINEL],
+  ["CF_R2_BUCKET", SENTINEL],
+  ["CF_D1_DATABASE_ID", SENTINEL],
+];
+
 const wranglerBin = path.join(process.cwd(), "node_modules", ".bin", "wrangler");
 const env = { ...process.env, WRANGLER_LOG: process.env.WRANGLER_LOG || "error" };
 
@@ -39,11 +53,11 @@ function parseSecretNames(text) {
 
 const names = parseSecretNames(wrangler(["secret", "list", "--format", "json"]));
 
-for (const key of KEYS) {
+for (const [key, value] of SECRETS) {
   if (names.has(key)) {
     console.log(`${key} already present, skip`);
     continue;
   }
-  console.log(`creating encrypted secret ${key}=${SENTINEL}`);
-  wrangler(["secret", "put", key], { input: SENTINEL, inherit: true });
+  console.log(`creating encrypted secret ${key}`);
+  wrangler(["secret", "put", key], { input: value, inherit: true });
 }

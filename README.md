@@ -56,10 +56,10 @@ npx wrangler r2 bucket create 你的桶名
 | 项 | 填 |
 | --- | --- |
 | **Build command** | `npm run build`（默认即可） |
-| **Deploy command** | `npx wrangler deploy --x-auto-create=false` |
+| **Deploy command** | `npm run cf-deploy` |
 | **Root directory** | `/` |
 
-`--x-auto-create=false` 是为了禁止第一次部署自动建新的 D1 / R2。不要用默认的 `npx wrangler deploy`。
+`npm run cf-deploy` 会：沿用 Bindings 里已有的 D1/R2（不自动建新的）、跑数据库迁移、并把 Variables and Secrets 里的字段名全部种上。不要用默认的 `npx wrangler deploy`。
 
 6. 先 **Save**。若已经自动跑过一次部署并因缺少绑定失败，先做下一步再 **Retry**。
 
@@ -76,9 +76,16 @@ npx wrangler r2 bucket create 你的桶名
 
 ### 5. 配置登录（必做）
 
-部署成功后，打开该 Worker → **Settings** → **Variables and Secrets** → **Add** → 类型选 **Secret**。
+部署成功后，打开该 Worker → **Settings** → **Variables and Secrets**。字段名已经在，不用再 Add，点进去把 `NULL` 改成真值即可。
 
-默认是账密登录，至少加这四项：
+`AUTH_MODE` 默认是 `password`（账密）。两种写法：
+
+| `AUTH_MODE` | 还要改哪些 |
+| --- | --- |
+| `password` | `BETTER_AUTH_SECRET`、`BETTER_AUTH_URL`、`ADMIN_USERNAME`、`ADMIN_PASSWORD` |
+| `access` | 管理入口由 Cloudflare Access 保护。GitHub / Google 等 OAuth 在 Access 里配，站点不再弹登录页 |
+
+账密登录至少改这四项：
 
 | 名称 | 填什么 |
 | --- | --- |
@@ -89,25 +96,9 @@ npx wrangler r2 bucket create 你的桶名
 
 第一次打开站点后会按这两项创建管理员。已经有管理员之后，再改这两个 Secret 不会覆盖现有账号；要改密请进管理台。
 
-改完 Secret 不用重新部署，刷新即可。
+改完 Secret 不用重新部署，刷新即可。值为 `NULL` 的项表示未配置，程序会当成没填。
 
-可选：
-
-| 名称 | 什么时候要 |
-| --- | --- |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | 用 GitHub 登录 |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 用 Google 登录 |
-| `OAUTH_ALLOW_EMAILS` | 限制哪些邮箱能登录（也可在设置页改） |
-| `CRON_SECRET` | 定时清理过期文件时用 |
-
-如果要用 GitHub / Google 登录，把 `wrangler.jsonc` 里的 `AUTH_MODE` 改成 `oauth` 再推送。回调地址填：
-
-```
-https://你的站点/api/auth/callback/github
-https://你的站点/api/auth/callback/google
-```
-
-如果管理入口已经由 Cloudflare Access 保护，把 `AUTH_MODE` 改成 `access`，站点本身不再弹登录页。
+可选：`CRON_SECRET` 给定时清理过期文件用。
 
 ### 6. 自定义域名（可选）
 
@@ -121,12 +112,7 @@ https://你的站点/api/auth/callback/google
 
 之后可以：上传文件、设有效期、建文件夹、改站点名称和文案。直链形式是 `/dl/文件夹/文件名`。
 
-统计页默认只显示本盘数据。若要看 R2 / 数据库用量：
-
-1. 在 Cloudflare 建一个有 **Account Analytics 读** 权限的 API Token
-2. 在该 Worker 的 Encrypted secrets 里加上 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`
-
-账号里如果有多套 Worker / R2 / D1，可再加明文变量 `CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID`，用来过滤统计，不是绑定本身。
+统计页默认只显示本盘数据。若要看 R2 / 数据库用量，把已有的 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN` 从 `NULL` 改成真值（Token 需 Account Analytics 读）。账号里有多套 Worker / R2 / D1 时，再改 `CF_WORKER_NAME`、`CF_R2_BUCKET`、`CF_D1_DATABASE_ID` 用来过滤，不是绑定本身。
 
 ---
 

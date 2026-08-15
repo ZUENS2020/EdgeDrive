@@ -2,7 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   // Cloudflare Workers Builds：
   //   Build command:  npm run build
-  //   Deploy command: npx wrangler deploy --x-auto-create=false
+  //   Deploy command: npm run cf-deploy
+  //   （会沿用 Bindings，并种好 Variables and Secrets 里的字段名）
   //
   // 只声明绑定名。不要填 database_id / bucket_name，否则会写死资源、
   // 也会在第一次部署时自动建新库和新桶。
@@ -28,9 +29,7 @@
     {
       "binding": "FILES"
     }
-  ],
-  "vars": {
-    // 非密钥明文。账密、CLOUDFLARE_* 走 Encrypted secrets，不要写在这里。
-    "AUTH_MODE": "password"
-  }
+  ]
+  // AUTH_MODE 和账密等全部走 Encrypted secrets，部署后由脚本种上字段名。
+  // 不要写进 vars，否则下次部署会盖掉 Dashboard 里改过的值。
 }
