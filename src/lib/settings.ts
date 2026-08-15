@@ -15,6 +15,8 @@ export const DEFAULTS: SiteSettings = {
   footer_note: "",
   show_admin_link: true,
   logo_text: "",
+  purge_after_days: 7,
+  oauth_allow_emails: "",
 };
 
 function clip(raw: string | undefined, fallback: string, max: number): string {
@@ -30,6 +32,19 @@ function optional(raw: string | undefined, max: number): string {
 function asBool(raw: string | undefined, fallback: boolean): boolean {
   if (raw == null || raw === "") return fallback;
   return raw === "1" || raw.toLowerCase() === "true" || raw === "yes";
+}
+
+function clampDays(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return Math.min(3650, Math.floor(n));
+}
+
+export function parseEmailList(raw: string | undefined): string[] {
+  return (raw || "")
+    .split(/[,;\n]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s.includes("@"));
 }
 
 export async function getSettings(db?: D1Database): Promise<SiteSettings> {
@@ -56,6 +71,8 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
     footer_note: optional(map.get("footer_note"), 200),
     show_admin_link: asBool(map.get("show_admin_link"), DEFAULTS.show_admin_link),
     logo_text: optional(map.get("logo_text"), 2),
+    purge_after_days: clampDays(map.get("purge_after_days"), DEFAULTS.purge_after_days),
+    oauth_allow_emails: optional(map.get("oauth_allow_emails"), 2000),
   };
 }
 
@@ -76,6 +93,7 @@ export async function updateSettings(
   next.admin_subtitle = optional(next.admin_subtitle, 20);
   next.footer_note = optional(next.footer_note, 200);
   next.logo_text = optional(next.logo_text, 2);
+  next.oauth_allow_emails = optional(next.oauth_allow_emails, 2000);
 
   if (patch.page_size != null) {
     const n = Number(patch.page_size);
@@ -83,6 +101,9 @@ export async function updateSettings(
   }
   if (patch.brand_color && !/^#[0-9a-fA-F]{6}$/.test(patch.brand_color)) {
     next.brand_color = current.brand_color;
+  }
+  if (patch.purge_after_days != null) {
+    next.purge_after_days = clampDays(String(patch.purge_after_days), current.purge_after_days);
   }
 
   const entries: [string, string][] = [
@@ -99,6 +120,8 @@ export async function updateSettings(
     ["footer_note", next.footer_note],
     ["show_admin_link", next.show_admin_link ? "1" : "0"],
     ["logo_text", next.logo_text],
+    ["purge_after_days", String(next.purge_after_days)],
+    ["oauth_allow_emails", next.oauth_allow_emails],
   ];
   for (const [key, value] of entries) {
     await conn

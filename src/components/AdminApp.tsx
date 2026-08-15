@@ -5,11 +5,13 @@ import { toast } from "sonner";
 import { Search, Upload } from "lucide-react";
 import { applyBrandColor } from "@/lib/brand";
 import { copyToClipboard } from "@/lib/clipboard";
-import type { FileView, FolderNode, SiteSettings, StatsPayload } from "@/lib/types";
+import type { AuthMode, FileView, FolderNode, SiteSettings, StatsPayload } from "@/lib/types";
+import { flattenFolderPaths } from "@/lib/types";
 import { BatchBar } from "./BatchBar";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FileTable } from "./FileTable";
+import { MoveDialog } from "./MoveDialog";
 import { PaginationBar } from "./PaginationBar";
 import { PromptDialog } from "./PromptDialog";
 import { Sidebar } from "./Sidebar";
@@ -21,7 +23,13 @@ const PART = 8 * 1024 * 1024;
 
 type Filter = "all" | "ok" | "soon" | "expired";
 
-export function AdminApp({ initialSettings }: { initialSettings: SiteSettings }) {
+export function AdminApp({
+  initialSettings,
+  authMode,
+}: {
+  initialSettings: SiteSettings;
+  authMode: AuthMode;
+}) {
   const [settings, setSettings] = useState(initialSettings);
   const [files, setFiles] = useState<FileView[]>([]);
   const [total, setTotal] = useState(0);
@@ -42,6 +50,8 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
     value: string;
     run: (name: string) => void;
   } | null>(null);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveIds, setMoveIds] = useState<string[]>([]);
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
   const [pageDrop, setPageDrop] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -124,6 +134,26 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
     else if (payload.action === "expireNow") await batch({ ids, action: "expireNow" });
     else await batch({ ids, action: "expire", hours: payload.hours, days: payload.days, expires: payload.expires });
     setExpireOpen(false);
+  }
+
+  async function patchFiles(body: Record<string, unknown>) {
+    const res = await fetch("/api/files", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      const map: Record<string, string> = {
+        "file-exists": "目标位置已有同名文件",
+        "folder-not-found": "文件夹不存在",
+        "rename-single": "一次只能改一个文件名",
+      };
+      toast.error(map[err.error || ""] || err.error || "操作失败");
+      return false;
+    }
+    await load();
+    return true;
   }
 
   async function uploadFiles(list: FileList | File[]) {
@@ -247,6 +277,7 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
         onDeleteFolder={onDeleteFolder}
         onUpload={() => fileInput.current?.click()}
         onPickFiles={uploadFiles}
+        showLogout={authMode !== "access"}
       />
       <div className="main">
         <div className="header">
@@ -318,10 +349,25 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
               setExpireIds([id]);
               setExpireOpen(true);
             }}
-            onCopy={async (url) => {
+            onCopy={async (url, kind) => {
               const ok = await copyToClipboard(url);
-              if (ok) toast.success("已复制下载链接");
+              if (ok) toast.success(kind === "view" ? "已复制预览链接" : "已复制下载链接");
               else toast.error("复制失败，请手动复制");
+            }}
+            onRename={(file) => {
+              setPrompt({
+                title: "重命名文件",
+                label: "新文件名",
+                value: file.name,
+                run: async (name) => {
+                  const ok = await patchFiles({ id: file.id, name });
+                  if (ok) toast.success("已改名");
+                },
+              });
+            }}
+            onMove={(file) => {
+              setMoveIds([file.id]);
+              setMoveOpen(true);
             }}
           />
           <PaginationBar page={page} pageSize={settings.page_size} total={total} onPage={setPage} />
@@ -345,6 +391,10 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
         }}
         onPermanent={() => batch({ ids: [...selected], action: "permanent" })}
         onExpireNow={() => batch({ ids: [...selected], action: "expireNow" })}
+        onMove={() => {
+          setMoveIds([...selected]);
+          setMoveOpen(true);
+        }}
         onDelete={() =>
           setConfirm({
             title: "批量删除",
@@ -360,6 +410,20 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
         count={expireIds.length || selectedList.length}
         onClose={() => setExpireOpen(false)}
         onSubmit={(payload) => applyExpire(expireIds.length ? expireIds : [...selected], payload)}
+      />
+      <MoveDialog
+        open={moveOpen}
+        count={moveIds.length}
+        folders={flattenFolderPaths(folders)}
+        onClose={() => setMoveOpen(false)}
+        onSubmit={async (path) => {
+          setMoveOpen(false);
+          const ok = await patchFiles({ ids: moveIds, path });
+          if (ok) {
+            setSelected(new Set());
+            toast.success("已移动");
+          }
+        }}
       />
       <ConfirmDialog
         open={!!confirm}

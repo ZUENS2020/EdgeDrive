@@ -51,7 +51,9 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('admin_subtitle', '管理'),
   ('footer_note', ''),
   ('show_admin_link', '1'),
-  ('logo_text', '');
+  ('logo_text', ''),
+  ('purge_after_days', '7'),
+  ('oauth_allow_emails', '');
 
 -- Better Auth (SQLite / D1)
 CREATE TABLE IF NOT EXISTS "user" (

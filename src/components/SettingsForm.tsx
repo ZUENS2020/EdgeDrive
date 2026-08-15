@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { applyBrandColor } from "@/lib/brand";
-import type { SiteSettings } from "@/lib/types";
+import type { AuthMode, SiteSettings } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,10 +17,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function SettingsForm({ initial }: { initial: SiteSettings }) {
+export function SettingsForm({
+  initial,
+  authMode,
+}: {
+  initial: SiteSettings;
+  authMode: AuthMode;
+}) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
   const [pending, setPending] = useState(false);
+  const [purging, setPurging] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [pwPending, setPwPending] = useState(false);
 
   useEffect(() => {
     applyBrandColor(form.brand_color);
@@ -46,7 +56,42 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
     router.refresh();
   }
 
+  async function onPurge() {
+    setPurging(true);
+    const res = await fetch("/api/cron/purge", { method: "POST" });
+    setPurging(false);
+    if (!res.ok) {
+      toast.error("清理失败");
+      return;
+    }
+    const data = (await res.json()) as { deleted?: number };
+    toast.success(`已删除 ${data.deleted ?? 0} 个过期文件`);
+    router.refresh();
+  }
+
+  async function onPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwPending(true);
+    const res = await fetch("/api/account/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    setPwPending(false);
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      toast.error(
+        err.error === "bad-current" ? "当前密码不对" : err.error === "new-password-min-8" ? "新密码至少 8 位" : "改密失败",
+      );
+      return;
+    }
+    setCurrentPassword("");
+    setNewPassword("");
+    toast.success("密码已更新");
+  }
+
   return (
+    <>
     <form className="settings-page" onSubmit={onSubmit}>
       <section className="settings-block">
         <h2>站点</h2>
@@ -201,12 +246,86 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="purge_after_days">过期后保留天数</Label>
+            <Input
+              id="purge_after_days"
+              type="number"
+              min={0}
+              max={3650}
+              value={form.purge_after_days}
+              onChange={(e) => setForm({ ...form, purge_after_days: Number(e.target.value) })}
+            />
+            <p className="hint" style={{ margin: 0 }}>
+              到期后再留这么多天，才允许清理 R2 对象。0 表示到期即可清。永久文件不会被清。
+            </p>
+          </div>
         </div>
       </section>
+
+      {authMode === "oauth" ? (
+        <section className="settings-block">
+          <h2>OAuth</h2>
+          <p className="hint">允许登录的邮箱，逗号或换行分隔。名单为空时，第一个成功登录的账号成为管理员。</p>
+          <div className="grid gap-2">
+            <Label htmlFor="oauth_allow_emails">允许的邮箱</Label>
+            <Textarea
+              id="oauth_allow_emails"
+              maxLength={2000}
+              value={form.oauth_allow_emails}
+              onChange={(e) => setForm({ ...form, oauth_allow_emails: e.target.value })}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <Button type="submit" disabled={pending}>
         {pending ? "保存中…" : "保存"}
       </Button>
     </form>
+      <div className="settings-page" style={{ marginTop: 28 }}>
+        <section className="settings-block">
+          <h2>过期文件</h2>
+          <p className="hint">按上面的保留天数，删除已到期的对象和记录。</p>
+          <Button type="button" variant="outline" disabled={purging} onClick={onPurge}>
+            {purging ? "清理中…" : "立即清理"}
+          </Button>
+        </section>
+        {authMode === "password" ? (
+          <form className="settings-block" onSubmit={onPassword}>
+            <h2>改密码</h2>
+            <p className="hint">同时更新登录密码。新密码至少 8 位。</p>
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="current_password">当前密码</Label>
+                <Input
+                  id="current_password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="new_password">新密码</Label>
+                <Input
+                  id="new_password"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" disabled={pwPending}>
+                {pwPending ? "更新中…" : "更新密码"}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </div>
+    </>
   );
 }

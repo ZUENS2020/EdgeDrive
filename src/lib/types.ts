@@ -1,4 +1,5 @@
-export type AuthMode = "better-auth" | "none";
+export type AuthMode = "access" | "password" | "oauth";
+export type OAuthProviderId = "github" | "google";
 
 export type FileRow = {
   id: string;
@@ -15,6 +16,7 @@ export type FileRow = {
 export type FileView = FileRow & {
   key: string;
   url: string;
+  viewUrl: string;
   expired: boolean;
 };
 
@@ -44,6 +46,8 @@ export type SiteSettings = {
   footer_note: string;
   show_admin_link: boolean;
   logo_text: string;
+  purge_after_days: number;
+  oauth_allow_emails: string;
 };
 
 export type StatsPayload = {
@@ -64,6 +68,26 @@ export function logoGlyph(settings: Pick<SiteSettings, "site_name" | "logo_text"
 
 export function fileKey(path: string, name: string): string {
   return path ? `${path}/${name}` : name;
+}
+
+export function encodeDlPath(key: string): string {
+  return key.split("/").map(encodeURIComponent).join("/");
+}
+
+export function dlUrl(origin: string, key: string, view = false): string {
+  return `${origin.replace(/\/$/, "")}/dl/${encodeDlPath(key)}${view ? "/view" : ""}`;
+}
+
+export function flattenFolderPaths(nodes: FolderNode[]): { path: string; label: string }[] {
+  const out: { path: string; label: string }[] = [];
+  const walk = (list: FolderNode[]) => {
+    for (const n of list) {
+      out.push({ path: n.path, label: n.path });
+      walk(n.children);
+    }
+  };
+  walk(nodes);
+  return out;
 }
 
 export function isExpired(expires: string | null, now = Date.now()): boolean {

@@ -19,6 +19,7 @@ export function Sidebar({
   onDeleteFolder,
   onUpload,
   onPickFiles,
+  showLogout = true,
 }: {
   settings: SiteSettings;
   folders: FolderNode[];
@@ -30,6 +31,7 @@ export function Sidebar({
   onDeleteFolder: (id: string, path: string, name: string) => void;
   onUpload: () => void;
   onPickFiles: (files: FileList | File[]) => void;
+  showLogout?: boolean;
 }) {
   return (
     <aside className="sidebar">
@@ -53,7 +55,7 @@ export function Sidebar({
           <Upload />
           上传文件
         </Button>
-        <LogoutButton />
+        {showLogout ? <LogoutButton /> : null}
       </div>
     </aside>
   );

@@ -1,10 +1,10 @@
 import { toNextJsHandler } from "better-auth/next-js";
 import { createAuth } from "@/lib/auth";
-import { getAuthMode } from "@/lib/cloudflare";
+import { getAuthMode, isAccessMode } from "@/lib/cloudflare";
 
 async function handler(request: Request) {
-  if ((await getAuthMode()) === "none") {
-    return Response.json({ error: "AUTH_MODE=none" }, { status: 404 });
+  if (isAccessMode(await getAuthMode())) {
+    return Response.json({ error: "AUTH_MODE=access" }, { status: 404 });
   }
   const auth = await createAuth();
   return auth.handler(request);

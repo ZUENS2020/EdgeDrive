@@ -1,6 +1,6 @@
 # 直链盘
 
-自建文件直链：后台上传、设有效期、按文件夹管理；公开侧只有 `GET /dl/<路径>` 下载，过期返回 410。
+自建文件直链：后台上传、设有效期、按文件夹管理；公开侧 `GET /dl/<路径>` 直接下载，`/dl/<路径>/view` 给人看的落地页，过期返回 410。
 
 运行在 **Cloudflare Workers** 上。元数据进 **D1**，文件进 **R2**。站点名、首页文案、登录页、侧栏、标记颜色都可以在 `/admin/settings` 改，不必改代码。
 
@@ -19,14 +19,15 @@
 | OpenNext (`@opennextjs/cloudflare`) | `npm run deploy` 产出 `.open-next/worker.js`，用 wrangler 部署成 Worker，不是 Pages 静态站 |
 | D1 | `files` / `folders` / `admin` / `settings`（key-value）以及 Better Auth 的 `user` / `session` / `account` / `verification` |
 | R2 | 对象 key 与库里的 `path/name` 一致。本地下载走 `arrayBuffer()`，线上走 stream |
-| 鉴权 | 默认 Better Auth 单管理员；也可关掉应用鉴权，改用 Cloudflare Access 挡 `/admin*` |
+| 鉴权 | `password` 账密、`oauth`（GitHub/Google）、`access`（Cloudflare Access）三选一 |
 
 直链逻辑在 `src/app/dl/[...path]/route.ts`：
 
-- 未过期：从 R2 流出，`Content-Disposition: attachment`，支持 Range
-- 已过期：`410 Gone`（对象仍留在 R2，只是链接失效）
+- `/dl/<key>`：R2 流式下载，`Content-Disposition: attachment`，支持 Range
+- `/dl/<key>/view`：落地页（图片/音视频/PDF 可预览）
+- 已过期：`410 Gone`（宽限期内对象仍在 R2，过了保留天数可清理）
 - `expires IS NULL` 视为永久
-- 完整 GET（非续传）时 `download_count + 1`
+- 完整下载 GET（非 `?inline=1`、非续传）时 `download_count + 1`
 
 设置存在 D1 `settings` 表，由 `src/lib/settings.ts` 读写。管理页「设置」分三块：站点（名称 / 简介 / 标记文字与颜色）、首页与登录（副标题、直链说明、按钮、页脚、是否露出后台入口）、管理与上传（侧栏副标题、分页、默认有效期）。
 
@@ -68,10 +69,14 @@ cp .dev.vars.example .dev.vars
 
 | 变量 | 说明 |
 | --- | --- |
-| `AUTH_MODE` | `better-auth`（默认）或 `none` |
-| `BETTER_AUTH_SECRET` | 会话密钥，至少 32 字符。`better-auth` 必填 |
-| `BETTER_AUTH_URL` | 站点 origin，本地 `http://localhost:3000`，线上换成正式域名 |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 仅在 D1 `admin` 表为空时写入（bcrypt）。已有管理员则忽略 |
+| `AUTH_MODE` | `password`（默认，别名 `better-auth`）、`oauth`、`access`（别名 `none`） |
+| `BETTER_AUTH_SECRET` | 会话密钥，至少 32 字符。`password` / `oauth` 必填 |
+| `BETTER_AUTH_URL` | 站点 origin，本地 `http://localhost:3000`，线上换成绑到 Worker 的域名 |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 仅 `password` 模式、且 `admin` 表为空时写入 |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | `oauth` 模式可选，配了才显示 GitHub 按钮 |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `oauth` 模式可选，配了才显示 Google 按钮 |
+| `OAUTH_ALLOW_EMAILS` | 可选，额外允许的邮箱。也可在设置页改 |
+| `CRON_SECRET` | 可选。定时清理：`Authorization: Bearer <secret>` 调 `POST /api/cron/purge` |
 
 **密钥不要写进 `wrangler.jsonc` 或源码。** 线上用 Worker secrets：
 
@@ -80,6 +85,7 @@ npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler secret put BETTER_AUTH_URL
 npx wrangler secret put ADMIN_USERNAME
 npx wrangler secret put ADMIN_PASSWORD
+# oauth 时再 put GITHUB_* / GOOGLE_*
 ```
 
 `AUTH_MODE` 已在 `wrangler.jsonc` 的 `vars` 里。
@@ -126,16 +132,37 @@ push `main` 会跑 `.github/workflows/deploy.yml`：应用 D1 迁移 → OpenNex
 
 ## 鉴权
 
-### `AUTH_MODE=better-auth`（默认）
+三种主模式互斥，由 `AUTH_MODE` 决定。不要 Access 套完再弹登录页。
 
-- `/login` 账号密码登录
-- `/admin*` 服务端守卫，未登录跳转登录页
-- `/api/files*` `/api/folders` `/api/stats` `/api/settings` 再校验 session
-- 关闭注册；只有首次启动用环境变量种一个管理员
+### `password`（默认，`better-auth` 等同）
 
-### `AUTH_MODE=none`
+- `/login` 用户名密码
+- 首次启动用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 种管理员
+- 设置页可改密；关闭注册
+
+### `oauth`
+
+- `/login` 只有已配置的 GitHub / Google 按钮
+- 回调：`{BETTER_AUTH_URL}/api/auth/callback/github` 与 `.../google`
+- 设置里「允许的邮箱」；名单为空时，**第一个**成功登录的账号成为唯一管理员
+- 之后名单外的账号不能注册
+
+### `access`（`none` 等同）
 
 应用层不登录。必须用 Cloudflare Access（或同等网关）保护 `/admin*` 和 `/api/*`，放行 `/`、`/dl/*`、`/health`。
+
+`password` / `oauth` 下：`/admin*` 服务端守卫；`/api/files*` `/api/folders` `/api/stats` `/api/settings` 再校验 session。RSC 里 `getSession` 使用 `disableRefresh` + `disableCookieCache`。
+
+## 直链
+
+```
+GET|HEAD /dl/<文件夹路径/文件名>        短链，直接下载（attachment）
+GET      /dl/<文件夹路径/文件名>/view  长链，落地页（可预览图片/音视频/PDF）
+```
+
+过期返回 `410`。完整下载（非 `?inline=1`、非续传）时 `download_count + 1`。
+
+管理台可改文件名、把文件挪到其它文件夹（目标有同名则拒绝）。过期文件可按「保留天数」手动或 `POST /api/cron/purge` 清理，永久文件不会被删。
 
 ## 数据模型
 

@@ -1,10 +1,17 @@
 "use client";
 
-import { Copy, Timer } from "lucide-react";
+import { Copy, MoreHorizontal, Timer } from "lucide-react";
 import { extLabel, formatSize, formatTime } from "@/lib/format";
 import type { FileView } from "@/lib/types";
 import { Badge } from "./ui/Badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function statusOf(file: FileView) {
   if (!file.expires) return { kind: "perm" as const, label: "永久", when: "不过期" };
@@ -23,6 +30,8 @@ export function FileTable({
   onToggleAll,
   onExpire,
   onCopy,
+  onRename,
+  onMove,
 }: {
   files: FileView[];
   loading: boolean;
@@ -30,7 +39,9 @@ export function FileTable({
   onToggle: (id: string) => void;
   onToggleAll: () => void;
   onExpire: (id: string) => void;
-  onCopy: (url: string) => void;
+  onCopy: (url: string, kind: "download" | "view") => void;
+  onRename: (file: FileView) => void;
+  onMove: (file: FileView) => void;
 }) {
   const allOn = files.length > 0 && files.every((f) => selected.has(f.id));
   return (
@@ -109,10 +120,28 @@ export function FileTable({
                           <Timer />
                           有效期
                         </Button>
-                        <Button variant="ghost" size="sm" type="button" onClick={() => onCopy(file.url)}>
+                        <Button variant="ghost" size="sm" type="button" onClick={() => onCopy(file.url, "download")}>
                           <Copy />
                           复制
                         </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" type="button" aria-label="更多">
+                              <MoreHorizontal />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onCopy(file.url, "download")}>
+                              复制下载链接
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onCopy(file.viewUrl, "view")}>
+                              复制预览链接
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => onRename(file)}>改名</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onMove(file)}>移动</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>

@@ -23,10 +23,23 @@ export async function getR2(): Promise<R2Bucket> {
 }
 
 export function readAuthMode(env?: CloudflareEnv): AuthMode {
-  const raw = (process.env.AUTH_MODE || env?.AUTH_MODE || "better-auth")
+  const raw = (process.env.AUTH_MODE || env?.AUTH_MODE || "password")
     .trim()
     .toLowerCase();
-  return raw === "none" ? "none" : "better-auth";
+  if (raw === "none" || raw === "access") return "access";
+  if (raw === "oauth") return "oauth";
+  return "password";
+}
+
+export function isAccessMode(mode: AuthMode): boolean {
+  return mode === "access";
+}
+
+export function listOAuthProviders(env?: CloudflareEnv): Array<"github" | "google"> {
+  const out: Array<"github" | "google"> = [];
+  if (envString(env, "GITHUB_CLIENT_ID") && envString(env, "GITHUB_CLIENT_SECRET")) out.push("github");
+  if (envString(env, "GOOGLE_CLIENT_ID") && envString(env, "GOOGLE_CLIENT_SECRET")) out.push("google");
+  return out;
 }
 
 export async function getAuthMode(): Promise<AuthMode> {
