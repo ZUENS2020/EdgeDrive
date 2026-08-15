@@ -10,7 +10,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const gate = await requireAdminPage();
   if (!gate.ok) redirect("/login");
 
-  let brand = "#5e6ad2";
+  let brand = "#171717";
   let siteName = "ZUENS DL";
   try {
     const settings = await getSettings();

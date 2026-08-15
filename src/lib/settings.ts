@@ -4,7 +4,7 @@ import type { SiteSettings } from "./types";
 const DEFAULTS: SiteSettings = {
   site_name: "ZUENS DL",
   site_description: "下载资源管理平台",
-  brand_color: "#5e6ad2",
+  brand_color: "#171717",
   page_size: 50,
   default_expires: "24h",
 };

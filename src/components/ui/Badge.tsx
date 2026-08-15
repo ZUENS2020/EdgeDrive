@@ -5,10 +5,5 @@ export function Badge({
   kind: "ok" | "soon" | "expired" | "perm";
   label: string;
 }) {
-  return (
-    <span className={`badge ${kind}`}>
-      <i className="dot" />
-      {label}
-    </span>
-  );
+  return <span className={`badge ${kind}`}>{label}</span>;
 }

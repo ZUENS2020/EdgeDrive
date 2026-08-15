@@ -296,7 +296,6 @@ export function AdminApp({ initialSettings }: { initialSettings: SiteSettings })
                   setPage(1);
                 }}
               >
-                {f !== "all" && <i className="dot" />}
                 {f === "all" ? "全部" : f === "ok" ? "正常" : f === "soon" ? "即将过期" : "已过期"}
               </button>
             ))}
