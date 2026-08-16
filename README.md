@@ -66,6 +66,55 @@
 
 ---
 
+## 🔐 Access 认证配置（详细）
+
+EdgeDrive 用 **Cloudflare Access** 做管理台认证（无密码可爆破——只有 Cloudflare 账号能进）。
+
+### 第 1 步：创建 Access 应用
+
+1. Cloudflare 面板 → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**
+2. **Application domain** 填：
+   - 只保护管理台（推荐，`/dl` 分享链接保持公开）：`你的域名/admin*`
+   - 或全站保护：`你的域名/*`
+3. **Add** → 保存
+
+### 第 2 步：查两个关键值
+
+| 值 | 在哪查 |
+|---|---|
+| **Access Team** | Zero Trust 域名前缀：`https://<team>.cloudflareaccess.com` 中的 `<team>` |
+| **AUD** | Access 应用 → **其他设置**（Settings）标签页 → **AUD 标签**（一串十六进制）|
+
+> ⚠️ **AUD 是每个应用独有的**——重建应用/撤销令牌后会变——配置后别乱动应用。
+
+### 第 3 步：在 EdgeDrive 引导页启用
+
+- 打开 `你的域名/admin` → 引导页填 **Team + AUD** → 点「启用 Access」
+- 之后管理台只认 Access JWT（未认证 → 401/跳 Access 登录）
+
+### 第 4 步：配置 Access 策略（重要！）
+
+Access 应用**默认全部拒绝**——必须加 Allow 规则，否则登录后也 403：
+
+- 在应用的 **Policies** 标签页 → **Add a policy**
+- **Action** 选 `Allow`；**Include** 选 `Everyone`（或指定邮箱/组）
+- 若用了 `/admin*` 路径保护 + 想要 `/dl` 公开：
+  - **第一条策略**：`/dl*` → Allow Everyone
+  - **第二条策略**：`/admin*` → Allow 你的邮箱/Everyone
+
+### 常见坑
+
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| 登录后 403 Forbidden | Policy 没有 Allow 规则（默认全拒）| 加 Allow 策略 |
+| 管理台一直 401 | AUD 填错/过期 | 用应用「其他设置」里的真实 AUD |
+| hostname 应用只传 cookie 不传 header | CF 边缘行为差异 | EdgeDrive 已双通道兼容（header + cookie）——无需处理 |
+| workers.dev 子域上 hostname 应用失效 | CF 已知历史 bug | 绑定**自定义域名**后用 hostname 应用 |
+
+> 完整手册（含截图路径）：[docs/cloudflare-access.md](docs/cloudflare-access.md)
+
+---
+
 ## 使用
 
 ### 上传
