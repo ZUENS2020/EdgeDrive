@@ -8,6 +8,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import GridViewIcon from "@mui/icons-material/GridView";
 import LinkIcon from "@mui/icons-material/Link";
 import SearchIcon from "@mui/icons-material/Search";
+import PreviewIcon from "@mui/icons-material/Preview";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import UploadIcon from "@mui/icons-material/Upload";
@@ -47,7 +48,7 @@ import Box from "@mui/material/Box";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { formatSize, formatTime } from "@/lib/format";
-import { flattenFolderPaths, type FileView, type FolderNode, type SiteSettings } from "@/lib/types";
+import type { FileView, FolderNode, SiteSettings } from "@/lib/types";
 import { uploadFilesQueued } from "@/lib/upload-client";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FolderTree } from "./FolderTree";
@@ -518,7 +519,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                         <IconButton size="small" href={`${file.url}/view`} target="_blank" title="预览" aria-label="预览">
-                          <VisibilityIcon fontSize="small" />
+                          <PreviewIcon fontSize="small" />
                         </IconButton>
                         <IconButton size="small" href={file.url} target="_blank" aria-label="下载">
                           <DownloadIcon fontSize="small" />
@@ -726,7 +727,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
       <MoveDialog
         open={moveOpen}
         count={moveIds.length}
-        folders={flattenFolderPaths(folders)}
+        folders={folders}
         onClose={() => setMoveOpen(false)}
         onSubmit={async (dest) => {
           setMoveOpen(false);
