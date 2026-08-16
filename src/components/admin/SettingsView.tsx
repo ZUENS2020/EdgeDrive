@@ -24,6 +24,12 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
 import { PURGE_CONFIRM_MESSAGE, PURGE_CONFIRM_TITLE, resolvePurgeConfirm, type PurgeConfirmChoice } from "@/lib/purge-confirm";
+import {
+  TOKEN_CLEAR_CONFIRM_MESSAGE,
+  TOKEN_CLEAR_CONFIRM_TITLE,
+  resolveTokenClearConfirm,
+  type TokenClearConfirmChoice,
+} from "@/lib/token-clear-confirm";
 import { parseRowActions, ROW_ACTION_IDS, ROW_ACTION_LABELS, setRowActionEnabled } from "@/lib/row-actions";
 import type { SiteSettings } from "@/lib/types";
 import { THEMES, getTheme } from "@/lib/themes";
@@ -53,6 +59,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
   const [pending, setPending] = useState(false);
   const [purging, setPurging] = useState(false);
   const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
+  const [tokenClearConfirmOpen, setTokenClearConfirmOpen] = useState(false);
   const [cfApiToken, setCfApiToken] = useState("");
   const query = useOne<SiteSettings>({ resource: "settings", id: "site", queryOptions: { retry: false } });
 
@@ -119,6 +126,11 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
   function closePurgeConfirm(choice: PurgeConfirmChoice) {
     setPurgeConfirmOpen(false);
     if (resolvePurgeConfirm(choice).run) void onPurge();
+  }
+
+  function closeTokenClearConfirm(choice: TokenClearConfirmChoice) {
+    setTokenClearConfirmOpen(false);
+    if (resolveTokenClearConfirm(choice).run) void save({ cf_api_token: "" });
   }
 
   const activeTheme = getTheme(form.theme_name);
@@ -272,6 +284,19 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
         </DialogActions>
       </Dialog>
 
+      <Dialog open={tokenClearConfirmOpen} onClose={() => closeTokenClearConfirm("cancel")}>
+        <DialogTitle>{TOKEN_CLEAR_CONFIRM_TITLE}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{TOKEN_CLEAR_CONFIRM_MESSAGE}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => closeTokenClearConfirm("cancel")}>取消</Button>
+          <Button color="error" variant="contained" onClick={() => closeTokenClearConfirm("confirm")}>
+            确定
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {section === "account" ? (
         <Stack spacing={3}>
           <Box>
@@ -313,7 +338,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
                 onChange={(e) => setCfApiToken(e.target.value)}
               />
               {form.cf_api_token_set && !form.cf_api_token_from_env ? (
-                <Button variant="outlined" disabled={pending} onClick={() => void save({ cf_api_token: "" })}>
+                <Button variant="outlined" disabled={pending} onClick={() => setTokenClearConfirmOpen(true)}>
                   清除 Token
                 </Button>
               ) : null}

@@ -54,6 +54,7 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
+import { FOLDER_DELETE_CONFIRM_TITLE, folderDeleteConfirmMessage } from "@/lib/folder-delete-confirm";
 import { isGlobalFileFilter, type FileListFilter } from "@/lib/files-query";
 import { formatSize, formatTime } from "@/lib/format";
 import { parseTags } from "@/lib/tags";
@@ -457,8 +458,8 @@ export function FileManager() {
           }
           onDelete={(id, folderPath, name) =>
             setConfirm({
-              title: "删除文件夹",
-              body: `确定删除「${name}」及其内所有文件？此操作无法撤销。`,
+              title: FOLDER_DELETE_CONFIRM_TITLE,
+              body: folderDeleteConfirmMessage(name),
               run: async () => {
                 try {
                   await deleteFolder({ resource: "folders", id });
