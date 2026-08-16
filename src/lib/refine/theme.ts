@@ -1,16 +1,69 @@
 import { createTheme } from "@mui/material/styles";
 import { RefineThemes } from "@refinedev/mui";
+import {
+  getTheme,
+  resolveThemePalette,
+  SUZUKA_SKY,
+  themeCssVars,
+  type Appearance,
+  type ThemePalette,
+} from "@/lib/themes";
 
-export function createAdminTheme(brand = "#171717") {
+declare module "@mui/material/styles" {
+  interface Palette {
+    sidebarBg: string;
+    sidebarText: string;
+    sidebarActiveBg: string;
+    cardBg: string;
+    hoverBg: string;
+    codeBg: string;
+    brandBar: string;
+  }
+  interface PaletteOptions {
+    sidebarBg?: string;
+    sidebarText?: string;
+    sidebarActiveBg?: string;
+    cardBg?: string;
+    hoverBg?: string;
+    codeBg?: string;
+    brandBar?: string;
+  }
+}
+
+export function createAdminTheme(appearance: Partial<Appearance> = {}) {
+  const def = getTheme(appearance.theme_name);
+  const palette = resolveThemePalette(appearance.theme_name, appearance.brand_color, appearance.custom_colors);
+  const isSuzuka = def.id === "suzuka";
+  const sky = isSuzuka ? SUZUKA_SKY : "none";
+  const sidebarBg = palette.sidebarBg ?? palette.background.paper;
+  const sidebarText = palette.sidebarText ?? palette.text.primary;
+  const sidebarActiveBg = palette.sidebarActiveBg ?? palette.hoverBg ?? palette.background.default;
+  const cardBg = palette.cardBg ?? palette.background.paper;
+  const hoverBg = palette.hoverBg ?? palette.background.default;
+  const codeBg = palette.codeBg ?? palette.background.default;
+  const brandBar = palette.brandBar ?? palette.primary.main;
+
   return createTheme({
     ...RefineThemes.Blue,
     palette: {
       ...RefineThemes.Blue.palette,
-      mode: "light",
-      primary: { main: brand, contrastText: "#fafafa" },
-      background: { default: "#f6f5f2", paper: "#ffffff" },
-      text: { primary: "#171717", secondary: "#525252" },
-      divider: "rgba(23,23,23,0.1)",
+      mode: palette.mode,
+      primary: palette.primary,
+      secondary: { main: palette.secondary.main },
+      background: palette.background,
+      text: palette.text,
+      divider: palette.divider,
+      success: palette.success,
+      error: palette.error,
+      warning: palette.warning,
+      info: palette.info,
+      sidebarBg,
+      sidebarText,
+      sidebarActiveBg,
+      cardBg,
+      hoverBg,
+      codeBg,
+      brandBar,
     },
     typography: {
       fontFamily: 'var(--font-noto), "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif',
@@ -20,18 +73,81 @@ export function createAdminTheme(brand = "#171717") {
     },
     shape: { borderRadius: 8 },
     components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          html: { colorScheme: palette.mode },
+          body: {
+            backgroundColor: palette.background.default,
+            backgroundImage: sky,
+            backgroundAttachment: "fixed",
+          },
+        },
+      },
       MuiButton: { defaultProps: { disableElevation: true } },
-      MuiPaper: { styleOverrides: { root: { backgroundImage: "none" } } },
+      MuiPaper: {
+        styleOverrides: {
+          root: { backgroundImage: "none", backgroundColor: cardBg },
+        },
+      },
+      MuiCard: {
+        styleOverrides: {
+          root: { backgroundImage: "none", backgroundColor: cardBg },
+        },
+      },
       MuiAppBar: {
         styleOverrides: {
-          root: { backgroundColor: "#fff", color: "#171717", boxShadow: "none", borderBottom: "1px solid rgba(23,23,23,0.08)" },
+          root: {
+            backgroundColor: sidebarBg,
+            color: sidebarText,
+            boxShadow: "none",
+            borderBottom: `1px solid ${palette.divider}`,
+            backgroundImage: "none",
+          },
         },
       },
       MuiDrawer: {
         styleOverrides: {
-          paper: { borderRight: "1px solid rgba(23,23,23,0.08)", backgroundColor: "#fafaf8" },
+          paper: {
+            borderRight: `1px solid ${palette.divider}`,
+            backgroundColor: sidebarBg,
+            color: sidebarText,
+            backgroundImage: isSuzuka ? sky : "none",
+            borderTop: isSuzuka ? `3px solid ${brandBar}` : undefined,
+          },
+        },
+      },
+      MuiListItemButton: {
+        styleOverrides: {
+          root: {
+            "&:hover": { backgroundColor: hoverBg },
+            "&.Mui-selected": {
+              backgroundColor: sidebarActiveBg,
+              "&:hover": { backgroundColor: sidebarActiveBg },
+            },
+          },
+        },
+      },
+      MuiTableRow: {
+        styleOverrides: {
+          root: {
+            "&:nth-of-type(even)": { backgroundColor: codeBg },
+            "&.MuiTableRow-hover:hover": { backgroundColor: hoverBg },
+          },
+        },
+      },
+      MuiDialog: {
+        styleOverrides: {
+          paper: { backgroundImage: "none", backgroundColor: cardBg },
         },
       },
     },
   });
+}
+
+export function appearanceCssVars(appearance: Partial<Appearance>): Record<string, string> {
+  return themeCssVars(resolveThemePalette(appearance.theme_name, appearance.brand_color, appearance.custom_colors));
+}
+
+export function paletteOf(appearance: Partial<Appearance>): ThemePalette {
+  return resolveThemePalette(appearance.theme_name, appearance.brand_color, appearance.custom_colors);
 }

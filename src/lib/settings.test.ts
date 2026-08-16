@@ -94,4 +94,23 @@ describe("access settings in D1", () => {
     expect(next.access_enabled).toBe(true);
     expect(next.brand_color).toBe("#112233");
   });
+
+  it("persists theme_name and custom_colors", async () => {
+    const db = memoryD1();
+    const next = await updateSettings(
+      { theme_name: "suzuka", custom_colors: JSON.stringify({ primary: "#00AA88", background: "#010203" }) },
+      db,
+    );
+    expect(next.theme_name).toBe("suzuka");
+    expect(next.custom_colors).toBe(JSON.stringify({ primary: "#00AA88", background: "#010203" }));
+    const again = await getSettings(db);
+    expect(again.theme_name).toBe("suzuka");
+    expect(again.custom_colors).toContain("#00AA88");
+  });
+
+  it("unknown theme_name falls back to default", async () => {
+    const db = memoryD1();
+    const next = await updateSettings({ theme_name: "not-a-theme" }, db);
+    expect(next.theme_name).toBe("default");
+  });
 });

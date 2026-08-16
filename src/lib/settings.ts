@@ -1,10 +1,13 @@
 import { ensureCronSecret, getKv, KV, parseFlag, setKv } from "./app-config";
 import { cfApiTokenConfigured, readEnvSecret } from "./cf-credentials";
 import { getDB } from "./cloudflare";
+import { getTheme, parseCustomColors, serializeCustomColors } from "./themes";
 import type { SiteSettings } from "./types";
 
 export const DEFAULTS: SiteSettings = {
   brand_color: "#171717",
+  theme_name: "default",
+  custom_colors: "",
   page_size: 50,
   default_expires: "24h",
   purge_after_days: 7,
@@ -48,6 +51,8 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
     brand_color: /^#[0-9a-fA-F]{6}$/.test(map.get("brand_color") || "")
       ? (map.get("brand_color") as string)
       : DEFAULTS.brand_color,
+    theme_name: getTheme(map.get("theme_name")).id,
+    custom_colors: serializeCustomColors(parseCustomColors(map.get("custom_colors") || "")),
     page_size: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(200, Math.floor(pageSize)) : 50,
     default_expires: map.get("default_expires") || DEFAULTS.default_expires,
     purge_after_days: clampDays(map.get("purge_after_days"), DEFAULTS.purge_after_days),
@@ -83,6 +88,12 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
   if (patch.brand_color && !/^#[0-9a-fA-F]{6}$/.test(patch.brand_color)) {
     next.brand_color = current.brand_color;
   }
+  if (patch.theme_name != null) {
+    next.theme_name = getTheme(patch.theme_name).id;
+  }
+  if (patch.custom_colors != null) {
+    next.custom_colors = serializeCustomColors(parseCustomColors(patch.custom_colors));
+  }
   if (patch.purge_after_days != null) {
     next.purge_after_days = clampDays(String(patch.purge_after_days), current.purge_after_days);
   }
@@ -91,6 +102,8 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
 
   const entries: [string, string][] = [
     ["brand_color", next.brand_color],
+    ["theme_name", next.theme_name],
+    ["custom_colors", next.custom_colors],
     ["page_size", String(next.page_size)],
     ["default_expires", next.default_expires],
     ["purge_after_days", String(next.purge_after_days)],

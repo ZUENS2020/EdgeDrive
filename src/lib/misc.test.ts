@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateSchemaVersion, missingCoreTables } from "./d1-bootstrap";
+import { EXPECTED_SCHEMA_VERSION } from "./d1-bootstrap-sql";
 import { shouldCountDownload } from "./download-policy";
 import { cfApiTokenConfigured, readEnvSecret } from "./cf-credentials";
 import { bearerMatches } from "./cron-auth";
@@ -11,11 +12,12 @@ describe("d1 schema helpers", () => {
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(evaluateSchemaVersion(undefined, 7)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 7)).toBe("untracked");
-    expect(evaluateSchemaVersion("6", 7)).toBe("stale");
-    expect(evaluateSchemaVersion("7", 7)).toBe("ok");
-    expect(evaluateSchemaVersion("8", 7)).toBe("ok");
+    expect(EXPECTED_SCHEMA_VERSION).toBe(8);
+    expect(evaluateSchemaVersion(undefined, 8)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 8)).toBe("untracked");
+    expect(evaluateSchemaVersion("7", 8)).toBe("stale");
+    expect(evaluateSchemaVersion("8", 8)).toBe("ok");
+    expect(evaluateSchemaVersion("9", 8)).toBe("ok");
   });
 });
 

@@ -31,6 +31,10 @@ export type FolderNode = FolderRow & {
 
 export type SiteSettings = {
   brand_color: string;
+  /** Builtin theme id: default | light | suzuka */
+  theme_name: string;
+  /** JSON: {"primary":"#xxx","background":"#xxx","text":"#xxx"} */
+  custom_colors: string;
   page_size: number;
   default_expires: string;
   purge_after_days: number;

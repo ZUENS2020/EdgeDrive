@@ -35,13 +35,21 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     );
   }
 
-  let brand = DEFAULTS.brand_color;
+  let appearance = {
+    theme_name: DEFAULTS.theme_name,
+    brand_color: DEFAULTS.brand_color,
+    custom_colors: DEFAULTS.custom_colors,
+  };
   try {
     const settings = await getSettings();
-    brand = settings.brand_color;
+    appearance = {
+      theme_name: settings.theme_name,
+      brand_color: settings.brand_color,
+      custom_colors: settings.custom_colors,
+    };
   } catch {
     // ignore
   }
 
-  return <AdminProviders brandColor={brand}>{children}</AdminProviders>;
+  return <AdminProviders initial={appearance}>{children}</AdminProviders>;
 }

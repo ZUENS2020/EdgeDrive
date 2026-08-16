@@ -1,34 +1,57 @@
 "use client";
 
 import CssBaseline from "@mui/material/CssBaseline";
+import GlobalStyles from "@mui/material/GlobalStyles";
 import { ThemeProvider } from "@mui/material/styles";
 import { Refine } from "@refinedev/core";
 import { RefineSnackbarProvider, useNotificationProvider } from "@refinedev/mui";
 import routerProvider from "@refinedev/nextjs-router";
-import type { ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { authProvider } from "@/lib/refine/auth-provider";
 import { dataProvider } from "@/lib/refine/data-provider";
-import { createAdminTheme } from "@/lib/refine/theme";
+import { appearanceCssVars, createAdminTheme } from "@/lib/refine/theme";
+import type { Appearance } from "@/lib/themes";
 import { AdminShell } from "./AdminShell";
+
+const AppearanceContext = createContext<{
+  appearance: Appearance;
+  setAppearance: (patch: Partial<Appearance>) => void;
+} | null>(null);
+
+export function useAppearance() {
+  const ctx = useContext(AppearanceContext);
+  if (!ctx) throw new Error("useAppearance must be used within AdminProviders");
+  return ctx;
+}
 
 export function AdminProviders({
   children,
-  brandColor,
+  initial,
 }: {
   children: ReactNode;
-  brandColor: string;
+  initial: Appearance;
 }) {
+  const [appearance, setAppearanceState] = useState<Appearance>(initial);
+  const setAppearance = useCallback((patch: Partial<Appearance>) => {
+    setAppearanceState((prev) => ({ ...prev, ...patch }));
+  }, []);
+  const theme = useMemo(() => createAdminTheme(appearance), [appearance]);
+  const cssVars = useMemo(() => appearanceCssVars(appearance), [appearance]);
+
   return (
-    <ThemeProvider theme={createAdminTheme(brandColor)}>
-      <CssBaseline />
-      <RefineSnackbarProvider>
-        <RefineApp brandColor={brandColor}>{children}</RefineApp>
-      </RefineSnackbarProvider>
-    </ThemeProvider>
+    <AppearanceContext.Provider value={{ appearance, setAppearance }}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <GlobalStyles styles={{ ":root": cssVars, html: { colorScheme: theme.palette.mode } }} />
+        <RefineSnackbarProvider>
+          <RefineApp>{children}</RefineApp>
+        </RefineSnackbarProvider>
+      </ThemeProvider>
+    </AppearanceContext.Provider>
   );
 }
 
-function RefineApp({ children, brandColor }: { children: ReactNode; brandColor: string }) {
+function RefineApp({ children }: { children: ReactNode }) {
   const notificationProvider = useNotificationProvider();
   return (
     <Refine
@@ -48,7 +71,7 @@ function RefineApp({ children, brandColor }: { children: ReactNode; brandColor: 
         { name: "folders", meta: { hide: true } },
       ]}
     >
-      <AdminShell brandColor={brandColor}>{children}</AdminShell>
+      <AdminShell>{children}</AdminShell>
     </Refine>
   );
 }

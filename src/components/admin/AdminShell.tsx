@@ -27,7 +27,7 @@ const NAV = [
   { href: "/admin/settings", label: "设置", icon: <SettingsIcon /> },
 ];
 
-export function AdminShell({ children, brandColor }: { children: ReactNode; brandColor: string }) {
+export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -39,8 +39,8 @@ export function AdminShell({ children, brandColor }: { children: ReactNode; bran
             width: 36,
             height: 36,
             borderRadius: 1,
-            bgcolor: brandColor,
-            color: "#fff",
+            bgcolor: "primary.main",
+            color: "primary.contrastText",
             display: "grid",
             placeItems: "center",
             fontWeight: 700,
@@ -68,9 +68,14 @@ export function AdminShell({ children, brandColor }: { children: ReactNode; bran
               href={item.href}
               selected={on}
               onClick={() => setMobileOpen(false)}
-              sx={{ borderRadius: 1, mb: 0.5 }}
+              sx={{
+                borderRadius: 1,
+                mb: 0.5,
+                color: "sidebarText",
+                "&.Mui-selected": { color: "text.primary" },
+              }}
             >
-              <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>{item.icon}</ListItemIcon>
               <ListItemText primary={item.label} />
             </ListItemButton>
           );

@@ -52,7 +52,7 @@ export function SetupGuide({ tokenRequired }: { tokenRequired: boolean }) {
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", bgcolor: "#f6f5f2", p: 2 }}>
+    <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", bgcolor: "background.default", p: 2 }}>
       <Paper sx={{ width: "100%", maxWidth: 520, p: 4 }}>
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
           <Box
@@ -60,8 +60,8 @@ export function SetupGuide({ tokenRequired }: { tokenRequired: boolean }) {
               width: 40,
               height: 40,
               borderRadius: 1,
-              bgcolor: "#171717",
-              color: "#fff",
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
               display: "grid",
               placeItems: "center",
               fontWeight: 700,

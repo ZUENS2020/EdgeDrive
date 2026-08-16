@@ -734,8 +734,9 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
           sx={{
             position: "fixed",
             inset: 0,
-            bgcolor: "rgba(23,23,23,0.45)",
-            color: "#fff",
+            bgcolor: "text.primary",
+            color: "background.default",
+            opacity: 0.88,
             display: "grid",
             placeItems: "center",
             zIndex: 20,
