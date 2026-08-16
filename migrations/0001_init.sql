@@ -32,17 +32,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 INSERT OR IGNORE INTO settings (key, value) VALUES
-  ('site_name', 'EdgeDrive'),
-  ('site_description', '边缘上的 Serverless 文件服务'),
   ('brand_color', '#171717'),
   ('page_size', '50'),
   ('default_expires', '24h'),
-  ('home_kicker', 'ED'),
-  ('home_cta', '进入后台'),
-  ('home_dl_hint', '过期后下载返回 410。路径形如 /dl/文件路径。'),
-  ('login_subtitle', '管理员登录'),
-  ('admin_subtitle', 'Serverless'),
-  ('footer_note', ''),
-  ('show_admin_link', '1'),
-  ('logo_text', 'ED'),
   ('purge_after_days', '7');
