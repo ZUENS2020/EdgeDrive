@@ -1478,6 +1478,25 @@ th .check {
     height: 4px;
   }
 }
+@media (max-height: 900px) {
+  .usage-main {
+    --usage-chart-h: 0px; /* 低于 900px 高度：隐藏操作明细条——一屏优先 */
+    --usage-gap: 5px;
+    --usage-pad: 7px 10px 9px;
+  }
+  .usage-main .usage-lead {
+    display: none;
+  }
+  .usage-main .usage-hero-card {
+    padding: 5px 10px 6px;
+  }
+  .usage-main .usage-card .hint {
+    display: none;
+  }
+  .usage-main .usage-chart {
+    display: none;
+  }
+}
 @media (max-height: 700px) {
   .usage-main {
     --usage-gap: 5px;
