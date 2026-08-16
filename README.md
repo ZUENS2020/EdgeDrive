@@ -113,6 +113,38 @@ Access 应用**默认全部拒绝**——必须加 Allow 规则，否则登录�
 
 > 完整手册（含截图路径）：[docs/cloudflare-access.md](docs/cloudflare-access.md)
 
+### 排障：AUD 配错进不去管理台怎么办
+
+**症状**：Access 登录成功，但 EdgeDrive 一直 401/跳登录；或引导页已启用后想改 AUD 却进不去 /admin。
+
+**原理**：Access 配置存在 D1 的 `settings` 表里（`cf_access_team` / `cf_access_aud` / `access_enabled`）——直接改 D1 即可，不依赖管理台。
+
+**① 查看当前配置**：
+
+```bash
+# 在项目目录（有 wrangler.jsonc 的地方）执行
+npx wrangler d1 execute edgedrive-db --remote \
+  --command "SELECT key, value FROM settings WHERE key IN ('cf_access_team','cf_access_aud','access_enabled')"
+```
+
+**② 修改 AUD 为正确值**（从 Access 应用 → 其他设置 → AUD 标签复制）：
+
+```bash
+npx wrangler d1 execute edgedrive-db --remote \
+  --command "UPDATE settings SET value='你的正确AUD' WHERE key='cf_access_aud'"
+```
+
+**③ 改回引导模式**（如果 AUD 错得离谱 / 想重新配置）：把 `access_enabled` 改回 `0`，/admin 就会重新显示引导页（可重新填 Team + AUD）：
+
+```bash
+npx wrangler d1 execute edgedrive-db --remote \
+  --command "UPDATE settings SET value='0' WHERE key='access_enabled'"
+```
+
+**⚠️ 如果 wrangler 报「Couldn't find a D1 DB」**：你的 `wrangler.jsonc` 没填 `database_id`——临时在 `wrangler.jsonc` 的 `d1_databases` 里加上 `"database_id": "<你的D1数据库ID>"`（Cloudflare 面板 → D1 → 数据库 → 查看 ID），或用 `--database-id <ID>` 参数。
+
+**⚠️ 改回引导模式后**：重新配好 Team/AUD 记得再把 `access_enabled` 改回 `1`（或引导页点「启用 Access」会自动写回）。
+
 ---
 
 ## 使用
