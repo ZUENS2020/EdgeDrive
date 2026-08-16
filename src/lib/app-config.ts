@@ -1,8 +1,5 @@
-import type { AuthMode } from "./types";
-
 export const KV = {
-  authMode: "auth_mode",
-  authSecret: "auth_secret",
+  accessEnabled: "access_enabled",
   cronSecret: "cron_secret",
   cfAccountId: "cf_account_id",
   cfApiToken: "cf_api_token",
@@ -13,10 +10,9 @@ export const KV = {
   cfAccessAud: "cf_access_aud",
 } as const;
 
-export function parseAuthMode(raw: string | undefined | null): AuthMode {
-  const value = (raw || "password").trim().toLowerCase();
-  if (value === "none" || value === "access" || value === "oauth") return "access";
-  return "password";
+export function parseFlag(raw: string | undefined | null): boolean {
+  const value = (raw || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
 export function originFromHeaders(hdrs: Headers): string | undefined {
@@ -56,14 +52,6 @@ export function randomSecret(): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function ensureAuthSecret(db: D1Database): Promise<string> {
-  const existing = await getKv(db, KV.authSecret);
-  if (existing && existing.length >= 32) return existing;
-  const next = randomSecret();
-  await setKv(db, KV.authSecret, next);
-  return next;
-}
-
 export async function ensureCronSecret(db: D1Database): Promise<string> {
   const existing = await getKv(db, KV.cronSecret);
   if (existing) return existing;
@@ -72,11 +60,6 @@ export async function ensureCronSecret(db: D1Database): Promise<string> {
   return next;
 }
 
-export async function hasAdmin(db: D1Database): Promise<boolean> {
-  const row = await db.prepare("SELECT 1 AS ok FROM admin LIMIT 1").first<{ ok: number }>();
-  return Boolean(row);
-}
-
-export async function readAuthModeFromDb(db: D1Database): Promise<AuthMode> {
-  return parseAuthMode(await getKv(db, KV.authMode));
+export async function readAccessEnabledFromDb(db: D1Database): Promise<boolean> {
+  return parseFlag(await getKv(db, KV.accessEnabled));
 }

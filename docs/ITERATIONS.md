@@ -1,4 +1,19 @@
+# EdgeDrive 第八轮迭代（R8 · 2026-08-16）
+
+## 目标
+
+- 认证改「首次引导模式」：删密码 / Better-Auth；未启用 Access 前 `/admin` 免认证只显示引导页；启用后全走 Access JWT
+- 管理台 UI 用 Refine + MUI 重写（Cloudreve 风格：面包屑 / 右键菜单 / 多选 / 拖拽上传 / 文件夹树）
+- 清理 `authModeLocked`、登录密码、Better-Auth 表
+
+## 验证
+
+- `npm test` / `tsc` / `npm run build`
+
+---
+
 # EdgeDrive 第四轮迭代（fix/review-r4）
+
 
 日期：2026-08-16
 

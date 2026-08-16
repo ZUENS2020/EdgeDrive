@@ -6,18 +6,16 @@ import { bearerMatches } from "./cron-auth";
 
 describe("d1 schema helpers", () => {
   it("lists missing core tables", () => {
-    expect(missingCoreTables(["files", "settings"])).toContain("user");
-    expect(missingCoreTables(["files", "folders", "admin", "settings", "user", "session", "account", "verification"])).toEqual(
-      [],
-    );
+    expect(missingCoreTables(["files", "settings"])).toContain("folders");
+    expect(missingCoreTables(["files", "folders", "settings"])).toEqual([]);
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(evaluateSchemaVersion(undefined, 6)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 6)).toBe("untracked");
-    expect(evaluateSchemaVersion("5", 6)).toBe("stale");
-    expect(evaluateSchemaVersion("6", 6)).toBe("ok");
-    expect(evaluateSchemaVersion("7", 6)).toBe("ok");
+    expect(evaluateSchemaVersion(undefined, 7)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 7)).toBe("untracked");
+    expect(evaluateSchemaVersion("6", 7)).toBe("stale");
+    expect(evaluateSchemaVersion("7", 7)).toBe("ok");
+    expect(evaluateSchemaVersion("8", 7)).toBe("ok");
   });
 });
 

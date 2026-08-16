@@ -1,68 +1,89 @@
 import { describe, expect, it } from "vitest";
-import { evaluateAdminGate, hasSessionCookie } from "./auth-gate";
+import { evaluateAdminGate, evaluateAdminPageGate, setupTokenMatches } from "./auth-gate";
 
 describe("evaluateAdminGate", () => {
-  it("password mode rejects missing session", () => {
+  it("setup mode rejects API access until Access is enabled", () => {
     expect(
       evaluateAdminGate({
-        mode: "password",
+        accessEnabled: false,
         hasAccessJwt: false,
         accessVerified: false,
-        hasSession: false,
       }),
-    ).toEqual({ ok: false });
+    ).toEqual({ ok: false, kind: "setup" });
   });
 
-  it("password mode accepts a session", () => {
+  it("setup mode still rejects even if a JWT is present", () => {
     expect(
       evaluateAdminGate({
-        mode: "password",
-        hasAccessJwt: false,
-        accessVerified: false,
-        hasSession: true,
-      }),
-    ).toEqual({ ok: true });
-  });
-
-  it("access mode rejects missing JWT", () => {
-    expect(
-      evaluateAdminGate({
-        mode: "access",
-        hasAccessJwt: false,
-        accessVerified: false,
-        hasSession: true,
-      }),
-    ).toEqual({ ok: false });
-  });
-
-  it("access mode rejects invalid JWT", () => {
-    expect(
-      evaluateAdminGate({
-        mode: "access",
-        hasAccessJwt: true,
-        accessVerified: false,
-        hasSession: false,
-      }),
-    ).toEqual({ ok: false });
-  });
-
-  it("access mode accepts verified JWT", () => {
-    expect(
-      evaluateAdminGate({
-        mode: "access",
+        accessEnabled: false,
         hasAccessJwt: true,
         accessVerified: true,
-        hasSession: false,
       }),
-    ).toEqual({ ok: true });
+    ).toEqual({ ok: false, kind: "setup" });
+  });
+
+  it("enabled Access rejects missing JWT", () => {
+    expect(
+      evaluateAdminGate({
+        accessEnabled: true,
+        hasAccessJwt: false,
+        accessVerified: false,
+      }),
+    ).toEqual({ ok: false, kind: "unauthorized" });
+  });
+
+  it("enabled Access rejects invalid JWT", () => {
+    expect(
+      evaluateAdminGate({
+        accessEnabled: true,
+        hasAccessJwt: true,
+        accessVerified: false,
+      }),
+    ).toEqual({ ok: false, kind: "unauthorized" });
+  });
+
+  it("enabled Access accepts verified JWT", () => {
+    expect(
+      evaluateAdminGate({
+        accessEnabled: true,
+        hasAccessJwt: true,
+        accessVerified: true,
+      }),
+    ).toEqual({ ok: true, kind: "admin" });
   });
 });
 
-describe("hasSessionCookie", () => {
-  it("detects better-auth session cookie", () => {
-    expect(hasSessionCookie(null)).toBe(false);
-    expect(hasSessionCookie("better-auth.session_token=abc")).toBe(true);
-    expect(hasSessionCookie("__Secure-better-auth.session_token=abc")).toBe(true);
-    expect(hasSessionCookie("other=1")).toBe(false);
+describe("evaluateAdminPageGate", () => {
+  it("unenabled Access sends the page into setup", () => {
+    expect(
+      evaluateAdminPageGate({
+        accessEnabled: false,
+        hasAccessJwt: false,
+        accessVerified: false,
+      }),
+    ).toEqual({ ok: false, kind: "setup" });
+  });
+
+  it("enabled Access without JWT is unauthorized", () => {
+    expect(
+      evaluateAdminPageGate({
+        accessEnabled: true,
+        hasAccessJwt: false,
+        accessVerified: false,
+      }),
+    ).toEqual({ ok: false, kind: "unauthorized" });
+  });
+});
+
+describe("setupTokenMatches", () => {
+  it("allows first-boot when SETUP_TOKEN is unset", () => {
+    expect(setupTokenMatches(undefined, undefined)).toBe(true);
+    expect(setupTokenMatches("", "anything")).toBe(true);
+  });
+
+  it("requires an exact match when SETUP_TOKEN is set", () => {
+    expect(setupTokenMatches("secret", "secret")).toBe(true);
+    expect(setupTokenMatches("secret", "nope")).toBe(false);
+    expect(setupTokenMatches("secret", undefined)).toBe(false);
   });
 });

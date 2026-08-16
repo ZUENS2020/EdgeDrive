@@ -2,16 +2,7 @@ import { D1_BOOTSTRAP_SQL, EXPECTED_SCHEMA_VERSION } from "./d1-bootstrap-sql";
 
 export { EXPECTED_SCHEMA_VERSION };
 
-export const CORE_TABLES = [
-  "files",
-  "folders",
-  "admin",
-  "settings",
-  "user",
-  "session",
-  "account",
-  "verification",
-] as const;
+export const CORE_TABLES = ["files", "folders", "settings"] as const;
 
 export const SCHEMA_VERSION_KEY = "schema_version";
 

@@ -2,7 +2,7 @@
 
 跑在 **Cloudflare Workers 边缘网络**上的 **Serverless 文件服务**：没有常驻服务器，按请求在就近节点执行。后台上传、设有效期、按文件夹整理；过期后下载返回 410。
 
-**EdgeDrive = 一套完整的私人文件托管 + 临时直链服务**：R2 存文件、D1 管元数据、Better-Auth 管身份、Cloudflare Access 可选加固——全部跑在 Cloudflare 免费层上。
+**EdgeDrive = 一套完整的私人文件托管 + 临时直链服务**：R2 存文件、D1 管元数据、Cloudflare Access 管身份——全部跑在 Cloudflare 免费层上。
 
 ---
 
@@ -15,14 +15,14 @@
 - **预览落地页**：`/dl/<路径>/view` —— 图片 / 音视频 / PDF 在线预览
 - **Range 下载**：支持断点续传 / 视频拖动播放
 - **统计仪表盘**：R2 容量与 Class A/B、D1 读写、Worker 调用量（GraphQL Analytics）—— 响应式一屏展示
-- **安全**：路径穿越多层防护、XSS 内容类型硬化、SQL 全参数化、Better-Auth 会话、Access JWT 真实验证
-- **一键部署**：Fork → 导入 Cloudflare → 自动建 D1/R2/跑迁移 → 首次访问创建管理员
+- **安全**：路径穿越多层防护、XSS 内容类型硬化、SQL 全参数化、Cloudflare Access JWT 真实验证（fail-closed）
+- **一键部署**：Fork → 导入 Cloudflare → 自动建 D1/R2/跑迁移 → 首次访问配置 Access
 
 ---
 
 ## 截图（桌面端）
 
-| 管理台 · 文件 | 用量统计 | 登录 / 首次设置 |
+| 管理台 · 文件 | 用量统计 | Access 引导 |
 |---|---|---|
 | ![desktop-admin](docs/screenshots/desktop-admin.png) | ![desktop-usage](docs/screenshots/desktop-usage.png) | ![desktop-login](docs/screenshots/desktop-login.png) |
 
@@ -48,10 +48,13 @@
      - R2 存储桶（`edgedrive`）
      - Worker 绑定（`DB` / `R2`）
 
-3. **首次访问创建管理员**：
+3. **首次访问配置 Access（引导模式）**：
    - 打开部署后给你的 `*.workers.dev` 域名
-   - 访问 `/admin` → 会跳转首次设置页 → 填**用户名 + 密码（≥8 位）** → 创建完成
-   - 管理员账号存 D1，**不需要配置任何 Secrets**
+   - 访问 `/admin` —— **未启用 Access 前无需登录**，只显示引导页
+   - 填写 **Access Team** 与 **AUD**，点 **启用 Access**
+   - 之后所有管理请求走 Access JWT（未认证一律 401）
+
+   > ⚠️ 部署后请**立刻**完成引导并在 Zero Trust 里保护 `/admin*`。引导页在启用前是开放的；可选 Worker Secret `SETUP_TOKEN` 防止别人抢先配置。
 
 4. **部署更新**：push 到 main 即自动重新部署（Cloudflare Pages Git 集成）
 
@@ -63,13 +66,13 @@
 
 ### 上传
 
-- 拖拽文件到侧边栏上传区，或点选文件（支持多选）
+- 拖拽文件到管理台，或点选文件（支持多选）
 - 文件 >8MB 自动走分片上传（8MB/片、4 并发、失败重试）—— 大小无上限
-- 上传时可选目标文件夹
+- 上传时落到当前文件夹
 
 ### 有效期
 
-- 行内「调整有效期」：`1h` / `6h` / `24h` / `7d` / `30d` / **永久** / 自定义
+- 行内 / 右键「有效期」：小时 / 天数 / 永久 / 自定义 / 立即过期
 - 批量勾选 → 批量设过期 / 转永久 / 立即过期
 - 文件过期后：`/dl` 下载返回 **410 Gone**；物理删除由 purge 任务（每日 04:00 UTC）执行
 
@@ -87,17 +90,16 @@
 
 ---
 
-## Cloudflare Access 配置（可选加固）
+## 认证：首次引导 → Cloudflare Access
 
-EdgeDrive 支持两种认证模式（设置 → 认证）：
+**没有密码登录。** Better-Auth 已移除。身份只认 Cloudflare Access JWT。
 
-| 模式 | 说明 |
+| 阶段 | 行为 |
 |---|---|
-| **password**（默认）| Better-Auth 用户名密码登录，开箱即用 |
-| **access** | 由 Cloudflare Access 接管认证——Worker 验证 Access JWT（签名 / issuer / audience）|
+| **未启用 Access** | `/admin` 免认证，只显示引导页（填 Team / AUD → 启用 Access） |
+| **已启用 Access** | `requireAdmin` 只验 Access JWT；未认证 401 / 跳转 `/login` 提示页 |
 
-> Access 模式下**密码登录失效**，只有通过 Cloudflare Access 验证的请求才能访问管理台。
-> 切换前必须完成下面两步——否则站点会拒绝切换（防锁死保护）。
+公开下载 `/dl/*` 始终匿名可访问。
 
 ### 第 1 步：创建 Access Application
 
@@ -106,27 +108,24 @@ EdgeDrive 支持两种认证模式（设置 → 认证）：
 3. Policy：配置允许访问的成员（如你的邮箱 / 组织）
 4. 创建完成后，进入应用 → **其他设置（Other settings）** 标签页 → 筛选 **AUD 标签** → 复制 **令牌（Token）** 值（一串 UUID 长串）
 
-### 第 2 步：在设置页填写 Access 配置（存 D1，部署不丢）
-
-管理台 → **设置 → 账号 → Access 配置**：
+### 第 2 步：在引导页填写并启用
 
 | 字段 | 值（在哪查）|
 |---|---|
-| **Access Team** | Zero Trust 团队名 = **你的 Access 域名前缀**（`https://<team>.cloudflareaccess.com` 的 `<team>` 部分）—— 登录 Zero Trust 后看浏览器地址栏 `dash.cloudflare.com/<account>/one/`，或直接试 `https://你的账号名.cloudflareaccess.com/cdn-cgi/access/certs`（返回 200 即有效）|
-| **Access AUD** | 第 1 步拿到的 AUD Token（应用 → 其他设置 → AUD 标签 → 令牌）|
+| **Access Team** | Zero Trust 团队名 = **你的 Access 域名前缀**（`https://<team>.cloudflareaccess.com` 的 `<team>` 部分） |
+| **Access AUD** | 第 1 步拿到的 AUD Token |
 
-保存后写入 D1 `settings` 表（`cf_access_team` / `cf_access_aud`）。**重新部署 Worker 不会清空**——不再依赖 `CF_ACCESS_TEAM` / `CF_ACCESS_AUD` 环境变量。
+保存后写入 D1（`cf_access_team` / `cf_access_aud` / `access_enabled`）。**重新部署不会清空。**
 
-> 💡 找不到 Team？记住：**Team 不是 Account ID**（`c02f...` 那种是 Account ID，用不上）。Team 就是你 Access 域名 `xxx.cloudflareaccess.com` 的前缀 `xxx`——通常等于你的 Cloudflare 账号用户名。
+> 💡 Team **不是** Account ID。Team 就是 `xxx.cloudflareaccess.com` 的前缀 `xxx`。
 
-### 第 3 步：切换认证模式
+### 第 3 步：启用后
 
-1. 管理台 → **设置 → 账号** → 登录方式选 `access` → 保存
-2. 保存时如果还没填 Team / AUD，会返回错误 `access-mode-needs-env`（按第 2 步填好再切）
-3. 切换后：访问 `/admin` 会被 Cloudflare Access 拦截 → 登录后带 JWT 放行 → Worker 验签通过 → 进入管理台
+访问 `/admin` 会被 Cloudflare Access 拦截 → 登录后带 JWT 放行 → Worker 验签通过 → 进入管理台。
 
-> ⚠️ **切换前确认 Access 策略已生效**——先在一个浏览器窗口测试 Access 登录正常，再切换模式，避免把自己锁在门外。
-> 回退：在 CF 面板临时关掉 Access Application（或直接改回 password 模式——需要先恢复 Access 可访问）。
+设置页只显示已配置状态，不能从 UI 关闭 Access（防把自己锁成「全开放」）。
+
+> 回退：在 CF 面板临时关掉 Access Application **不会**重新打开引导页——Worker 仍 fail-closed。需要改 D1 `access_enabled` 才能回到引导。
 
 ---
 
@@ -135,10 +134,9 @@ EdgeDrive 支持两种认证模式（设置 → 认证）：
 | 名称 | 类型 | 必需 | 说明 |
 |---|---|---|---|
 | `CF_API_TOKEN` | Secret | 可选 | 启用用量统计时用（优先于设置页填写的 Token）|
-| `BETTER_AUTH_SECRET` | Secret | 可选 | 密码模式会话密钥（不配则自动生成存 D1）|
-| `AUTH_MODE` | 变量 | 可选 | `password`（默认）/ `access` —— 也可在设置页切换 |
+| `SETUP_TOKEN` | Secret | 可选 | 保护首次引导。未配则首次开放；配了则引导页必须填同一令牌 |
 
-> 管理员账号、站点配置、cron 令牌、Access Team/AUD 默认全部存在 D1 —— 无需配置即可部署。
+> 站点配置、cron 令牌、Access Team/AUD 默认全部存在 D1 —— 无需配置即可部署。
 
 ---
 
@@ -157,7 +155,7 @@ npm run dev
 ## 测试
 
 ```bash
-npm test        # Vitest：sanitize / JWT 验证 / 有效期 / 认证边界 / LIKE 转义 等 45+ 用例
+npm test        # Vitest：sanitize / JWT 验证 / 有效期 / Access 引导守卫 / LIKE 转义
 npm run typecheck
 ```
 
@@ -170,8 +168,8 @@ GitHub Actions 会在每次 push 时自动跑测试 + 类型检查。
 - [Next.js 16](https://nextjs.org)（App Router）+ [OpenNext](https://opennext.js.org) → Cloudflare Workers
 - [Cloudflare D1](https://developers.cloudflare.com/d1/)（SQLite 元数据 + 配置）
 - [Cloudflare R2](https://developers.cloudflare.com/r2/)（对象存储，免费 10GB + 零出口流量费）
-- [Better-Auth](https://www.better-auth.com)（会话认证）
-- Cloudflare Access（可选加固）
+- [Refine](https://refine.dev) + [MUI](https://mui.com)（管理台）
+- Cloudflare Access（JWT 认证）
 - Vitest（测试）
 
 ## License

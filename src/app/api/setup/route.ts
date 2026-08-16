@@ -1,41 +1,50 @@
 import { NextResponse } from "next/server";
-import { createFirstAdmin, isValidUsername } from "@/lib/auth";
-import { getAuthMode, getDB, isAccessMode } from "@/lib/cloudflare";
-import { hasAdmin } from "@/lib/app-config";
+import { setupTokenMatches } from "@/lib/auth-gate";
+import { getDB, getSetupToken } from "@/lib/cloudflare";
+import { enableAccess, getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
-  if (isAccessMode(await getAuthMode())) {
-    return NextResponse.json({ error: "access-mode" }, { status: 404 });
-  }
+export async function GET() {
   const db = await getDB();
-  if (await hasAdmin(db)) {
-    return NextResponse.json({ error: "admin-exists" }, { status: 409 });
+  const settings = await getSettings(db);
+  const tokenRequired = Boolean(await getSetupToken());
+  return NextResponse.json({
+    access_enabled: settings.access_enabled,
+    token_required: tokenRequired && !settings.access_enabled,
+  });
+}
+
+export async function POST(request: Request) {
+  const db = await getDB();
+  const settings = await getSettings(db);
+  if (settings.access_enabled) {
+    return NextResponse.json({ error: "access-already-enabled" }, { status: 409 });
   }
 
-  let body: { username?: string; password?: string };
+  let body: { team?: string; aud?: string; setup_token?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
-  const username = String(body.username || "").trim();
-  const password = String(body.password || "");
-  if (!isValidUsername(username)) {
-    return NextResponse.json({ error: "bad-username" }, { status: 400 });
-  }
-  if (password.length < 8) {
-    return NextResponse.json({ error: "password-min-8" }, { status: 400 });
+
+  const expected = await getSetupToken();
+  if (!setupTokenMatches(expected, body.setup_token)) {
+    return NextResponse.json({ error: "bad-setup-token" }, { status: 401 });
   }
 
   try {
-    await createFirstAdmin(username, password);
+    const next = await enableAccess(String(body.team || ""), String(body.aud || ""), db);
+    return NextResponse.json({ ok: true, settings: { access_enabled: next.access_enabled } });
   } catch (err) {
-    if (err instanceof Error && err.message === "admin-exists") {
-      return NextResponse.json({ error: "admin-exists" }, { status: 409 });
+    const message = err instanceof Error ? err.message : "enable-failed";
+    if (message.startsWith("access-needs-team-aud")) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+    if (message === "access-already-enabled") {
+      return NextResponse.json({ error: message }, { status: 409 });
     }
     throw err;
   }
-  return NextResponse.json({ ok: true });
 }

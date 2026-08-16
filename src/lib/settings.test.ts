@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSettings, updateSettings } from "./settings";
+import { enableAccess, getSettings, updateSettings } from "./settings";
 
 type Row = { key: string; value: string };
 
@@ -54,29 +54,44 @@ describe("access settings in D1", () => {
     const settings = await getSettings(db);
     expect(settings.cf_access_team).toBe("zuens2020");
     expect(settings.cf_access_aud).toBe("aud-1");
+    expect(settings.access_enabled).toBe(false);
   });
 
-  it("persists team/aud on save", async () => {
+  it("persists team/aud on save without enabling Access", async () => {
     const db = memoryD1();
     const next = await updateSettings({ cf_access_team: " zuens2020 ", cf_access_aud: "aud-1" }, db);
     expect(next.cf_access_team).toBe("zuens2020");
     expect(next.cf_access_aud).toBe("aud-1");
+    expect(next.access_enabled).toBe(false);
     const again = await getSettings(db);
     expect(again.cf_access_team).toBe("zuens2020");
     expect(again.cf_access_aud).toBe("aud-1");
   });
 
-  it("rejects switching to access without team/aud", async () => {
+  it("enableAccess rejects missing team/aud", async () => {
     const db = memoryD1();
-    await expect(updateSettings({ auth_mode: "access" }, db)).rejects.toThrow(/access-mode-needs-env/);
+    await expect(enableAccess("", "aud-1", db)).rejects.toThrow(/access-needs-team-aud/);
+    await expect(enableAccess("team", "", db)).rejects.toThrow(/access-needs-team-aud/);
   });
 
-  it("allows switching to access when team/aud are in the same patch", async () => {
+  it("enableAccess writes team/aud and flips access_enabled", async () => {
     const db = memoryD1();
-    const next = await updateSettings(
-      { auth_mode: "access", cf_access_team: "zuens2020", cf_access_aud: "aud-1" },
-      db,
-    );
-    expect(next.auth_mode).toBe("access");
+    const next = await enableAccess(" zuens2020 ", "aud-1", db);
+    expect(next.access_enabled).toBe(true);
+    expect(next.cf_access_team).toBe("zuens2020");
+    expect(next.cf_access_aud).toBe("aud-1");
+  });
+
+  it("enableAccess cannot run twice", async () => {
+    const db = memoryD1();
+    await enableAccess("zuens2020", "aud-1", db);
+    await expect(enableAccess("zuens2020", "aud-1", db)).rejects.toThrow(/access-already-enabled/);
+  });
+
+  it("updateSettings cannot turn access_enabled off", async () => {
+    const db = memoryD1([{ key: "access_enabled", value: "1" }]);
+    const next = await updateSettings({ brand_color: "#112233" }, db);
+    expect(next.access_enabled).toBe(true);
+    expect(next.brand_color).toBe("#112233");
   });
 });

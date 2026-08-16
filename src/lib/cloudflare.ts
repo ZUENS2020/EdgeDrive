@@ -1,9 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { parseAuthMode, readAuthModeFromDb } from "./app-config";
+import { readAccessEnabledFromDb } from "./app-config";
 import { ensureD1Schema } from "./d1-bootstrap";
-import { isAccessMode, type AuthMode } from "./types";
-
-export { isAccessMode };
 
 export async function getCfEnv(): Promise<CloudflareEnv> {
   const { env } = await getCloudflareContext({ async: true });
@@ -31,25 +28,19 @@ export async function getR2(): Promise<R2Bucket> {
   return env.FILES;
 }
 
-export async function getAuthMode(): Promise<AuthMode> {
-  // 部署变量 AUTH_MODE 优先（最稳健：部署时定死，UI 无法误切锁死站点）
-  const env = await getCfEnv().catch(() => null);
-  const envMode = (env as { AUTH_MODE?: string } | null)?.AUTH_MODE;
-  if (envMode && (envMode === "password" || envMode === "access")) {
-    return envMode;
-  }
-  // 未设置 env：读 D1（兼容旧行为——设置页可切）
+export async function isAccessEnabled(): Promise<boolean> {
   try {
     const db = await getDB();
-    return await readAuthModeFromDb(db);
+    return await readAccessEnabledFromDb(db);
   } catch {
-    return parseAuthMode("password");
+    return false;
   }
 }
 
-/** 部署变量是否固定了认证模式（设置页切换应禁用）。 */
-export async function isAuthModeLocked(): Promise<boolean> {
+/** Optional one-time setup token. Unset = first boot is open. */
+export async function getSetupToken(): Promise<string | undefined> {
   const env = await getCfEnv().catch(() => null);
-  const envMode = (env as { AUTH_MODE?: string } | null)?.AUTH_MODE;
-  return envMode === "password" || envMode === "access";
+  const raw = String((env as { SETUP_TOKEN?: string } | null)?.SETUP_TOKEN || "").trim();
+  if (!raw || raw.toUpperCase() === "NULL") return undefined;
+  return raw;
 }

@@ -1,89 +1,62 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { verifyAccessJwt } from "./access-jwt";
-import { createAuth } from "./auth";
-import { evaluateAdminGate, hasSessionCookie } from "./auth-gate";
-import { getAuthMode, isAccessMode } from "./cloudflare";
+import { evaluateAdminGate, evaluateAdminPageGate } from "./auth-gate";
 import { getSettings } from "./settings";
 
-export { evaluateAdminGate, hasSessionCookie } from "./auth-gate";
-
-const SESSION_QUERY = { disableRefresh: true, disableCookieCache: true } as const;
+export { evaluateAdminGate, evaluateAdminPageGate, setupTokenMatches } from "./auth-gate";
 
 async function accessJwtFromSettings() {
   const settings = await getSettings();
-  return { team: settings.cf_access_team, aud: settings.cf_access_aud };
+  return {
+    enabled: settings.access_enabled,
+    team: settings.cf_access_team,
+    aud: settings.cf_access_aud,
+  };
 }
 
-/** Cloudflare Access 模式：验证 CF Access JWT（签名/iss/aud/exp）——fail-closed（未配置或无效一律拒绝）。 */
-async function accessVerified(hdrs: Headers): Promise<boolean> {
+async function accessVerified(hdrs: Headers, team: string, aud: string): Promise<boolean> {
   const jwt = hdrs.get("cf-access-jwt-assertion");
   if (!jwt) return false;
-  return verifyAccessJwt(jwt, await accessJwtFromSettings());
+  return verifyAccessJwt(jwt, { team, aud });
 }
 
 export async function requireAdmin(request?: Request) {
-  const mode = await getAuthMode();
+  const settings = await accessJwtFromSettings();
   const hdrs = request ? request.headers : await headers();
-  if (isAccessMode(mode)) {
-    const jwt = hdrs.get("cf-access-jwt-assertion");
-    const gate = evaluateAdminGate({
-      mode,
-      hasAccessJwt: Boolean(jwt),
-      accessVerified: jwt ? await verifyAccessJwt(jwt, await accessJwtFromSettings()) : false,
-      hasSession: false,
-    });
-    if (!gate.ok) {
-      return {
-        ok: false as const,
-        session: null,
-        mode,
-        response: NextResponse.json({ error: "unauthorized" }, { status: 401 }),
-      };
-    }
-    return { ok: true as const, session: null, mode };
-  }
-  const auth = await createAuth(request ?? hdrs);
-  const session = await auth.api.getSession({
-    headers: hdrs,
-    query: SESSION_QUERY,
-  });
+  const jwt = hdrs.get("cf-access-jwt-assertion");
+  const verified = jwt ? await verifyAccessJwt(jwt, { team: settings.team, aud: settings.aud }) : false;
   const gate = evaluateAdminGate({
-    mode,
-    hasAccessJwt: false,
-    accessVerified: false,
-    hasSession: Boolean(session),
+    accessEnabled: settings.enabled,
+    hasAccessJwt: Boolean(jwt),
+    accessVerified: verified,
   });
   if (!gate.ok) {
+    const status = gate.kind === "setup" ? 403 : 401;
+    const error = gate.kind === "setup" ? "setup-required" : "unauthorized";
     return {
       ok: false as const,
-      session: null,
-      mode,
-      response: NextResponse.json({ error: "unauthorized" }, { status: 401 }),
+      setup: gate.kind === "setup",
+      response: NextResponse.json({ error }, { status }),
     };
   }
-  return { ok: true as const, session, mode };
+  return { ok: true as const, setup: false as const };
 }
 
 /** RSC-safe gate: never write cookies during render (OpenNext/Workers 会因此 500). */
 export async function requireAdminPage() {
-  const mode = await getAuthMode();
-  if (isAccessMode(mode)) {
-    const hdrs = await headers();
-    return { ok: await accessVerified(hdrs), mode };
-  }
+  const settings = await accessJwtFromSettings();
   const hdrs = await headers();
-  if (!hasSessionCookie(hdrs.get("cookie"))) {
-    return { ok: false as const, mode };
-  }
-  try {
-    const auth = await createAuth(hdrs);
-    const session = await auth.api.getSession({
-      headers: hdrs,
-      query: SESSION_QUERY,
-    });
-    return { ok: Boolean(session), mode };
-  } catch {
-    return { ok: false as const, mode };
-  }
+  const jwt = hdrs.get("cf-access-jwt-assertion");
+  const verified = jwt ? await accessVerified(hdrs, settings.team, settings.aud) : false;
+  const gate = evaluateAdminPageGate({
+    accessEnabled: settings.enabled,
+    hasAccessJwt: Boolean(jwt),
+    accessVerified: verified,
+  });
+  return {
+    ok: gate.ok,
+    setup: gate.kind === "setup",
+    unauthorized: gate.kind === "unauthorized",
+  };
 }

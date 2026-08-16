@@ -1,47 +1,31 @@
-import { Suspense } from "react";
-import { LoginForm } from "@/components/LoginForm";
-import { SetupForm } from "@/components/SetupForm";
-import { hasAdmin } from "@/lib/app-config";
-import { getAuthMode, getDB, isAccessMode } from "@/lib/cloudflare";
-import { DEFAULTS, getSettings } from "@/lib/settings";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
-  const mode = await getAuthMode();
-  if (isAccessMode(mode)) {
-    // access 模式没有密码登录——显示提示（不跳 /admin——避免与 admin 守卫互跳成环）
-    return (
-      <div className="login-wrap">
-        <div className="login-card">
-          <div className="brand" style={{ padding: "0 0 18px" }}>
-            <div className="logo">E</div>
-            <div>
-              <div className="brand-name">EdgeDrive</div>
-              <div className="brand-sub">受 Cloudflare Access 保护</div>
-            </div>
-          </div>
-          <p style={{ color: "var(--text-3)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>
-            此站点通过 Cloudflare Access 验证身份。
-            <br />
-            请直接访问 <code>/admin</code>，由 Access 完成登录。
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  let settings = DEFAULTS;
-  let setup = false;
-  try {
-    const db = await getDB();
-    settings = await getSettings(db);
-    setup = !(await hasAdmin(db));
-  } catch {
-    // ignore
-  }
-
+export default function LoginPage() {
   return (
-    <Suspense>{setup ? <SetupForm brandColor={settings.brand_color} /> : <LoginForm brandColor={settings.brand_color} />}</Suspense>
+    <div className="login-wrap">
+      <div className="login-card">
+        <div className="brand" style={{ padding: "0 0 18px" }}>
+          <div className="logo">{PRODUCT_SHORT}</div>
+          <div>
+            <div className="brand-name">{PRODUCT_NAME}</div>
+            <div className="brand-sub">受 Cloudflare Access 保护</div>
+          </div>
+        </div>
+        <p style={{ color: "var(--text-3)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>
+          此站点由 Cloudflare Access 保护。请访问 <code>/admin</code>，由 Access 完成登录。
+          <br />
+          首次部署请先打开 <code>/admin</code> 完成 Access 配置引导。
+        </p>
+        <p style={{ marginTop: 18 }}>
+          <Button asChild>
+            <Link href="/admin">前往管理台</Link>
+          </Button>
+        </p>
+      </div>
+    </div>
   );
 }

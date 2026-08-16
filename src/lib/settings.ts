@@ -1,4 +1,4 @@
-import { ensureCronSecret, getKv, KV, parseAuthMode, setKv } from "./app-config";
+import { ensureCronSecret, getKv, KV, parseFlag, setKv } from "./app-config";
 import { cfApiTokenConfigured, readEnvSecret } from "./cf-credentials";
 import { getDB } from "./cloudflare";
 import type { SiteSettings } from "./types";
@@ -8,7 +8,7 @@ export const DEFAULTS: SiteSettings = {
   page_size: 50,
   default_expires: "24h",
   purge_after_days: 7,
-  auth_mode: "password",
+  access_enabled: false,
   cf_account_id: "",
   cf_api_token_set: false,
   cf_worker_name: "",
@@ -19,7 +19,7 @@ export const DEFAULTS: SiteSettings = {
   cron_secret: "",
 };
 
-export type SettingsPatch = Partial<SiteSettings> & {
+export type SettingsPatch = Partial<Omit<SiteSettings, "access_enabled">> & {
   cf_api_token?: string;
   rotate_cron_secret?: boolean;
 };
@@ -51,7 +51,7 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
     page_size: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(200, Math.floor(pageSize)) : 50,
     default_expires: map.get("default_expires") || DEFAULTS.default_expires,
     purge_after_days: clampDays(map.get("purge_after_days"), DEFAULTS.purge_after_days),
-    auth_mode: parseAuthMode(map.get(KV.authMode)),
+    access_enabled: parseFlag(map.get(KV.accessEnabled)),
     cf_account_id: unset(map.get(KV.cfAccountId)),
     cf_api_token_from_env: Boolean(readEnvSecret("CF_API_TOKEN")),
     cf_api_token_set: cfApiTokenConfigured(unset(map.get(KV.cfApiToken))),
@@ -61,7 +61,6 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
     cf_d1_database_id: unset(map.get(KV.cfD1DatabaseId)),
     cf_access_team: unset(map.get(KV.cfAccessTeam)),
     cf_access_aud: unset(map.get(KV.cfAccessAud)),
-    // cron_secret 永不通过 getSettings 返回（明文只在 cron 路由经 getKv 直接读）
     cron_secret: "",
   };
 }
@@ -72,6 +71,7 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
   const next: SiteSettings = {
     ...current,
     ...patch,
+    access_enabled: current.access_enabled,
     cf_api_token_set: current.cf_api_token_set,
     cf_api_token_from_env: current.cf_api_token_from_env,
   };
@@ -89,21 +89,11 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
   next.cf_access_team = unset(next.cf_access_team);
   next.cf_access_aud = unset(next.cf_access_aud);
 
-  if (patch.auth_mode) {
-    const nextMode = parseAuthMode(patch.auth_mode);
-    // 切到 access 前校验 D1 里已有 team/aud——否则站点会锁死（fail-closed 全拒）
-    if (nextMode === "access" && (!next.cf_access_team || !next.cf_access_aud)) {
-      throw new Error("access-mode-needs-env: 请先在设置页填写 Cloudflare Access Team 和 AUD");
-    }
-    next.auth_mode = nextMode;
-  }
-
   const entries: [string, string][] = [
     ["brand_color", next.brand_color],
     ["page_size", String(next.page_size)],
     ["default_expires", next.default_expires],
     ["purge_after_days", String(next.purge_after_days)],
-    [KV.authMode, next.auth_mode],
     [KV.cfAccountId, unset(next.cf_account_id)],
     [KV.cfWorkerName, unset(next.cf_worker_name)],
     [KV.cfR2Bucket, unset(next.cf_r2_bucket)],
@@ -130,9 +120,30 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
     await conn.prepare("DELETE FROM settings WHERE key = ?").bind(KV.cronSecret).run();
     await ensureCronSecret(conn);
   }
-  // cron_secret 明文不随 settings 返回（只保证已设置状态）
   next.cron_secret = "";
   next.cron_secret_set = Boolean(await getKv(conn, KV.cronSecret).catch(() => undefined));
 
   return next;
+}
+
+/** First-boot: write team/aud and flip access_enabled. Cannot run after Access is already on. */
+export async function enableAccess(
+  team: string,
+  aud: string,
+  db?: D1Database,
+): Promise<SiteSettings> {
+  const conn = db ?? (await getDB());
+  const current = await getSettings(conn);
+  if (current.access_enabled) {
+    throw new Error("access-already-enabled");
+  }
+  const nextTeam = unset(team);
+  const nextAud = unset(aud);
+  if (!nextTeam || !nextAud) {
+    throw new Error("access-needs-team-aud: 请填写 Cloudflare Access Team 和 AUD");
+  }
+  await setKv(conn, KV.cfAccessTeam, nextTeam);
+  await setKv(conn, KV.cfAccessAud, nextAud);
+  await setKv(conn, KV.accessEnabled, "1");
+  return getSettings(conn);
 }

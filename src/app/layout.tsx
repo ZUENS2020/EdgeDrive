@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Noto_Sans_SC } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
   description: PRODUCT_TAGLINE,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN" className={cn("h-full antialiased", noto.variable)}>
       <body className="min-h-full flex flex-col">

@@ -1,14 +1,18 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { MobileNav } from "@/components/MobileNav";
+import { AdminProviders } from "@/components/admin/AdminProviders";
+import { SetupProviders } from "@/components/admin/SetupProviders";
 import { requireAdminPage } from "@/lib/auth-guard";
-import { PRODUCT_SHORT } from "@/lib/product";
+import { getSetupToken } from "@/lib/cloudflare";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const gate = await requireAdminPage();
+  if (gate.setup) {
+    return <SetupProviders tokenRequired={Boolean(await getSetupToken())} />;
+  }
   if (!gate.ok) redirect("/login");
 
   let brand = DEFAULTS.brand_color;
@@ -19,10 +23,5 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     // ignore
   }
 
-  return (
-    <div className="admin-root" style={{ ["--brand" as string]: brand, flex: 1 }}>
-      <MobileNav siteName={PRODUCT_SHORT} />
-      {children}
-    </div>
-  );
+  return <AdminProviders brandColor={brand}>{children}</AdminProviders>;
 }

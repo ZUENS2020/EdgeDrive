@@ -7,8 +7,7 @@ declare global {
     ASSETS?: Fetcher;
     CF_API_TOKEN?: string;
     CRON_SECRET?: string;
-    CF_ACCESS_TEAM?: string;
-    CF_ACCESS_AUD?: string;
+    SETUP_TOKEN?: string;
   }
 }
 

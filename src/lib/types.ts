@@ -1,9 +1,3 @@
-export type AuthMode = "access" | "password";
-
-export function isAccessMode(mode: string): boolean {
-  return mode === "access";
-}
-
 export type FileRow = {
   id: string;
   name: string;
@@ -40,7 +34,8 @@ export type SiteSettings = {
   page_size: number;
   default_expires: string;
   purge_after_days: number;
-  auth_mode: AuthMode;
+  /** Cloudflare Access 已启用——此后管理请求一律验 JWT。 */
+  access_enabled: boolean;
   cf_account_id: string;
   cf_api_token_set: boolean;
   /** Token 来自 Worker Secret CF_API_TOKEN，而不是 D1。 */
