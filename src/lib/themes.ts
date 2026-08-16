@@ -130,7 +130,32 @@ const SUZUKA_THEME: ThemeDefinition = {
   },
 };
 
-export const THEMES: ThemeDefinition[] = [DEFAULT_THEME, LIGHT_THEME, SUZUKA_THEME];
+const SUZUKA_LIVE_THEME: ThemeDefinition = {
+  id: "suzuka-live",
+  name: "决胜服",
+  description: "胜者舞台的决胜服——白底绿金，聚光灯下的荣光。",
+  palette: {
+    mode: "light",
+    primary: { main: "#3E8E4F", light: "#5BA96C", dark: "#2C6B3A", contrastText: "#FFFFFF" },
+    secondary: { main: "#D9A93E" },
+    background: { default: "#F4F6F1", paper: "#FFFFFF" },
+    text: { primary: "#1F2E22", secondary: "#5A6B5F" },
+    divider: "rgba(62,142,79,0.16)",
+    success: { main: "#2F855A" },
+    error: { main: "#C0392B" },
+    warning: { main: "#D9A93E" },
+    info: { main: "#5A6B5F" },
+    sidebarBg: "#EEF3EC",
+    sidebarText: "#1F2E22",
+    sidebarActiveBg: "#DCEADF",
+    cardBg: "#FFFFFF",
+    hoverBg: "#EDF4EE",
+    codeBg: "#F0F4EF",
+    brandBar: "#3E8E4F",
+  },
+};
+
+export const THEMES: ThemeDefinition[] = [DEFAULT_THEME, LIGHT_THEME, SUZUKA_THEME, SUZUKA_LIVE_THEME];
 
 export function getTheme(id?: string | null): ThemeDefinition {
   return THEMES.find((t) => t.id === id) ?? DEFAULT_THEME;
