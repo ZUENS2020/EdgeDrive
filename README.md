@@ -102,20 +102,22 @@ EdgeDrive 支持两种认证模式（设置 → 认证）：
 ### 第 1 步：创建 Access Application
 
 1. Cloudflare 面板 → **Zero Trust** → **Access → Applications** → **Add an application**
-2. 类型选 **Self-hosted**；Application domain 填你的域名/admin*（如 `edgedrive.example.com/admin*` 或 `*.workers.dev/admin*`）
+2. 类型选 **Self-hosted**；Application domain 填你的域名（如 `edgedrive.example.com` 或 `*.workers.dev`）
 3. Policy：配置允许访问的成员（如你的邮箱 / 组织）
-4. 创建完成后，在 Application 详情页（Overview）找到 **Application Audience (AUD) Tag** —— 一串 UUID，记下来
+4. 创建完成后，进入应用 → **其他设置（Other settings）** 标签页 → 筛选 **AUD 标签** → 复制 **令牌（Token）** 值（一串 UUID 长串）
 
 ### 第 2 步：在设置页填写 Access 配置（存 D1，部署不丢）
 
 管理台 → **设置 → 账号 → Access 配置**：
 
-| 字段 | 值 |
+| 字段 | 值（在哪查）|
 |---|---|
-| Access Team | 你的 Zero Trust 团队名（Zero Trust 首页右上角，如 `zuens2020`）|
-| Application AUD | 第 1 步拿到的 Application AUD Tag（UUID）|
+| **Access Team** | Zero Trust 团队名 = **你的 Access 域名前缀**（`https://<team>.cloudflareaccess.com` 的 `<team>` 部分）—— 登录 Zero Trust 后看浏览器地址栏 `dash.cloudflare.com/<account>/one/`，或直接试 `https://你的账号名.cloudflareaccess.com/cdn-cgi/access/certs`（返回 200 即有效）|
+| **Access AUD** | 第 1 步拿到的 AUD Token（应用 → 其他设置 → AUD 标签 → 令牌）|
 
 保存后写入 D1 `settings` 表（`cf_access_team` / `cf_access_aud`）。**重新部署 Worker 不会清空**——不再依赖 `CF_ACCESS_TEAM` / `CF_ACCESS_AUD` 环境变量。
+
+> 💡 找不到 Team？记住：**Team 不是 Account ID**（`c02f...` 那种是 Account ID，用不上）。Team 就是你 Access 域名 `xxx.cloudflareaccess.com` 的前缀 `xxx`——通常等于你的 Cloudflare 账号用户名。
 
 ### 第 3 步：切换认证模式
 
