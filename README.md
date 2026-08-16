@@ -39,6 +39,15 @@
 
 Click the button → connect GitHub + Cloudflare accounts → pick Worker/resource names → **auto fork + build + deploy** (D1/R2 created & bound automatically). Open the Worker domain and complete the Access onboarding.
 
+> **Troubleshooting: "Unable to fetch repository contents"**
+>
+> The deploy tool validates the repo URL from **your browser** (frontend fetches the GitHub API directly). If it fails, your egress IP likely hit GitHub's **anonymous rate limit** (60 req/h per IP — common on shared/NAT networks).
+>
+> - **Verify**: open `https://api.github.com/repos/ZUENS2020/EdgeDrive` in your browser — a rate-limit error means you're affected
+> - **Fix 1**: switch networks (phone hotspot) and retry — a fresh IP resets the quota
+> - **Fix 2**: wait ~1 hour (quota resets hourly)
+> - **Fix 3**: skip the button — use the manual flow below (Cloudflare's backend fetches the repo, unaffected by your IP quota)
+
 ## 🚀 Quick Deploy (~5 min)
 
 ### Prerequisites
