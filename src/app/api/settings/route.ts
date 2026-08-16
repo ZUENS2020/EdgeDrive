@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ensureCronSecret } from "@/lib/app-config";
 import { requireAdmin } from "@/lib/auth-guard";
 import { getDB } from "@/lib/cloudflare";
+import { isAuthModeLocked } from "@/lib/cloudflare";
 import { getSettings, updateSettings, type SettingsPatch } from "@/lib/settings";
 import type { SiteSettings } from "@/lib/types";
 
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
   const db = await getDB();
   await ensureCronSecret(db);
   const settings = await getSettings(db);
-  return NextResponse.json({ settings: toSafeSettings(settings), authMode: gate.mode });
+  return NextResponse.json({ settings: toSafeSettings(settings), authMode: gate.mode, authModeLocked: await isAuthModeLocked() });
 }
 
 export async function PUT(request: Request) {

@@ -22,9 +22,11 @@ type Section = "look" | "files" | "account";
 export function SettingsForm({
   initial,
   authMode,
+  authModeLocked = false,
 }: {
   initial: SiteSettings;
   authMode: AuthMode;
+  authModeLocked?: boolean;
 }) {
   const router = useRouter();
   const [section, setSection] = useState<Section>("look");
@@ -268,6 +270,7 @@ export function SettingsForm({
                 <Label>模式</Label>
                 <Select
                   value={form.auth_mode}
+                  disabled={authModeLocked}
                   onValueChange={(value) => setForm({ ...form, auth_mode: value as AuthMode })}
                 >
                   <SelectTrigger className="w-full">
@@ -278,6 +281,9 @@ export function SettingsForm({
                     <SelectItem value="access">Cloudflare Access</SelectItem>
                   </SelectContent>
                 </Select>
+                {authModeLocked ? (
+                  <p className="hint">认证模式由部署变量 <code>AUTH_MODE</code> 指定（当前：{authMode === "access" ? "Cloudflare Access" : "账密"}）——如需修改请在 Worker 配置里改。</p>
+                ) : null}
               </div>
             </section>
             {authMode === "password" || form.auth_mode === "password" ? (

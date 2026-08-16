@@ -32,10 +32,24 @@ export async function getR2(): Promise<R2Bucket> {
 }
 
 export async function getAuthMode(): Promise<AuthMode> {
+  // 部署变量 AUTH_MODE 优先（最稳健：部署时定死，UI 无法误切锁死站点）
+  const env = await getCfEnv().catch(() => null);
+  const envMode = (env as { AUTH_MODE?: string } | null)?.AUTH_MODE;
+  if (envMode && (envMode === "password" || envMode === "access")) {
+    return envMode;
+  }
+  // 未设置 env：读 D1（兼容旧行为——设置页可切）
   try {
     const db = await getDB();
     return await readAuthModeFromDb(db);
   } catch {
     return parseAuthMode("password");
   }
+}
+
+/** 部署变量是否固定了认证模式（设置页切换应禁用）。 */
+export async function isAuthModeLocked(): Promise<boolean> {
+  const env = await getCfEnv().catch(() => null);
+  const envMode = (env as { AUTH_MODE?: string } | null)?.AUTH_MODE;
+  return envMode === "password" || envMode === "access";
 }
