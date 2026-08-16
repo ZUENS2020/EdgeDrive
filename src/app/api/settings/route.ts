@@ -34,6 +34,12 @@ export async function PUT(request: Request) {
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
-  const settings = await updateSettings(body);
-  return NextResponse.json({ ok: true, settings: toSafeSettings(settings) });
+  try {
+    const settings = await updateSettings(body);
+    return NextResponse.json({ ok: true, settings: toSafeSettings(settings) });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "update-failed";
+    const status = message.startsWith("access-mode-needs-env") ? 400 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
 }

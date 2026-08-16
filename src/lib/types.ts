@@ -48,6 +48,10 @@ export type SiteSettings = {
   cf_worker_name: string;
   cf_r2_bucket: string;
   cf_d1_database_id: string;
+  /** Cloudflare Access 团队名（Zero Trust 首页，如 zuens2020）。存 D1，部署不丢。 */
+  cf_access_team: string;
+  /** Access Application AUD Tag。存 D1，部署不丢。 */
+  cf_access_aud: string;
   cron_secret: string;
   /** GET 响应中 cron_secret 已遮罩——此字段指示是否已设置。 */
   cron_secret_set?: boolean;

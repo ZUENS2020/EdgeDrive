@@ -106,19 +106,21 @@ EdgeDrive 支持两种认证模式（设置 → 认证）：
 3. Policy：配置允许访问的成员（如你的邮箱 / 组织）
 4. 创建完成后，在 Application 详情页（Overview）找到 **Application Audience (AUD) Tag** —— 一串 UUID，记下来
 
-### 第 2 步：配置 Worker 环境变量（必须）
+### 第 2 步：在设置页填写 Access 配置（存 D1，部署不丢）
 
-给 Worker 配两个环境变量（Workers & Pages → 你的项目 → **Settings → Variables**）：
+管理台 → **设置 → 账号 → Access 配置**：
 
-| 变量 | 值 |
+| 字段 | 值 |
 |---|---|
-| `CF_ACCESS_TEAM` | 你的 Zero Trust 团队名（Zero Trust 首页右上角，如 `zuens2020`）|
-| `CF_ACCESS_AUD` | 第 1 步拿到的 Application AUD Tag（UUID）|
+| Access Team | 你的 Zero Trust 团队名（Zero Trust 首页右上角，如 `zuens2020`）|
+| Application AUD | 第 1 步拿到的 Application AUD Tag（UUID）|
+
+保存后写入 D1 `settings` 表（`cf_access_team` / `cf_access_aud`）。**重新部署 Worker 不会清空**——不再依赖 `CF_ACCESS_TEAM` / `CF_ACCESS_AUD` 环境变量。
 
 ### 第 3 步：切换认证模式
 
-1. 管理台 → **设置 → 认证** → 选择 `access` → 保存
-2. 保存时如果 `CF_ACCESS_TEAM` / `CF_ACCESS_AUD` 未配置，会返回错误 `access-mode-needs-env`（按第 2 步配好再切）
+1. 管理台 → **设置 → 账号** → 登录方式选 `access` → 保存
+2. 保存时如果还没填 Team / AUD，会返回错误 `access-mode-needs-env`（按第 2 步填好再切）
 3. 切换后：访问 `/admin` 会被 Cloudflare Access 拦截 → 登录后带 JWT 放行 → Worker 验签通过 → 进入管理台
 
 > ⚠️ **切换前确认 Access 策略已生效**——先在一个浏览器窗口测试 Access 登录正常，再切换模式，避免把自己锁在门外。
@@ -130,13 +132,11 @@ EdgeDrive 支持两种认证模式（设置 → 认证）：
 
 | 名称 | 类型 | 必需 | 说明 |
 |---|---|---|---|
-| `CF_ACCESS_TEAM` | 变量 | access 模式必需 | Zero Trust 团队名 |
-| `CF_ACCESS_AUD` | 变量 | access 模式必需 | Access Application AUD |
 | `CF_API_TOKEN` | Secret | 可选 | 启用用量统计时用（优先于设置页填写的 Token）|
 | `BETTER_AUTH_SECRET` | Secret | 可选 | 密码模式会话密钥（不配则自动生成存 D1）|
 | `AUTH_MODE` | 变量 | 可选 | `password`（默认）/ `access` —— 也可在设置页切换 |
 
-> 管理员账号、站点配置、cron 令牌默认全部存在 D1 —— 无需配置即可部署。
+> 管理员账号、站点配置、cron 令牌、Access Team/AUD 默认全部存在 D1 —— 无需配置即可部署。
 
 ---
 

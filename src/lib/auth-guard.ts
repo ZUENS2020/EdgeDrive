@@ -4,16 +4,22 @@ import { verifyAccessJwt } from "./access-jwt";
 import { createAuth } from "./auth";
 import { evaluateAdminGate, hasSessionCookie } from "./auth-gate";
 import { getAuthMode, isAccessMode } from "./cloudflare";
+import { getSettings } from "./settings";
 
 export { evaluateAdminGate, hasSessionCookie } from "./auth-gate";
 
 const SESSION_QUERY = { disableRefresh: true, disableCookieCache: true } as const;
 
+async function accessJwtFromSettings() {
+  const settings = await getSettings();
+  return { team: settings.cf_access_team, aud: settings.cf_access_aud };
+}
+
 /** Cloudflare Access 模式：验证 CF Access JWT（签名/iss/aud/exp）——fail-closed（未配置或无效一律拒绝）。 */
 async function accessVerified(hdrs: Headers): Promise<boolean> {
   const jwt = hdrs.get("cf-access-jwt-assertion");
   if (!jwt) return false;
-  return verifyAccessJwt(jwt);
+  return verifyAccessJwt(jwt, await accessJwtFromSettings());
 }
 
 export async function requireAdmin(request?: Request) {
@@ -24,7 +30,7 @@ export async function requireAdmin(request?: Request) {
     const gate = evaluateAdminGate({
       mode,
       hasAccessJwt: Boolean(jwt),
-      accessVerified: jwt ? await verifyAccessJwt(jwt) : false,
+      accessVerified: jwt ? await verifyAccessJwt(jwt, await accessJwtFromSettings()) : false,
       hasSession: false,
     });
     if (!gate.ok) {

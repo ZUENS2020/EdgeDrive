@@ -14,6 +14,8 @@ export const DEFAULTS: SiteSettings = {
   cf_worker_name: "",
   cf_r2_bucket: "",
   cf_d1_database_id: "",
+  cf_access_team: "",
+  cf_access_aud: "",
   cron_secret: "",
 };
 
@@ -57,6 +59,8 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
     cf_worker_name: unset(map.get(KV.cfWorkerName)),
     cf_r2_bucket: unset(map.get(KV.cfR2Bucket)),
     cf_d1_database_id: unset(map.get(KV.cfD1DatabaseId)),
+    cf_access_team: unset(map.get(KV.cfAccessTeam)),
+    cf_access_aud: unset(map.get(KV.cfAccessAud)),
     // cron_secret 永不通过 getSettings 返回（明文只在 cron 路由经 getKv 直接读）
     cron_secret: "",
   };
@@ -82,11 +86,14 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
   if (patch.purge_after_days != null) {
     next.purge_after_days = clampDays(String(patch.purge_after_days), current.purge_after_days);
   }
+  next.cf_access_team = unset(next.cf_access_team);
+  next.cf_access_aud = unset(next.cf_access_aud);
+
   if (patch.auth_mode) {
     const nextMode = parseAuthMode(patch.auth_mode);
-    // 切到 access 前校验 CF_ACCESS_TEAM/AUD 已配置——否则站点会锁死（fail-closed 全拒）
-    if (nextMode === "access" && (!process.env.CF_ACCESS_TEAM || !process.env.CF_ACCESS_AUD)) {
-      throw new Error("access-mode-needs-env: 请先在 Worker 配置 CF_ACCESS_TEAM 和 CF_ACCESS_AUD");
+    // 切到 access 前校验 D1 里已有 team/aud——否则站点会锁死（fail-closed 全拒）
+    if (nextMode === "access" && (!next.cf_access_team || !next.cf_access_aud)) {
+      throw new Error("access-mode-needs-env: 请先在设置页填写 Cloudflare Access Team 和 AUD");
     }
     next.auth_mode = nextMode;
   }
@@ -101,6 +108,8 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
     [KV.cfWorkerName, unset(next.cf_worker_name)],
     [KV.cfR2Bucket, unset(next.cf_r2_bucket)],
     [KV.cfD1DatabaseId, unset(next.cf_d1_database_id)],
+    [KV.cfAccessTeam, next.cf_access_team],
+    [KV.cfAccessAud, next.cf_access_aud],
   ];
   for (const [key, value] of entries) {
     await setKv(conn, key, value);

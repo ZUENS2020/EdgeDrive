@@ -1,13 +1,12 @@
 /**
  * Cloudflare Access JWT 验证（Web Crypto——Workers/Edge 环境可用）。
  *
- * 要求（部署 access 模式必须配）：
- *   CF_ACCESS_TEAM  = Cloudflare Access 团队名（如 "zuens2020"）
- *   CF_ACCESS_AUD   = Access Application 的 AUD（Application → Overview → Application Audience (AUD) Tag）
- *
+ * team / aud 从 D1 settings 读取（设置页填写），由调用方传入——不依赖 Worker 环境变量。
  * 验证：签名（JWKS 公钥）→ iss → aud → exp/nbf。
  * 参考：https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/
  */
+
+export type AccessJwtConfig = { team: string; aud: string };
 
 const JWK_CACHE_TTL_MS = 6 * 3600e3;
 let jwksCache: { keys: Record<string, CryptoKey>; fetchedAt: number } | null = null;
@@ -16,9 +15,9 @@ export function resetAccessJwtCacheForTests() {
   jwksCache = null;
 }
 
-function teamDomain(): string | null {
-  const team = process.env.CF_ACCESS_TEAM || "";
-  return team ? `https://${team}.cloudflareaccess.com` : null;
+export function accessIssuer(team: string): string | null {
+  const t = team.trim();
+  return t ? `https://${t}.cloudflareaccess.com` : null;
 }
 
 async function fetchJwks(issuer: string): Promise<Record<string, CryptoKey>> {
@@ -52,10 +51,10 @@ function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
 }
 
 /** 返回 true 当且仅当 JWT 由 Cloudflare Access 签发且 aud/iss/exp 有效。 */
-export async function verifyAccessJwt(jwt: string): Promise<boolean> {
-  const issuer = teamDomain();
+export async function verifyAccessJwt(jwt: string, config: AccessJwtConfig): Promise<boolean> {
+  const issuer = accessIssuer(config.team);
   if (!issuer) return false; // 未配置团队域——fail-closed
-  const aud = process.env.CF_ACCESS_AUD || "";
+  const aud = config.aud.trim();
   if (!aud) return false;
 
   const parts = jwt.split(".");

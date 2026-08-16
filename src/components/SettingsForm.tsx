@@ -53,7 +53,12 @@ export function SettingsForm({
     });
     setPending(false);
     if (!res.ok) {
-      toast.error("保存失败");
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      toast.error(
+        err.error?.startsWith("access-mode-needs-env")
+          ? "请先填写 Access Team 和 AUD，再切换到 Access 模式"
+          : "保存失败",
+      );
       return;
     }
     const data = (await res.json()) as { settings: SiteSettings };
@@ -105,7 +110,7 @@ export function SettingsForm({
   const nav: { id: Section; label: string; hint: string }[] = [
     { id: "look", label: "外观", hint: "产品名固定为 EdgeDrive，这里只改标记颜色。" },
     { id: "files", label: "文件", hint: "列表分页、新文件默认有效期，以及过期后如何清理。" },
-    { id: "account", label: "账号", hint: "管理员密码、登录方式，以及可选的 Cloudflare 用量统计。" },
+    { id: "account", label: "账号", hint: "管理员密码、登录方式、Access 配置，以及可选的 Cloudflare 用量统计。" },
   ];
   const current = nav.find((item) => item.id === section) ?? nav[0];
 
@@ -229,6 +234,33 @@ export function SettingsForm({
 
         {section === "account" ? (
           <>
+            <section className="settings-block">
+              <h3>Access 配置</h3>
+              <p className="hint">
+                填在这里会存进 D1，重新部署不会丢。切到 Access 模式前必须填齐。Team 是 Zero Trust
+                首页右上角团队名；AUD 在 Access Application 详情页的 Audience Tag。
+              </p>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="cf_access_team">Access Team</Label>
+                  <Input
+                    id="cf_access_team"
+                    placeholder="例如 zuens2020"
+                    value={form.cf_access_team ?? ""}
+                    onChange={(e) => setForm({ ...form, cf_access_team: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="cf_access_aud">Application AUD</Label>
+                  <Input
+                    id="cf_access_aud"
+                    placeholder="Application Audience (AUD) Tag"
+                    value={form.cf_access_aud ?? ""}
+                    onChange={(e) => setForm({ ...form, cf_access_aud: e.target.value })}
+                  />
+                </div>
+              </div>
+            </section>
             <section className="settings-block">
               <h3>登录方式</h3>
               <p className="hint">账密存在本站数据库。Access 模式下后台由 Cloudflare Access 保护，不再显示登录页。</p>

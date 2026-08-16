@@ -21,13 +21,12 @@ function jwt(payload: Record<string, unknown>, opts?: { kid?: string; alg?: stri
 
 const TEAM = "zuens2020";
 const AUD = "aud-tag-1";
+const CFG = { team: TEAM, aud: AUD };
 const ISS = `https://${TEAM}.cloudflareaccess.com`;
 
 describe("verifyAccessJwt", () => {
   beforeEach(() => {
     resetAccessJwtCacheForTests();
-    process.env.CF_ACCESS_TEAM = TEAM;
-    process.env.CF_ACCESS_AUD = AUD;
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -40,51 +39,49 @@ describe("verifyAccessJwt", () => {
   afterEach(() => {
     resetAccessJwtCacheForTests();
     vi.unstubAllGlobals();
-    delete process.env.CF_ACCESS_TEAM;
-    delete process.env.CF_ACCESS_AUD;
   });
 
   it("accepts a valid Access JWT", async () => {
     const now = Math.floor(Date.now() / 1000);
     const token = jwt({ iss: ISS, aud: AUD, exp: now + 3600, nbf: now - 10 });
-    expect(await verifyAccessJwt(token)).toBe(true);
+    expect(await verifyAccessJwt(token, CFG)).toBe(true);
   });
 
   it("rejects a forged signature", async () => {
     const now = Math.floor(Date.now() / 1000);
     const token = jwt({ iss: ISS, aud: AUD, exp: now + 3600 });
     const [h, p] = token.split(".");
-    expect(await verifyAccessJwt(`${h}.${p}.AAAA`)).toBe(false);
+    expect(await verifyAccessJwt(`${h}.${p}.AAAA`, CFG)).toBe(false);
   });
 
   it("rejects expired tokens", async () => {
     const now = Math.floor(Date.now() / 1000);
     const token = jwt({ iss: ISS, aud: AUD, exp: now - 10 });
-    expect(await verifyAccessJwt(token)).toBe(false);
+    expect(await verifyAccessJwt(token, CFG)).toBe(false);
   });
 
   it("rejects wrong aud", async () => {
     const now = Math.floor(Date.now() / 1000);
     const token = jwt({ iss: ISS, aud: "other", exp: now + 3600 });
-    expect(await verifyAccessJwt(token)).toBe(false);
+    expect(await verifyAccessJwt(token, CFG)).toBe(false);
   });
 
   it("rejects wrong iss", async () => {
     const now = Math.floor(Date.now() / 1000);
     const token = jwt({ iss: "https://evil.example", aud: AUD, exp: now + 3600 });
-    expect(await verifyAccessJwt(token)).toBe(false);
+    expect(await verifyAccessJwt(token, CFG)).toBe(false);
   });
 
   it("rejects malformed JWT", async () => {
-    expect(await verifyAccessJwt("not-a-jwt")).toBe(false);
-    expect(await verifyAccessJwt("a.b")).toBe(false);
-    expect(await verifyAccessJwt("%%%")).toBe(false);
+    expect(await verifyAccessJwt("not-a-jwt", CFG)).toBe(false);
+    expect(await verifyAccessJwt("a.b", CFG)).toBe(false);
+    expect(await verifyAccessJwt("%%%", CFG)).toBe(false);
   });
 
-  it("fail-closed without team/aud env", async () => {
-    delete process.env.CF_ACCESS_TEAM;
+  it("fail-closed without team/aud", async () => {
     const now = Math.floor(Date.now() / 1000);
     const token = jwt({ iss: ISS, aud: AUD, exp: now + 3600 });
-    expect(await verifyAccessJwt(token)).toBe(false);
+    expect(await verifyAccessJwt(token, { team: "", aud: AUD })).toBe(false);
+    expect(await verifyAccessJwt(token, { team: TEAM, aud: "" })).toBe(false);
   });
 });

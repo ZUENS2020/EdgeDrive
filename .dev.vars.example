@@ -1,7 +1,6 @@
 # Copy to `.dev.vars` only if you need local overrides. Do not commit `.dev.vars`.
 # Production needs no Worker secrets for login: first visit creates the admin in D1.
+# Access Team / AUD 在设置页填写，存 D1（不要再配 CF_ACCESS_* 环境变量）。
 #
 # Optional (recommended for usage analytics):
 # CF_API_TOKEN=
-# CF_ACCESS_TEAM=
-# CF_ACCESS_AUD=

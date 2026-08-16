@@ -9,6 +9,8 @@ export const KV = {
   cfWorkerName: "cf_worker_name",
   cfR2Bucket: "cf_r2_bucket",
   cfD1DatabaseId: "cf_d1_database_id",
+  cfAccessTeam: "cf_access_team",
+  cfAccessAud: "cf_access_aud",
 } as const;
 
 export function parseAuthMode(raw: string | undefined | null): AuthMode {
