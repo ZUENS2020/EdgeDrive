@@ -1,10 +1,6 @@
 "use client";
 
 import { useOne, useNotification } from "@refinedev/core";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import Accordion from "@mui/material/Accordion";
-import AccordionDetails from "@mui/material/AccordionDetails";
-import AccordionSummary from "@mui/material/AccordionSummary";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -20,15 +16,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
 import type { SiteSettings } from "@/lib/types";
-import {
-  THEMES,
-  getTheme,
-  isHex,
-  parseCustomColors,
-  serializeCustomColors,
-  STOCK_BRAND_COLOR,
-  type CustomColors,
-} from "@/lib/themes";
+import { THEMES, getTheme } from "@/lib/themes";
 import { useAppearance } from "./AdminProviders";
 
 type Section = "look" | "files" | "account";
@@ -40,32 +28,6 @@ function Swatch({ colors }: { colors: string[] }) {
         <Box key={`${c}-${i}`} sx={{ flex: 1, bgcolor: c }} />
       ))}
     </Box>
-  );
-}
-
-function ColorField({
-  label,
-  value,
-  fallback,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  fallback: string;
-  onChange: (hex: string) => void;
-}) {
-  const shown = isHex(value) ? value : fallback;
-  return (
-    <Stack direction="row" spacing={1.5} alignItems="center">
-      <input
-        type="color"
-        aria-label={label}
-        value={shown}
-        onChange={(e) => onChange(e.target.value)}
-        style={{ width: 40, height: 32, padding: 0, border: "1px solid currentColor", borderRadius: 6, cursor: "pointer" }}
-      />
-      <TextField label={label} value={shown} onChange={(e) => onChange(e.target.value)} size="small" />
-    </Stack>
   );
 }
 
@@ -83,12 +45,8 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
     if (query.result) setForm({ ...initial, ...query.result });
   }, [query.result, initial]);
 
-  function preview(next: Pick<SiteSettings, "theme_name" | "brand_color" | "custom_colors">) {
-    setAppearance({
-      theme_name: next.theme_name,
-      brand_color: next.brand_color,
-      custom_colors: next.custom_colors,
-    });
+  function preview(next: Pick<SiteSettings, "theme_name">) {
+    setAppearance({ theme_name: next.theme_name });
   }
 
   async function save(extra: Record<string, unknown> = {}, snapshot?: SiteSettings) {
@@ -124,28 +82,6 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
     await save({ theme_name: next.theme_name }, next);
   }
 
-  function patchCustom(partial: CustomColors) {
-    const current = parseCustomColors(form.custom_colors);
-    const merged: CustomColors = { ...current };
-    for (const key of ["primary", "background", "text"] as const) {
-      if (key in partial) {
-        const value = partial[key];
-        if (isHex(value)) merged[key] = value;
-        else delete merged[key];
-      }
-    }
-    const next = { ...form, custom_colors: serializeCustomColors(merged) };
-    setForm(next);
-    preview(next);
-  }
-
-  async function clearCustom() {
-    const next = { ...form, custom_colors: "" };
-    setForm(next);
-    preview(next);
-    await save({ custom_colors: "" }, next);
-  }
-
   async function onPurge() {
     setPurging(true);
     const res = await fetch("/api/cron/purge", { method: "POST" });
@@ -158,7 +94,6 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
     notify?.({ type: "success", message: `已删除 ${data.deleted ?? 0} 个过期文件` });
   }
 
-  const custom = parseCustomColors(form.custom_colors);
   const activeTheme = getTheme(form.theme_name);
   const selectedId = activeTheme.id;
 
@@ -180,7 +115,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
               主题
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              选择一套内置主题，立即换肤，无需刷新。自定义颜色会叠在主题之上。
+              选择一套内置主题，立即换肤，无需刷新。
             </Typography>
             <Box
               sx={{
@@ -216,75 +151,6 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
               })}
             </Box>
           </Box>
-
-          <Box>
-            <Typography variant="h2" sx={{ mb: 0.5 }}>
-              自定义主色
-            </Typography>
-            <Typography color="text.secondary" sx={{ mb: 2 }}>
-              覆盖当前主题的主色（优先级低于下方「自定义颜色」）。出厂色 {STOCK_BRAND_COLOR} 不覆盖主题自带主色。
-            </Typography>
-            <ColorField
-              label="标记颜色"
-              value={form.brand_color}
-              fallback={STOCK_BRAND_COLOR}
-              onChange={(hex) => {
-                const next = { ...form, brand_color: hex };
-                setForm(next);
-                if (isHex(hex)) preview(next);
-              }}
-            />
-          </Box>
-
-          <Accordion
-            disableGutters
-            elevation={0}
-            sx={{ border: 1, borderColor: "divider", borderRadius: 1, "&:before": { display: "none" } }}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box>
-                <Typography fontWeight={600}>自定义颜色</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  主色 / 背景 / 文字，覆盖主题定义。清空即恢复主题默认。
-                </Typography>
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Stack spacing={2}>
-                <ColorField
-                  label="主色"
-                  value={custom.primary || ""}
-                  fallback={activeTheme.palette.primary.main}
-                  onChange={(hex) => {
-                    if (isHex(hex)) patchCustom({ primary: hex });
-                  }}
-                />
-                <ColorField
-                  label="背景色"
-                  value={custom.background || ""}
-                  fallback={activeTheme.palette.background.default}
-                  onChange={(hex) => {
-                    if (isHex(hex)) patchCustom({ background: hex });
-                  }}
-                />
-                <ColorField
-                  label="文字色"
-                  value={custom.text || ""}
-                  fallback={activeTheme.palette.text.primary}
-                  onChange={(hex) => {
-                    if (isHex(hex)) patchCustom({ text: hex });
-                  }}
-                />
-                <Button variant="outlined" disabled={pending || !form.custom_colors} onClick={() => void clearCustom()} sx={{ alignSelf: "flex-start" }}>
-                  清空自定义
-                </Button>
-              </Stack>
-            </AccordionDetails>
-          </Accordion>
-
-          <Button variant="contained" disabled={pending} onClick={() => void save()} sx={{ alignSelf: "flex-start" }}>
-            {pending ? "保存中…" : "保存外观"}
-          </Button>
         </Stack>
       ) : null}
 

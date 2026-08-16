@@ -32,7 +32,7 @@ declare module "@mui/material/styles" {
 
 export function createAdminTheme(appearance: Partial<Appearance> = {}) {
   const def = getTheme(appearance.theme_name);
-  const palette = resolveThemePalette(appearance.theme_name, appearance.brand_color, appearance.custom_colors);
+  const palette = resolveThemePalette(appearance.theme_name);
   const isSuzuka = def.id === "suzuka";
   const sky = isSuzuka ? SUZUKA_SKY : "none";
   const sidebarBg = palette.sidebarBg ?? palette.background.paper;
@@ -145,9 +145,9 @@ export function createAdminTheme(appearance: Partial<Appearance> = {}) {
 }
 
 export function appearanceCssVars(appearance: Partial<Appearance>): Record<string, string> {
-  return themeCssVars(resolveThemePalette(appearance.theme_name, appearance.brand_color, appearance.custom_colors));
+  return themeCssVars(resolveThemePalette(appearance.theme_name));
 }
 
 export function paletteOf(appearance: Partial<Appearance>): ThemePalette {
-  return resolveThemePalette(appearance.theme_name, appearance.brand_color, appearance.custom_colors);
+  return resolveThemePalette(appearance.theme_name);
 }

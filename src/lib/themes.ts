@@ -1,17 +1,8 @@
 export const DEFAULT_THEME_ID = "default";
-export const STOCK_BRAND_COLOR = "#171717";
 export const HEX6 = /^#[0-9a-fA-F]{6}$/;
-
-export type CustomColors = {
-  primary?: string;
-  background?: string;
-  text?: string;
-};
 
 export type Appearance = {
   theme_name: string;
-  brand_color: string;
-  custom_colors: string;
 };
 
 export type ThemeDefinition = {
@@ -116,9 +107,9 @@ const SUZUKA_THEME: ThemeDefinition = {
     background: { default: "#08090A", paper: "#0E1013" },
     text: { primary: "#E9E6E0", secondary: "#8B8F98" },
     divider: "#1F2125",
-    success: { main: "#5BBF9A" },
+    success: { main: "#3E8E4F" },
     error: { main: "#E05A5A" },
-    warning: { main: "#E0A35A" },
+    warning: { main: "#D9A93E" },
     info: { main: "#5AA8E0" },
     sidebarBg: "#0A0B0D",
     sidebarText: "#E9E6E0",
@@ -130,59 +121,10 @@ const SUZUKA_THEME: ThemeDefinition = {
   },
 };
 
-const SUZUKA_LIVE_THEME: ThemeDefinition = {
-  id: "suzuka-live",
-  name: "Meadow",
-  description: "胜者舞台的决胜服——白底绿金，聚光灯下的荣光。",
-  palette: {
-    mode: "light",
-    primary: { main: "#3E8E4F", light: "#5BA96C", dark: "#2C6B3A", contrastText: "#FFFFFF" },
-    secondary: { main: "#D9A93E" },
-    background: { default: "#F4F6F1", paper: "#FFFFFF" },
-    text: { primary: "#1F2E22", secondary: "#5A6B5F" },
-    divider: "rgba(62,142,79,0.16)",
-    success: { main: "#2F855A" },
-    error: { main: "#C0392B" },
-    warning: { main: "#D9A93E" },
-    info: { main: "#5A6B5F" },
-    sidebarBg: "#EEF3EC",
-    sidebarText: "#1F2E22",
-    sidebarActiveBg: "#DCEADF",
-    cardBg: "#FFFFFF",
-    hoverBg: "#EDF4EE",
-    codeBg: "#F0F4EF",
-    brandBar: "#3E8E4F",
-  },
-};
-
-export const THEMES: ThemeDefinition[] = [DEFAULT_THEME, LIGHT_THEME, SUZUKA_THEME, SUZUKA_LIVE_THEME];
+export const THEMES: ThemeDefinition[] = [DEFAULT_THEME, LIGHT_THEME, SUZUKA_THEME];
 
 export function getTheme(id?: string | null): ThemeDefinition {
   return THEMES.find((t) => t.id === id) ?? DEFAULT_THEME;
-}
-
-export function parseCustomColors(raw?: string | null): CustomColors {
-  if (!raw || !raw.trim()) return {};
-  try {
-    const value = JSON.parse(raw) as unknown;
-    if (!value || typeof value !== "object") return {};
-    const rec = value as Record<string, unknown>;
-    const out: CustomColors = {};
-    if (isHex(rec.primary)) out.primary = rec.primary;
-    if (isHex(rec.background)) out.background = rec.background;
-    if (isHex(rec.text)) out.text = rec.text;
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-export function serializeCustomColors(colors: CustomColors): string {
-  const out: CustomColors = {};
-  if (isHex(colors.primary)) out.primary = colors.primary;
-  if (isHex(colors.background)) out.background = colors.background;
-  if (isHex(colors.text)) out.text = colors.text;
-  return Object.keys(out).length ? JSON.stringify(out) : "";
 }
 
 function clonePalette(palette: ThemePalette): ThemePalette {
@@ -199,33 +141,9 @@ function clonePalette(palette: ThemePalette): ThemePalette {
   };
 }
 
-function applyPrimary(palette: ThemePalette, hex: string) {
-  palette.primary = { ...palette.primary, main: hex, contrastText: hexContrast(hex) };
-  palette.brandBar = hex;
-}
-
-/**
- * 优先级：自定义颜色 > brand_color > 主题定义。
- * 出厂 brand_color（#171717）不覆盖主题自带主色，避免把铃鹿的发色盖掉。
- */
-export function resolveThemePalette(
-  themeId?: string | null,
-  brandColor?: string | null,
-  customColorsRaw?: string | null,
-): ThemePalette {
-  const palette = clonePalette(getTheme(themeId).palette);
-  const custom = parseCustomColors(customColorsRaw);
-  if (isHex(brandColor) && brandColor.toLowerCase() !== STOCK_BRAND_COLOR.toLowerCase()) {
-    applyPrimary(palette, brandColor);
-  }
-  if (isHex(custom.primary)) applyPrimary(palette, custom.primary);
-  if (isHex(custom.background)) {
-    palette.background = { ...palette.background, default: custom.background };
-  }
-  if (isHex(custom.text)) {
-    palette.text = { ...palette.text, primary: custom.text };
-  }
-  return palette;
+/** 主题 palette 解析：直接取主题定义（无自定义覆盖）。 */
+export function resolveThemePalette(themeId?: string | null): ThemePalette {
+  return clonePalette(getTheme(themeId).palette);
 }
 
 export function themeCssVars(palette: ThemePalette): Record<string, string> {
