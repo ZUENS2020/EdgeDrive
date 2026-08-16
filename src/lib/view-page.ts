@@ -301,7 +301,7 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
     </div>
     <div class="footer">
       <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(PRODUCT_TAGLINE)}</span>
-      <a href="https://github.com/ZUENS2020/edgedrive" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/ZUENS2020/EdgeDrive" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
   <script>window.__ED_VIEW=${payload};</script>

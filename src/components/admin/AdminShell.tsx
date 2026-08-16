@@ -86,7 +86,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <List sx={{ px: 1, mb: 1 }}>
         <ListItemButton
           component="a"
-          href="https://github.com/ZUENS2020/edgedrive"
+          href="https://github.com/ZUENS2020/EdgeDrive"
           target="_blank"
           rel="noopener noreferrer"
           sx={{ borderRadius: 1, color: "sidebarText" }}
