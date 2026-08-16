@@ -9,6 +9,7 @@ import GridViewIcon from "@mui/icons-material/GridView";
 import LinkIcon from "@mui/icons-material/Link";
 import SearchIcon from "@mui/icons-material/Search";
 import ScheduleIcon from "@mui/icons-material/Schedule";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import UploadIcon from "@mui/icons-material/Upload";
 import ViewListIcon from "@mui/icons-material/ViewList";
 import { useCreate, useDelete, useList, useNotification, useUpdate, useUpdateMany } from "@refinedev/core";
@@ -377,6 +378,17 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
             </Button>
             <Button
               size="small"
+              startIcon={<VisibilityIcon />}
+              onClick={async () => {
+                const list = files.filter((f) => selected.has(f.id));
+                const ok = await copyToClipboard(list.map((f) => `${f.url}?inline=1`).join("\n"));
+                toast(ok ? `已复制 ${list.length} 条预览链接` : "复制失败", ok ? "success" : "error");
+              }}
+            >
+              复制预览链接
+            </Button>
+            <Button
+              size="small"
               startIcon={<DriveFileMoveIcon />}
               onClick={() => {
                 setMoveIds([...selected]);
@@ -498,6 +510,17 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                         </IconButton>
                         <IconButton
                           size="small"
+                          title="复制预览链接"
+                          aria-label="复制预览链接"
+                          onClick={async () => {
+                            const ok = await copyToClipboard(`${file.url}?inline=1`);
+                            toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
+                          }}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
                           onClick={() => {
                             setExpireIds([file.id]);
                             setExpireOpen(true);
@@ -605,6 +628,18 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
         >
           <LinkIcon fontSize="small" sx={{ mr: 1 }} />
           复制链接
+        </MenuItem>
+        <MenuItem
+          onClick={async () => {
+            if (ctxFile) {
+              const ok = await copyToClipboard(`${ctxFile.url}?inline=1`);
+              toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
+            }
+            setCtx(null);
+          }}
+        >
+          <VisibilityIcon fontSize="small" sx={{ mr: 1 }} />
+          复制预览链接
         </MenuItem>
         <MenuItem
           onClick={() => {
