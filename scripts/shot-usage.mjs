@@ -1,6 +1,7 @@
 /**
- * Screenshot the usage-page layout at desktop 1920 and phone 390.
- * Uses compiled Next CSS so the shot matches production styles.
+ * Audit /admin/usage layout at 10 viewports.
+ * Fail on clip (overflow:hidden + content taller) or horizontal overflow.
+ * Page/card scroll is allowed.
  *
  *   node scripts/shot-usage.mjs
  */
@@ -83,7 +84,7 @@ const html = `<!doctype html>
               ["下载", 100],
               ["文件夹", 20],
               ["即将过期", 8],
-            ], true)}
+            ], true, 0)}
             ${card("R2", "对象容量、Class A（写/列举）与 Class B（读/Head）。删除类操作为免费。", [
               ["对象容量", "3.4 GB"],
               ["对象数", "128"],
@@ -97,8 +98,8 @@ const html = `<!doctype html>
               ["GetObject", 100],
               ["PutObject", 42],
               ["ListObjects", 18],
-              ["HeadObject", 30],
-            ])}
+              ["HeadBucket", 30],
+            ], false, 3)}
             ${card("D1", "查询次数、扫描/写入行数、库体积。行数是计费口径，不是结果行数。", [
               ["库体积", "24 MB"],
               ["读查询", "9,201"],
@@ -111,7 +112,7 @@ const html = `<!doctype html>
               ["读查询", 40],
               ["写入行", 18],
               ["写查询", 8],
-            ])}
+            ], false, 1)}
             ${card("Worker", "调用次数、错误、子请求，以及 CPU 分位（微秒换算为毫秒）。", [
               ["请求", "18,402"],
               ["错误", "3"],
@@ -122,29 +123,33 @@ const html = `<!doctype html>
               ["成功", 100],
               ["客户端断开", 12],
               ["脚本异常", 4],
-            ])}
+            ], false, 0)}
           </div>
         </div>
       </div>
     </div>
   </div>
 </div>
-<script>
-window.__usageMetrics = () => {
-  const doc = document.documentElement;
-  return {
-    inner: [window.innerWidth, window.innerHeight],
-    scroll: [doc.scrollWidth, doc.scrollHeight],
-    overflowX: doc.scrollWidth > window.innerWidth + 1,
-    overflowY: doc.scrollHeight > window.innerHeight + 2,
-    client: [doc.clientWidth, doc.clientHeight],
-  };
-};
-</script>
 </body>
 </html>`;
 
-function card(title, hint, metrics, bars, table) {
+function quotas(n) {
+  if (!n) return "";
+  const rows = [
+    ["容量 / 10 GB 免费档", "3.4 GB / 10 GB", 34],
+    ["Class A / 100 万", "12,480 / 1,000,000", 1],
+    ["Class B / 1000 万", "88,210 / 10,000,000", 1],
+  ]
+    .slice(0, n)
+    .map(
+      ([label, meta, pct]) =>
+        `<div class="usage-quota"><div class="usage-quota-meta"><span>${label}</span><span>${meta}</span></div><div class="usage-quota-bar"><i style="width:${pct}%"></i></div></div>`,
+    )
+    .join("");
+  return `<div class="usage-quotas">${rows}</div>`;
+}
+
+function card(title, hint, metrics, bars, table, quotaN) {
   const ms = metrics
     .map(([k, v]) => `<div class="usage-metric"><span class="k">${k}</span><span class="v">${v}</span></div>`)
     .join("");
@@ -165,7 +170,7 @@ function card(title, hint, metrics, bars, table) {
     <h2>${title}</h2>
     <p class="hint">${hint}</p>
     <div class="usage-metrics">${ms}</div>
-    ${title === "R2" || title === "D1" ? `<div class="usage-quotas"><div class="usage-quota"><div class="usage-quota-meta"><span>容量对照</span><span>34%</span></div><div class="usage-quota-bar"><i style="width:34%"></i></div></div></div>` : ""}
+    ${quotas(quotaN)}
     <div class="usage-chart" role="img">${bs}</div>
     ${tb}
   </section>`;
@@ -199,25 +204,111 @@ const browser = await chromium.launch({
 });
 
 const viewports = [
-  { name: "desktop-1920", width: 1920, height: 1080, mobile: false },
-  { name: "laptop-1280", width: 1280, height: 800, mobile: false },
-  { name: "laptop-1024", width: 1024, height: 768, mobile: false },
-  { name: "tablet-768", width: 768, height: 1024, mobile: false },
-  { name: "phone-390", width: 390, height: 844, mobile: true },
+  { name: "1920x1080", width: 1920, height: 1080, mobile: false },
+  { name: "1440x900", width: 1440, height: 900, mobile: false },
+  { name: "1366x768", width: 1366, height: 768, mobile: false },
+  { name: "1366x600", width: 1366, height: 600, mobile: false },
+  { name: "1280x800", width: 1280, height: 800, mobile: false },
+  { name: "1280x600", width: 1280, height: 600, mobile: false },
+  { name: "1024x768", width: 1024, height: 768, mobile: false },
+  { name: "768x1024", width: 768, height: 1024, mobile: false },
+  { name: "390x844", width: 390, height: 844, mobile: true },
+  { name: "375x667", width: 375, height: 667, mobile: true },
 ];
 
 const report = [];
 for (const vp of viewports) {
   const page = await browser.newPage({
     viewport: { width: vp.width, height: vp.height },
-    deviceScaleFactor: vp.mobile ? 2 : 1,
+    deviceScaleFactor: 1,
     isMobile: vp.mobile,
     hasTouch: vp.mobile,
   });
   await page.goto(origin, { waitUntil: "networkidle" });
-  const metrics = await page.evaluate(() => window.__usageMetrics());
+  const metrics = await page.evaluate(() => {
+    const clipsHidden = (v) => v === "hidden" || v === "clip";
+    const canScroll = (v) => v === "auto" || v === "scroll";
+    const watch = [
+      ".admin-root",
+      ".app",
+      ".usage-main",
+      ".usage-fit",
+      ".usage-page",
+      ".usage-grid",
+      ".usage-card",
+      ".usage-chart",
+      ".usage-hero",
+      ".usage-metrics",
+      ".usage-quotas",
+    ];
+    const clips = [];
+    for (const sel of watch) {
+      for (const el of document.querySelectorAll(sel)) {
+        const st = getComputedStyle(el);
+        const yOverflow = el.scrollHeight - el.clientHeight;
+        const xOverflow = el.scrollWidth - el.clientWidth;
+        const yClip = clipsHidden(st.overflowY) && yOverflow > 2;
+        const xClip = clipsHidden(st.overflowX) && xOverflow > 2;
+        if (yClip || xClip) {
+          clips.push({
+            sel,
+            title: el.querySelector("h2")?.textContent || "",
+            yClip,
+            xClip,
+            overflowY: st.overflowY,
+            overflowX: st.overflowX,
+            scrollH: el.scrollHeight,
+            clientH: el.clientHeight,
+            scrollW: el.scrollWidth,
+            clientW: el.clientWidth,
+          });
+        }
+      }
+    }
+
+    const cards = [...document.querySelectorAll(".usage-card")].map((el) => {
+      const st = getComputedStyle(el);
+      const last = el.lastElementChild;
+      const cr = el.getBoundingClientRect();
+      const lr = last ? last.getBoundingClientRect() : cr;
+      const lastOutside = last && lr.bottom > cr.bottom + 2;
+      const scrollable = canScroll(st.overflowY) || canScroll(getComputedStyle(document.querySelector(".usage-page")).overflowY);
+      return {
+        title: el.querySelector("h2")?.textContent || "",
+        scrollH: el.scrollHeight,
+        clientH: Math.round(el.clientHeight),
+        overflowY: st.overflowY,
+        lastOutside: Boolean(lastOutside),
+        lastTag: last?.className || last?.tagName,
+        clipped: Boolean(lastOutside) && clipsHidden(st.overflowY) && !scrollable,
+      };
+    });
+
+    const pageEl = document.querySelector(".usage-page");
+    const pageSt = pageEl ? getComputedStyle(pageEl) : null;
+    const doc = document.documentElement;
+    return {
+      inner: [window.innerWidth, window.innerHeight],
+      overflowX: doc.scrollWidth > window.innerWidth + 1,
+      pageScrollY: pageEl ? pageEl.scrollHeight > pageEl.clientHeight + 2 : false,
+      pageDelta: pageEl ? pageEl.scrollHeight - pageEl.clientHeight : 0,
+      pageOverflowY: pageSt?.overflowY || "",
+      pageCanScroll: pageSt ? canScroll(pageSt.overflowY) : false,
+      clips,
+      cards,
+      cardClip: cards.some((c) => c.clipped),
+    };
+  });
   const file = path.join(OUT, `usage-${vp.name}.png`);
   await page.screenshot({ path: file, fullPage: false });
+  if (metrics.pageScrollY) {
+    const fileFull = path.join(OUT, `usage-${vp.name}-scrolled.png`);
+    await page.evaluate(() => {
+      const el = document.querySelector(".usage-page");
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+    await page.screenshot({ path: fileFull, fullPage: false });
+  }
   report.push({ ...vp, file, metrics });
   await page.close();
 }
@@ -229,15 +320,23 @@ const summary = report.map((r) => ({
   name: r.name,
   size: `${r.width}x${r.height}`,
   overflowX: r.metrics.overflowX,
-  overflowY: r.metrics.overflowY,
-  inner: r.metrics.inner,
-  scroll: r.metrics.scroll,
+  pageScrollY: r.metrics.pageScrollY,
+  pageDelta: r.metrics.pageDelta,
+  pageCanScroll: r.metrics.pageCanScroll,
+  clipCount: r.metrics.clips.length,
+  clips: r.metrics.clips,
+  cardClip: r.metrics.cardClip,
+  cards: r.metrics.cards,
   file: r.file,
 }));
 fs.writeFileSync(path.join(OUT, "usage-shot-report.json"), JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
-const bad = summary.filter((s) => s.overflowX || s.overflowY);
+const bad = summary.filter((s) => s.overflowX || s.clipCount > 0 || s.cardClip || (s.pageScrollY && !s.pageCanScroll));
 if (bad.length) {
-  console.error("OVERFLOW", bad.map((b) => b.name).join(", "));
+  console.error(
+    "FAIL",
+    bad.map((b) => `${b.name} x=${b.overflowX} clips=${b.clipCount} cardClip=${b.cardClip} scroll=${b.pageScrollY}/${b.pageCanScroll}`).join(" | "),
+  );
   process.exit(1);
 }
+console.log("OK all viewports: no clip, no overflowX; page scroll allowed");

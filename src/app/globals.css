@@ -1080,13 +1080,13 @@ th .check {
   padding-top: 4px;
 }
 
-/* Usage page: fill one viewport, four density tiers */
+/* Usage page: fill viewport when possible; never clip — scroll instead */
 .admin-root:has(.usage-main) {
   height: 100dvh;
   max-height: 100dvh;
-  /* 矮屏（高度 <660px 左右）内容放不下时允许滚动——不裁不遮挡 */
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .app:has(.usage-main) {
   flex: 1;
@@ -1095,12 +1095,18 @@ th .check {
   max-height: none;
   overflow: hidden;
 }
+.app:has(.usage-main) .sidebar {
+  height: auto;
+  max-height: none;
+  position: relative;
+  top: auto;
+  align-self: stretch;
+}
 .usage-main {
   --usage-gap: 8px;
   --usage-card-min: 100%;
   --usage-hero-cols: 2;
   --usage-metric-cols: 2;
-  --usage-chart-h: 72px;
   --usage-pad: 10px 12px 12px;
   flex: 1;
   min-width: 0;
@@ -1109,69 +1115,6 @@ th .check {
   padding: var(--usage-pad);
   display: flex;
   flex-direction: column;
-}
-/* 矮屏：压缩间距/图表高度——尽量一屏放下（放不下时外层 overflow-y 兜底滚动） */
-@media (max-height: 700px) {
-  .usage-main {
-    --usage-chart-h: 56px;
-    --usage-gap: 6px;
-    --usage-pad: 8px 10px 10px;
-  }
-}
-@media (max-height: 660px) {
-  .usage-main {
-    --usage-chart-h: 0px; /* 矮屏不展示操作明细条——一屏优先 */
-    --usage-gap: 4px;
-    --usage-pad: 6px 10px 8px;
-  }
-  .usage-main .usage-metric .k {
-    font-size: 10px;
-  }
-  .usage-main .usage-metric .v {
-    font-size: 12px;
-  }
-  .usage-main .usage-metrics {
-    gap: 3px 8px;
-  }
-  .usage-main .usage-quota-meta {
-    font-size: 10px;
-  }
-  .usage-main .usage-quota-bar {
-    height: 3px;
-    margin-top: 3px;
-  }
-  .usage-main .usage-quotas {
-    gap: 4px;
-    margin-top: 4px;
-  }
-  .usage-main .usage-chart {
-    display: none;
-  }
-}
-@media (max-height: 620px) {
-  .usage-main {
-    --usage-chart-h: 32px;
-    --usage-gap: 3px;
-    --usage-pad: 4px 8px 6px;
-  }
-  .usage-main .usage-card {
-    padding: 6px 10px 8px;
-    overflow-y: auto; /* 卡内内容超限可滚动——不裁切（高特异性覆盖基础 overflow:hidden） */
-    overflow-x: hidden;
-  }
-  .usage-main .usage-card .hint {
-    display: none; /* 矮屏隐藏说明文字——省出高度 */
-  }
-  .usage-main .usage-card h2 {
-    margin-bottom: 0;
-  }
-}
-@media (max-height: 580px) {
-  .usage-main {
-    --usage-chart-h: 28px;
-    --usage-gap: 2px;
-    --usage-pad: 3px 6px 4px;
-  }
 }
 .usage-fit {
   flex: 1;
@@ -1183,6 +1126,7 @@ th .check {
 .usage-head {
   padding: 0 0 6px;
   flex-shrink: 0;
+  min-width: 0;
 }
 .usage-head h1 {
   font-size: clamp(16px, 2.4vh, 22px);
@@ -1190,6 +1134,8 @@ th .check {
 .usage-filters {
   border: 0;
   padding: 0;
+  flex-shrink: 0;
+  min-width: 0;
 }
 .usage-lead {
   display: none;
@@ -1206,7 +1152,9 @@ th .check {
   display: flex;
   flex-direction: column;
   gap: var(--usage-gap);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .usage-banner {
   margin: 0;
@@ -1260,13 +1208,13 @@ th .check {
   white-space: nowrap;
 }
 .usage-grid {
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 auto;
+  min-height: min-content;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--usage-card-min)), 1fr));
-  grid-auto-rows: minmax(0, 1fr);
+  grid-auto-rows: minmax(min-content, 1fr);
   gap: var(--usage-gap);
-  overflow: hidden;
+  overflow: visible;
 }
 .usage-card {
   background: var(--surface);
@@ -1274,10 +1222,11 @@ th .check {
   border-radius: 8px;
   padding: 10px 12px 12px;
   min-width: 0;
-  min-height: 0;
+  min-height: min-content;
+  height: auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 .usage-card h2 {
   font-size: 14px;
@@ -1333,6 +1282,7 @@ th .check {
 .usage-quota-meta {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   font-size: 11px;
   color: var(--text-3);
@@ -1353,13 +1303,11 @@ th .check {
 .usage-chart {
   width: 100%;
   margin-top: 6px;
-  flex: 1 1 auto;
-  min-height: 36px;
-  max-height: var(--usage-chart-h);
-  overflow: hidden;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  justify-content: space-evenly;
   gap: 3px;
 }
 .usage-chart-empty {
@@ -1405,8 +1353,7 @@ th .check {
   width: 100%;
   margin-top: 8px;
   border-collapse: collapse;
-  flex-shrink: 1;
-  min-height: 0;
+  flex: 0 0 auto;
 }
 .usage-table th,
 .usage-table td {
@@ -1434,7 +1381,6 @@ th .check {
     --usage-card-min: max(148px, calc((100% - 6px) / 2));
     --usage-hero-cols: 2;
     --usage-metric-cols: 2;
-    --usage-chart-h: 52px;
     --usage-pad: 6px 8px 8px;
   }
   .usage-head {
@@ -1444,19 +1390,19 @@ th .check {
   .usage-head h1 {
     font-size: 16px;
   }
-  .usage-card {
+  .usage-main .usage-card {
     padding: 8px 8px 8px;
   }
-  .usage-card h2 {
+  .usage-main .usage-card h2 {
     font-size: 13px;
   }
   .usage-hero-card {
     padding: 6px 8px 8px;
   }
-  .usage-quotas {
+  .usage-main .usage-quotas {
     display: none;
   }
-  .usage-metrics .usage-metric:nth-child(n + 5) {
+  .usage-main .usage-metrics .usage-metric:nth-child(n + 5) {
     display: none;
   }
 }
@@ -1468,10 +1414,9 @@ th .check {
     --usage-card-min: max(240px, calc((100% - 10px) / 2));
     --usage-hero-cols: 2;
     --usage-metric-cols: 2;
-    --usage-chart-h: 72px;
     --usage-pad: 12px 16px 14px;
   }
-  .usage-metrics .usage-metric:nth-child(n + 7) {
+  .usage-main .usage-metrics .usage-metric:nth-child(n + 7) {
     display: none;
   }
 }
@@ -1483,30 +1428,116 @@ th .check {
     --usage-card-min: max(260px, calc((100% - 12px) / 2));
     --usage-hero-cols: 4;
     --usage-metric-cols: 4;
-    --usage-chart-h: 84px;
     --usage-pad: 14px 20px 16px;
   }
 }
 
-/* desktop ≥1280 */
+/* desktop ≥1280 — extra copy only when also tall enough */
 @media (min-width: 1280px) {
   .usage-main {
     --usage-gap: 14px;
     --usage-card-min: max(280px, calc((100% - 14px) / 2));
     --usage-hero-cols: 4;
     --usage-metric-cols: 4;
-    --usage-chart-h: min(120px, 14vh);
     --usage-pad: 16px 24px 18px;
   }
-  .usage-lead,
-  .usage-card .hint {
+  .usage-main .usage-card {
+    padding: 12px 14px 14px;
+  }
+}
+@media (min-width: 1280px) and (min-height: 880px) {
+  .usage-main .usage-lead,
+  .usage-main .usage-card .hint {
     display: block;
   }
-  .usage-table {
+  .usage-main .usage-table {
     display: table;
   }
-  .usage-card {
-    padding: 12px 14px 14px;
+}
+
+/* Height tiers AFTER width so they win. Compress, then scroll — never clip. */
+@media (max-height: 879px) {
+  .usage-main .usage-lead,
+  .usage-main .usage-card .hint {
+    display: none;
+  }
+  .usage-main .usage-table {
+    display: none;
+  }
+}
+@media (max-height: 800px) {
+  .usage-main {
+    --usage-gap: 6px;
+    --usage-pad: 8px 12px 10px;
+  }
+  .usage-main .usage-chart {
+    gap: 2px;
+    margin-top: 4px;
+  }
+  .usage-main .usage-bar-track {
+    height: 4px;
+  }
+}
+@media (max-height: 700px) {
+  .usage-main {
+    --usage-gap: 5px;
+    --usage-pad: 6px 10px 8px;
+  }
+  .usage-main .usage-hero-card {
+    padding: 6px 10px 7px;
+  }
+  .usage-main .usage-card {
+    padding: 8px 10px 8px;
+  }
+}
+@media (max-height: 660px) {
+  .usage-main {
+    --usage-gap: 4px;
+    --usage-pad: 6px 10px 8px;
+  }
+  .usage-main .usage-metric .k {
+    font-size: 10px;
+  }
+  .usage-main .usage-metric .v {
+    font-size: 12px;
+  }
+  .usage-main .usage-metrics {
+    gap: 3px 8px;
+  }
+  .usage-main .usage-quota-meta {
+    font-size: 10px;
+  }
+  .usage-main .usage-quota-bar {
+    height: 3px;
+    margin-top: 3px;
+  }
+  .usage-main .usage-quotas {
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .usage-main .usage-card h2 {
+    margin-bottom: 0;
+  }
+}
+@media (max-height: 620px) {
+  .usage-main {
+    --usage-gap: 3px;
+    --usage-pad: 4px 8px 6px;
+  }
+  .usage-main .usage-metrics .usage-metric:nth-child(n + 7) {
+    display: none;
+  }
+}
+@media (max-height: 580px) {
+  .usage-main {
+    --usage-gap: 2px;
+    --usage-pad: 3px 6px 4px;
+  }
+  .usage-main .usage-quotas {
+    display: none;
+  }
+  .usage-main .usage-metrics .usage-metric:nth-child(n + 5) {
+    display: none;
   }
 }
 
