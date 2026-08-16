@@ -535,6 +535,17 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                         </IconButton>
                         <IconButton
                           size="small"
+                          title="复制预览链接"
+                          aria-label="复制预览链接"
+                          onClick={async () => {
+                            const ok = await copyToClipboard(`${file.url}/view`);
+                            toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
+                          }}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
                           onClick={() => {
                             setExpireIds([file.id]);
                             setExpireOpen(true);
@@ -628,6 +639,15 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
         anchorReference="anchorPosition"
         anchorPosition={ctx ? { top: ctx.y, left: ctx.x } : undefined}
       >
+        <MenuItem
+          onClick={() => {
+            if (ctxFile) window.open(`${ctxFile.url}/view`, "_blank");
+            setCtx(null);
+          }}
+        >
+          <PreviewIcon fontSize="small" sx={{ mr: 1 }} />
+          预览
+        </MenuItem>
         <MenuItem
           onClick={() => {
             if (ctxFile) window.open(ctxFile.url, "_blank");
