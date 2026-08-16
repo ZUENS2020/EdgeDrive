@@ -102,7 +102,7 @@ EdgeDrive 支持两种认证模式（设置 → 认证）：
 ### 第 1 步：创建 Access Application
 
 1. Cloudflare 面板 → **Zero Trust** → **Access → Applications** → **Add an application**
-2. 类型选 **Self-hosted**；Application domain 填你的域名（如 `edgedrive.example.com` 或 `*.workers.dev`）
+2. 类型选 **Self-hosted**；Application domain 填你的域名/admin*（如 `edgedrive.example.com/admin*` 或 `*.workers.dev/admin*`）
 3. Policy：配置允许访问的成员（如你的邮箱 / 组织）
 4. 创建完成后，在 Application 详情页（Overview）找到 **Application Audience (AUD) Tag** —— 一串 UUID，记下来
 
