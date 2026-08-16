@@ -31,11 +31,13 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
 
   async function save(extra: Record<string, unknown> = {}) {
     setPending(true);
+    // 剥离受保护字段（后端拒绝 access_enabled/auth_mode/cron_secret 明文——防篡改）
+    const { access_enabled, cron_secret, cf_access_team, cf_access_aud, cf_api_token_set, cf_api_token_from_env, ...rest } = form;
     const res = await fetch("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...form,
+        ...rest,
         ...(cfApiToken.trim() ? { cf_api_token: cfApiToken.trim() } : {}),
         ...extra,
       }),
