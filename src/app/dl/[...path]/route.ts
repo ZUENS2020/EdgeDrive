@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getR2 } from "@/lib/cloudflare";
-import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
+import { PRODUCT_NAME, PRODUCT_SHORT, PRODUCT_TAGLINE } from "@/lib/product";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { resolveThemePalette } from "@/lib/themes";
 import { fileKind, formatSize, formatTime } from "@/lib/format";
@@ -233,6 +233,9 @@ function renderViewPage(
     .preview { max-width:100%; border:1px solid var(--line); border-radius:8px; background:var(--surface); margin:0 0 20px; }
     iframe.pdf { width:100%; height:70vh; }
     audio { width:100%; margin:0 0 20px; }
+    .footer { margin-top:40px; padding-top:16px; border-top:1px solid var(--line); display:flex; gap:14px; align-items:center; }
+    .footer a { color:var(--text-3); text-decoration:none; font-size:13px; }
+    .footer a:hover { color:var(--brand); }
   </style>
 </head>
 <body>
@@ -245,6 +248,10 @@ function renderViewPage(
     <p class="meta">${esc(formatSize(meta.size))} · ${esc(status)}${meta.path ? ` · ${esc(meta.path)}` : ""}</p>
     ${embed}
     <p><a class="btn" href="${esc(dl)}">下载</a></p>
+    <div class="footer">
+      <span style="color:var(--text-3);font-size:13px">${esc(PRODUCT_NAME)} · ${esc(PRODUCT_TAGLINE)}</span>
+      <a href="https://github.com/ZUENS2020/edgedrive" target="_blank" rel="noopener">GitHub</a>
+    </div>
   </div>
 </body>
 </html>`;

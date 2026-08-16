@@ -2,6 +2,7 @@
 
 import BarChartIcon from "@mui/icons-material/BarChart";
 import FolderIcon from "@mui/icons-material/Folder";
+import GitHubIcon from "@mui/icons-material/GitHub";
 import MenuIcon from "@mui/icons-material/Menu";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AppBar from "@mui/material/AppBar";
@@ -82,6 +83,20 @@ export function AdminShell({ children }: { children: ReactNode }) {
         })}
       </List>
       <Box sx={{ flex: 1, overflow: "auto", px: 1, pb: 2 }} id="admin-sider-extra" />
+      <List sx={{ px: 1, mb: 1 }}>
+        <ListItemButton
+          component="a"
+          href="https://github.com/ZUENS2020/edgedrive"
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{ borderRadius: 1, color: "sidebarText" }}
+        >
+          <ListItemIcon sx={{ minWidth: 36, color: "inherit" }}>
+            <GitHubIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="GitHub" />
+        </ListItemButton>
+      </List>
     </Box>
   );
 
