@@ -134,8 +134,8 @@ function UsageBody({ data }: { data: UsagePayload }) {
         <Hero k="Worker 请求" v={n(a.worker?.requests)} />
       </Grid>
       <Grid container spacing={2}>
-        <Grid item xs={12} md={6}>
-          <Card variant="outlined">
+        <Grid item xs={12} md={6} sx={{ minWidth: 0 }}>
+          <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
             <CardContent>
               <Typography variant="h2">本站</Typography>
               <MetricGrid
@@ -152,8 +152,8 @@ function UsageBody({ data }: { data: UsagePayload }) {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={6}>
-          <Card variant="outlined">
+        <Grid item xs={12} md={6} sx={{ minWidth: 0 }}>
+          <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
             <CardContent>
               <Typography variant="h2">R2</Typography>
               <MetricGrid
@@ -171,8 +171,8 @@ function UsageBody({ data }: { data: UsagePayload }) {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={6}>
-          <Card variant="outlined">
+        <Grid item xs={12} md={6} sx={{ minWidth: 0 }}>
+          <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
             <CardContent>
               <Typography variant="h2">D1</Typography>
               <MetricGrid
@@ -190,8 +190,8 @@ function UsageBody({ data }: { data: UsagePayload }) {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={6}>
-          <Card variant="outlined">
+        <Grid item xs={12} md={6} sx={{ minWidth: 0 }}>
+          <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
             <CardContent>
               <Typography variant="h2">Worker</Typography>
               <MetricGrid
@@ -230,7 +230,7 @@ function MetricGrid({ items }: { items: [string, string][] }) {
   return (
     <Grid container spacing={1} sx={{ my: 1 }}>
       {items.map(([k, v]) => (
-        <Grid item xs={6} key={k}>
+        <Grid item xs={6} key={k} sx={{ minWidth: 0 }}>
           <Typography variant="caption" color="text.secondary">
             {k}
           </Typography>

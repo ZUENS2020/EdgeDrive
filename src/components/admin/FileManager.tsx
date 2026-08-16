@@ -420,19 +420,19 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell padding="checkbox">
+                  <TableCell padding="checkbox" sx={{ whiteSpace: "nowrap" }}>
                     <Checkbox
                       checked={allOn}
                       indeterminate={selected.size > 0 && !allOn}
                       onChange={() => setSelected(allOn ? new Set() : new Set(files.map((f) => f.id)))}
                     />
                   </TableCell>
-                  <TableCell>文件</TableCell>
-                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>大小</TableCell>
-                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>下载</TableCell>
-                  <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>上传时间</TableCell>
-                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>状态</TableCell>
-                  <TableCell align="right">操作</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>文件</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>大小</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>下载</TableCell>
+                  <TableCell sx={{ display: { xs: "none", md: "table-cell" }, whiteSpace: "nowrap" }}>上传时间</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>状态</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
