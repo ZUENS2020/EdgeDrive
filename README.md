@@ -127,6 +127,30 @@
 
 > 回退：在 CF 面板临时关掉 Access Application **不会**重新打开引导页——Worker 仍 fail-closed。需要改 D1 `access_enabled` 才能回到引导。
 
+### ⚠️ 关键：JWT 双通道读取（踩坑总结）
+
+EdgeDrive 从**两个地方**取 Access JWT：
+
+1. 请求头 `cf-access-jwt-assertion`（**Worker 级保护**会注入——**hostname 级应用可能不注入**）
+2. `CF_Authorization` **cookie**（hostname 级应用通常只传这个——cookie 本身就是 JWT，验签方式相同）
+
+> **不要**因为「登录后踢回 /login」就去改 Access 配置——先确认是不是这个问题（hostname 级应用只传 cookie 是正常行为——EdgeDrive 已兼容）。
+
+### 🩺 排障速查
+
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| `/admin` 直接 401 页（没弹 Access 登录）| Access 没保护该 URL | 检查 Target 路径（应为 `admin*`）|
+| Access 登录后踢回 /login | ① D1 的 AUD 是旧值 ② JWT 读不到 | ① 同步 D1（`UPDATE settings SET value='<新AUD>' WHERE key='cf_access_aud'`）② 确认 EdgeDrive ≥ 双通道版本 |
+| 403 Forbidden（Access 页）| Policy 拒绝 | Policy 加 Allow 规则（你的邮箱 / Everyone）|
+| Bypass 策略 | 不注入 JWT 且等于没保护 | 改用 **Allow** |
+
+> **AUD 会变**：重建 Access 应用 / 点「撤销现有令牌」后 AUD 重新生成——必须同步 D1（否则验证失败）。
+
+### 📖 完整手册
+
+详细的每一步配置 + 验证方法 + 调试技巧见 **[docs/cloudflare-access.md](docs/cloudflare-access.md)**。
+
 ---
 
 ## 环境变量 / Secrets
