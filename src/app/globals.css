@@ -1133,6 +1133,7 @@ th .check {
   }
   .usage-card {
     padding: 6px 10px 8px;
+    overflow-y: auto; /* 卡内内容超限可滚动——不裁切 */
   }
   .usage-card .hint {
     display: none; /* 矮屏隐藏说明文字——省出高度 */
