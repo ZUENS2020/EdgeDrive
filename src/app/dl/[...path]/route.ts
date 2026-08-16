@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getR2 } from "@/lib/cloudflare";
 import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
 import { DEFAULTS, getSettings } from "@/lib/settings";
+import { resolveThemePalette } from "@/lib/themes";
 import { fileKind, formatSize, formatTime } from "@/lib/format";
 import { guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
 import { scheduleDownloadIncrement, shouldCountDownload } from "@/lib/download-count";
@@ -103,7 +104,22 @@ async function handle(
     } catch {
       // ignore
     }
-    const html = renderViewPage(request.nextUrl.origin, key, meta, settings);
+    const palette = resolveThemePalette(settings.theme_name);
+    const p = palette as unknown as {
+      primary: { main: string };
+      background: { default: string; paper: string };
+      text: { primary: string; secondary: string };
+      divider: string;
+    };
+    const themeVars = {
+      brand: p.primary.main,
+      bg: p.background.default,
+      text: p.text.primary,
+      text3: p.text.secondary,
+      surface: p.background.paper,
+      line: p.divider,
+    };
+    const html = renderViewPage(request.nextUrl.origin, key, meta, settings, themeVars);
     return new Response(headOnly ? null : html, {
       status: 200,
       headers: {
@@ -171,7 +187,13 @@ async function handle(
   return new Response(obj.body, { status: 200, headers });
 }
 
-function renderViewPage(origin: string, key: string, meta: FileRow, settings: SiteSettings) {
+function renderViewPage(
+  origin: string,
+  key: string,
+  meta: FileRow,
+  settings: SiteSettings,
+  themeVars?: { brand: string; bg: string; text: string; text3: string; surface: string; line: string },
+) {
   const dl = `${origin}/dl/${key.split("/").map(encodeURIComponent).join("/")}`;
   const inline = `${dl}?inline=1`;
   const kind = fileKind(meta.name, meta.mime);
@@ -199,7 +221,7 @@ function renderViewPage(origin: string, key: string, meta: FileRow, settings: Si
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(meta.name)} · ${esc(PRODUCT_NAME)}</title>
   <style>
-    :root { --brand:${esc(settings.brand_color)}; --bg:#f6f5f2; --text:#171717; --text-3:#737373; --surface:#fff; --line:rgba(23,23,23,.1); }
+    :root { --brand:${esc(themeVars?.brand ?? settings.brand_color)}; --bg:${esc(themeVars?.bg ?? "#f6f5f2")}; --text:${esc(themeVars?.text ?? "#171717")}; --text-3:${esc(themeVars?.text3 ?? "#737373")}; --surface:${esc(themeVars?.surface ?? "#fff")}; --line:${esc(themeVars?.line ?? "rgba(23,23,23,.1)")}; }
     * { box-sizing: border-box; }
     body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font:16px/1.5 "Noto Sans SC","PingFang SC","Hiragino Sans GB",sans-serif; }
     .wrap { max-width:720px; margin:0 auto; padding:48px 20px 64px; }
@@ -207,7 +229,7 @@ function renderViewPage(origin: string, key: string, meta: FileRow, settings: Si
     .logo { min-width:28px; height:28px; padding:0 6px; border-radius:6px; background:var(--brand); color:#fff; display:grid; place-items:center; font-weight:600; font-size:10px; letter-spacing:.06em; }
     h1 { font-size:22px; font-weight:600; letter-spacing:-.03em; margin:0 0 8px; word-break:break-all; }
     .meta { color:var(--text-3); font-size:14px; margin:0 0 20px; }
-    a.btn { display:inline-flex; align-items:center; height:32px; padding:0 12px; background:#171717; color:#fafafa; text-decoration:none; border-radius:8px; font-size:14px; font-weight:500; }
+    a.btn { display:inline-flex; align-items:center; height:32px; padding:0 12px; background:var(--brand); color:#fff; text-decoration:none; border-radius:8px; font-size:14px; font-weight:500; }
     .preview { max-width:100%; border:1px solid var(--line); border-radius:8px; background:var(--surface); margin:0 0 20px; }
     iframe.pdf { width:100%; height:70vh; }
     audio { width:100%; margin:0 0 20px; }
