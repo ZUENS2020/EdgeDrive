@@ -1156,6 +1156,25 @@ th .check {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+/* 常显滚动条（macOS overlay 默认隐藏——强制可见，让用户知道能滚） */
+.usage-page::-webkit-scrollbar,
+.usage-card::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.usage-page::-webkit-scrollbar-track,
+.usage-card::-webkit-scrollbar-track {
+  background: transparent;
+}
+.usage-page::-webkit-scrollbar-thumb,
+.usage-card::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 25%, transparent);
+  border-radius: 999px;
+}
+.usage-page::-webkit-scrollbar-thumb:hover,
+.usage-card::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text) 40%, transparent);
+}
 .usage-banner {
   margin: 0;
   padding: 6px 10px;
@@ -1399,12 +1418,6 @@ th .check {
   .usage-hero-card {
     padding: 6px 8px 8px;
   }
-  .usage-main .usage-quotas {
-    display: none;
-  }
-  .usage-main .usage-metrics .usage-metric:nth-child(n + 5) {
-    display: none;
-  }
 }
 
 /* tablet 768-1023 */
@@ -1415,9 +1428,6 @@ th .check {
     --usage-hero-cols: 2;
     --usage-metric-cols: 2;
     --usage-pad: 12px 16px 14px;
-  }
-  .usage-main .usage-metrics .usage-metric:nth-child(n + 7) {
-    display: none;
   }
 }
 
@@ -1455,16 +1465,7 @@ th .check {
   }
 }
 
-/* Height tiers AFTER width so they win. Compress, then scroll — never clip. */
-@media (max-height: 879px) {
-  .usage-main .usage-lead,
-  .usage-main .usage-card .hint {
-    display: none;
-  }
-  .usage-main .usage-table {
-    display: none;
-  }
-}
+/* Height tiers AFTER width so they win. Compress spacing, never hide data — scrollbar always visible. */
 @media (max-height: 800px) {
   .usage-main {
     --usage-gap: 6px;
@@ -1476,25 +1477,6 @@ th .check {
   }
   .usage-main .usage-bar-track {
     height: 4px;
-  }
-}
-@media (max-height: 900px) {
-  .usage-main {
-    --usage-chart-h: 0px; /* 低于 900px 高度：隐藏操作明细条——一屏优先 */
-    --usage-gap: 5px;
-    --usage-pad: 7px 10px 9px;
-  }
-  .usage-main .usage-lead {
-    display: none;
-  }
-  .usage-main .usage-hero-card {
-    padding: 5px 10px 6px;
-  }
-  .usage-main .usage-card .hint {
-    display: none;
-  }
-  .usage-main .usage-chart {
-    display: none;
   }
 }
 @media (max-height: 700px) {
@@ -1511,12 +1493,8 @@ th .check {
 }
 @media (max-height: 660px) {
   .usage-main {
-    --usage-chart-h: 0px; /* 矮屏不展示操作明细条——一屏优先 */
     --usage-gap: 4px;
     --usage-pad: 6px 10px 8px;
-  }
-  .usage-main .usage-lead {
-    display: none; /* 矮屏隐藏说明文字 */
   }
   .usage-main .usage-hero-card {
     padding: 4px 10px;
@@ -1526,9 +1504,6 @@ th .check {
   }
   .usage-main .usage-hero-card .k {
     font-size: 10px;
-  }
-  .usage-main .usage-card .hint {
-    display: none;
   }
   .usage-main .usage-metric .k {
     font-size: 10px;
@@ -1559,20 +1534,11 @@ th .check {
     --usage-gap: 3px;
     --usage-pad: 4px 8px 6px;
   }
-  .usage-main .usage-metrics .usage-metric:nth-child(n + 7) {
-    display: none;
-  }
 }
 @media (max-height: 580px) {
   .usage-main {
     --usage-gap: 2px;
     --usage-pad: 3px 6px 4px;
-  }
-  .usage-main .usage-quotas {
-    display: none;
-  }
-  .usage-main .usage-metrics .usage-metric:nth-child(n + 5) {
-    display: none;
   }
 }
 
