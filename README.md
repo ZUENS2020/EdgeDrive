@@ -133,33 +133,19 @@ Access apps **deny everything by default** — you must add an Allow rule or you
 
 **Symptom**: Access login succeeds but EdgeDrive keeps returning 401; or you need to change AUD after onboarding but can't reach `/admin`.
 
-**How it works**: Access config lives in the D1 `settings` table (`cf_access_team` / `cf_access_aud` / `access_enabled`) — edit D1 directly, no admin UI needed.
+**Fix**: Access config lives in the D1 `settings` table — flip it back to onboarding mode from the **Cloudflare dashboard** (no local tools, nothing to install):
 
-**① View current config**:
+1. Log in to the Cloudflare dashboard → **Storage & Databases** → **D1** → click your database (e.g. `edgedrive-db`)
+2. Open the **Console** tab (the SQL query box)
+3. Run:
 
-```bash
-# run from the project directory (where wrangler.jsonc is)
-npx wrangler d1 execute edgedrive-db --remote \
-  --command "SELECT key, value FROM settings WHERE key IN ('cf_access_team','cf_access_aud','access_enabled')"
+```sql
+UPDATE settings SET value='0' WHERE key='access_enabled';
 ```
 
-**② Fix the AUD** (copy from Access app → Other settings → AUD Tag):
+4. Visit `/admin` — the onboarding page shows again → fill in the correct **Team + AUD** → click **Enable Access** (this writes `access_enabled` back to `1` automatically)
 
-```bash
-npx wrangler d1 execute edgedrive-db --remote \
-  --command "UPDATE settings SET value='YOUR_CORRECT_AUD' WHERE key='cf_access_aud'"
-```
-
-**③ Back to onboarding mode** (to reconfigure): set `access_enabled` back to `0` — `/admin` shows the onboarding page again:
-
-```bash
-npx wrangler d1 execute edgedrive-db --remote \
-  --command "UPDATE settings SET value='0' WHERE key='access_enabled'"
-```
-
-**⚠️ If wrangler says "Couldn't find a D1 DB"**: your `wrangler.jsonc` has no `database_id` — temporarily add `"database_id": "<your D1 database ID>"` to `d1_databases` (Cloudflare dashboard → D1 → your database → ID), or pass `--database-id <ID>`.
-
-**⚠️ After re-onboarding**: remember to set `access_enabled` back to `1` (or click "Enable Access" on the onboarding page, which writes it back).
+> No `wrangler`, no Node, no local installs — everything runs in the Cloudflare web console.
 
 ---
 
