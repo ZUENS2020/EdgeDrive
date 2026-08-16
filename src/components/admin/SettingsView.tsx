@@ -141,9 +141,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
                       <CardContent sx={{ p: 1.75 }}>
                         <Swatch colors={[p.primary.main, p.secondary.main, p.background.paper, p.background.default]} />
                         <Typography fontWeight={700}>{theme.name}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5, lineHeight: 1.5 }}>
-                          {theme.description}
-                        </Typography>
+
                       </CardContent>
                     </CardActionArea>
                   </Card>

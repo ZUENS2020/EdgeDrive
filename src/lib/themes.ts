@@ -8,7 +8,6 @@ export type Appearance = {
 export type ThemeDefinition = {
   id: string;
   name: string;
-  description: string;
   palette: {
     mode: "light" | "dark";
     primary: { main: string; light?: string; dark?: string; contrastText?: string };
@@ -49,7 +48,6 @@ export function hexContrast(hex: string): string {
 const DEFAULT_THEME: ThemeDefinition = {
   id: "default",
   name: "Onyx",
-  description: "EdgeDrive 暗色：近黑底、#171717 品牌条，从现有 Linear 配色提取。",
   palette: {
     mode: "dark",
     primary: { main: "#EDEDED", light: "#FFFFFF", dark: "#D4D4D4", contrastText: "#171717" },
@@ -74,7 +72,6 @@ const DEFAULT_THEME: ThemeDefinition = {
 const LIGHT_THEME: ThemeDefinition = {
   id: "light",
   name: "Porcelain",
-  description: "亮色主题：白底黑字，主色沿用标记色风格。",
   palette: {
     mode: "light",
     primary: { main: "#171717", light: "#404040", dark: "#0A0A0A", contrastText: "#FAFAFA" },
@@ -99,7 +96,6 @@ const LIGHT_THEME: ThemeDefinition = {
 const SUZUKA_THEME: ThemeDefinition = {
   id: "suzuka",
   name: "Nocturne",
-  description: "夜空下的先头景色——红橙发色的逃亡者。风、心跳、只有自己的世界。",
   palette: {
     mode: "dark",
     primary: { main: "#D96C4A", light: "#E48A6C", dark: "#B35136", contrastText: "#FFF6EF" },
