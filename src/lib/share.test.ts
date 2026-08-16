@@ -1,0 +1,362 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { SHARE_LOCK_AFTER } from "./share-password";
+import {
+  assignShareShortCode,
+  authorizeFileShare,
+  createShare,
+  deleteShareLink,
+  evaluateShareAccess,
+  getShareLink,
+  incrementShareDownload,
+  listShareLinks,
+  patchShare,
+  shareAllowsFile,
+  shareStatus,
+  verifySharePasswordAttempt,
+  type ShareLink,
+} from "./share";
+import type { FileRow } from "./types";
+
+type ShareRow = ShareLink;
+
+function file(partial: Partial<FileRow> & Pick<FileRow, "id" | "name">): FileRow {
+  return {
+    path: "",
+    size: 12,
+    mime: "text/plain",
+    expires: null,
+    download_count: 0,
+    created_at: "2026-08-16T00:00:00.000Z",
+    tags: "",
+    deleted_at: null,
+    starred: 0,
+    sha256: null,
+    ...partial,
+  };
+}
+
+function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Database {
+  const files = new Map((init?.files ?? []).map((row) => [row.id, { ...row }]));
+  const links = new Map((init?.links ?? []).map((row) => [row.token, { ...row }]));
+
+  function applyUpdate(sql: string, args: unknown[]) {
+    const normalized = sql.replace(/\s+/g, " ").trim();
+    if (normalized.includes("download_count = download_count + 1")) {
+      const row = links.get(String(args[0]));
+      if (row) row.download_count += 1;
+      return;
+    }
+    const token = String(args[args.length - 1]);
+    const row = links.get(token);
+    if (!row) return;
+    const setPart = normalized.replace(/^UPDATE share_links SET /i, "").replace(/ WHERE token = \?$/i, "");
+    const cols = setPart.split(",").map((part) => part.trim().split("=")[0]!.trim());
+    cols.forEach((col, i) => {
+      const value = args[i] as never;
+      (row as unknown as Record<string, unknown>)[col] = value ?? null;
+    });
+  }
+
+  const api = {
+    prepare(sql: string) {
+      const normalized = sql.replace(/\s+/g, " ").trim();
+      return {
+        bind(...args: unknown[]) {
+          return {
+            async first<T>() {
+              if (normalized.includes("FROM share_links") && normalized.includes("WHERE token")) {
+                const row = links.get(String(args[0]));
+                if (!row) return null;
+                if (normalized.includes("kind = 'batch'") && row.kind !== "batch") return null;
+                if (normalized.includes("SELECT token, target")) {
+                  return { token: row.token, target: row.target, created_at: row.created_at, expires_at: row.expires_at } as T;
+                }
+                return row as T;
+              }
+              if (normalized.includes("FROM share_links") && normalized.includes("WHERE short_code")) {
+                const hit = [...links.values()].find((r) => r.short_code === String(args[0]));
+                return (hit ?? null) as T;
+              }
+              return null;
+            },
+            async all<T>() {
+              if (normalized.includes("FROM files") && normalized.includes("id IN")) {
+                const results = args
+                  .map((id) => files.get(String(id)))
+                  .filter((row): row is FileRow => Boolean(row) && !row!.deleted_at);
+                return { results: results as T[] };
+              }
+              if (normalized.includes("FROM share_links") && normalized.includes("kind = 'file' AND target")) {
+                const results = [...links.values()].filter(
+                  (row) => row.kind === "file" && row.target === String(args[0]) && !row.revoked,
+                );
+                results.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+                return { results: results as T[] };
+              }
+              if (normalized.includes("FROM share_links") && normalized.includes("ORDER BY created_at DESC")) {
+                const results = [...links.values()].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+                return { results: results as T[] };
+              }
+              return { results: [] as T[] };
+            },
+            async run() {
+              if (normalized.startsWith("INSERT INTO share_links")) {
+                const token = String(args[0]);
+                const kind = String(args[1]) as ShareRow["kind"];
+                links.set(token, {
+                  token,
+                  kind,
+                  target: String(args[2]),
+                  password_hash: args[3] == null ? null : String(args[3]),
+                  max_downloads: args[4] == null ? null : Number(args[4]),
+                  download_count: Number(args[5] ?? 0),
+                  created_at: String(args[6]),
+                  expires_at: args[7] == null ? null : String(args[7]),
+                  revoked: Number(args[8] ?? 0),
+                  short_code: args[9] == null ? null : String(args[9]),
+                  fail_count: Number(args[10] ?? 0),
+                  locked_until: args[11] == null ? null : String(args[11]),
+                });
+              } else if (normalized.startsWith("UPDATE share_links")) {
+                applyUpdate(sql, args);
+              } else if (normalized.startsWith("DELETE FROM share_links")) {
+                links.delete(String(args[0]));
+              }
+              return { success: true };
+            },
+          };
+        },
+        async all<T>() {
+          if (normalized.includes("FROM share_links") && normalized.includes("ORDER BY created_at DESC")) {
+            const results = [...links.values()].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+            return { results: results as T[] };
+          }
+          return { results: [] as T[] };
+        },
+      };
+    },
+  };
+  return api as unknown as D1Database;
+}
+
+describe("0014 share_links migration", () => {
+  it("creates share_links and copies batch_links", () => {
+    const sql = readFileSync(path.join(process.cwd(), "migrations/0014_share_links.sql"), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS share_links");
+    expect(sql).toContain("INSERT OR IGNORE INTO share_links");
+    expect(sql).toContain("FROM batch_links");
+    expect(sql).toContain("kind");
+    expect(sql).toContain("short_code");
+    expect(sql).toContain("password_hash");
+    expect(sql).toContain("fail_count");
+    expect(sql).toContain("schema_version', '14'");
+  });
+});
+
+describe("createShare / multi-link", () => {
+  const now = new Date("2026-08-17T00:00:00.000Z");
+
+  it("creates independent file links with different permissions", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt", path: "docs" })] });
+    const open = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    const locked = await createShare(db, { kind: "file", ids: ["1"], password: "secret" }, now);
+    const limited = await createShare(db, { kind: "file", ids: ["1"], max_downloads: 2, hours: 24 }, now);
+    expect(open.ok && locked.ok && limited.ok).toBe(true);
+    if (!open.ok || !locked.ok || !limited.ok) return;
+    expect(open.token).not.toBe(locked.token);
+    expect(locked.hasPassword).toBe(true);
+    expect(open.hasPassword).toBe(false);
+    expect(limited.url).toContain("/dl/docs/a.txt?t=");
+    expect(open.viewUrl).toContain("/view?t=");
+    const listed = await listShareLinks(db);
+    expect(listed).toHaveLength(3);
+    expect(new Set(listed.map((l) => l.token)).size).toBe(3);
+  });
+
+  it("reuses a default open file link when asked", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const first = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    const again = await createShare(db, { kind: "file", ids: ["1"], reuseDefault: true }, now);
+    expect(first.ok && again.ok).toBe(true);
+    if (!first.ok || !again.ok) return;
+    expect(again.reused).toBe(true);
+    expect(again.token).toBe(first.token);
+  });
+
+  it("does not reuse when password or limits differ", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const first = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    const second = await createShare(db, { kind: "file", ids: ["1"], password: "x", reuseDefault: true }, now);
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(second.reused).toBe(false);
+    expect(second.token).not.toBe(first.token);
+  });
+
+  it("creates batch links and optional short codes", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt" }), file({ id: "2", name: "b.txt" })],
+    });
+    const created = await createShare(db, { kind: "batch", ids: ["1", "2"], short: true }, now);
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(created.url).toMatch(/^\/dl\/batch\//);
+    expect(created.downloadUrl).toContain("mode=download");
+    expect(created.shortCode).toMatch(/^[0-9A-Za-z]{6,8}$/);
+    expect(created.shortUrl).toBe(`/s/${created.shortCode}`);
+  });
+});
+
+describe("share access / password / short", () => {
+  const now = new Date("2026-08-17T12:00:00.000Z");
+
+  it("404s missing token and mismatched file", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt" }), file({ id: "2", name: "b.txt" })],
+    });
+    const created = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    if (!created.ok) throw new Error("create");
+    expect(await authorizeFileShare(db, { fileId: "1", token: null, cookieHeader: null, nextPath: "/dl/a.txt" })).toEqual({
+      status: 404,
+    });
+    expect(await authorizeFileShare(db, { fileId: "2", token: created.token, cookieHeader: null, nextPath: "/dl/b.txt" })).toEqual({
+      status: 404,
+    });
+    const ok = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=x",
+    });
+    expect(ok.status).toBe(200);
+  });
+
+  it("410s revoked, expired, and exhausted links independently", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const revoked = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    const expired = await createShare(db, { kind: "file", ids: ["1"], expires: "2026-08-01T00:00:00.000Z" }, now);
+    const limited = await createShare(db, { kind: "file", ids: ["1"], max_downloads: 1 }, now);
+    if (!revoked.ok || !expired.ok || !limited.ok) throw new Error("create");
+    await patchShare(db, revoked.token, { revoked: true }, now);
+    await incrementShareDownload(db, limited.token);
+    const r1 = await authorizeFileShare(db, {
+      fileId: "1",
+      token: revoked.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt",
+      now: now.getTime(),
+    });
+    const r2 = await authorizeFileShare(db, {
+      fileId: "1",
+      token: expired.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt",
+      now: now.getTime(),
+    });
+    const r3 = await authorizeFileShare(db, {
+      fileId: "1",
+      token: limited.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt",
+      now: now.getTime(),
+    });
+    expect(r1).toMatchObject({ status: 410, reason: "revoked" });
+    expect(r2).toMatchObject({ status: 410, reason: "expired" });
+    expect(r3).toMatchObject({ status: 410, reason: "exhausted" });
+    expect(shareStatus((await getShareLink(db, revoked.token))!, now.getTime())).toBe("revoked");
+  });
+
+  it("redirects to the password page then unlocks with a cookie", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"], password: "hunter2" }, now);
+    if (!created.ok) throw new Error("create");
+    const blocked = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=tok",
+    });
+    expect(blocked.status).toBe(302);
+    if (blocked.status !== 302) return;
+    expect(blocked.location).toContain(`/share/${created.token}`);
+    const bad = await verifySharePasswordAttempt(db, created.token, "nope", { secure: true, now });
+    expect(bad.ok).toBe(false);
+    if (bad.ok) return;
+    expect(bad.status).toBe(401);
+    const good = await verifySharePasswordAttempt(db, created.token, "hunter2", {
+      secure: true,
+      now,
+      next: "/dl/a.txt?t=tok",
+    });
+    expect(good.ok).toBe(true);
+    if (!good.ok) return;
+    expect(good.setCookie).toContain("HttpOnly");
+    expect(good.setCookie).toContain("ed_share_");
+    expect(good.next).toBe("/dl/a.txt?t=tok");
+    const opened = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: good.setCookie.split(";")[0],
+      nextPath: "/dl/a.txt?t=tok",
+      now: now.getTime(),
+    });
+    expect(opened.status).toBe(200);
+  });
+
+  it("locks after 5 wrong passwords", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"], password: "pw" }, now);
+    if (!created.ok) throw new Error("create");
+    for (let i = 0; i < SHARE_LOCK_AFTER - 1; i++) {
+      const r = await verifySharePasswordAttempt(db, created.token, "bad", { secure: false, now });
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.status).toBe(401);
+    }
+    const locked = await verifySharePasswordAttempt(db, created.token, "bad", { secure: false, now });
+    expect(locked.ok).toBe(false);
+    if (!locked.ok) expect(locked.status).toBe(429);
+    const still = await verifySharePasswordAttempt(db, created.token, "pw", { secure: false, now });
+    expect(still.ok).toBe(false);
+    if (!still.ok) expect(still.status).toBe(429);
+  });
+
+  it("assigns a unique short code and can look the link up", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    if (!created.ok) throw new Error("create");
+    const short = await assignShareShortCode(db, created.token);
+    expect(short.ok).toBe(true);
+    if (!short.ok) return;
+    expect(short.shortCode).toMatch(/^[0-9A-Za-z]{6,8}$/);
+    const again = await assignShareShortCode(db, created.token);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.shortCode).toBe(short.shortCode);
+  });
+
+  it("deletes a link so later access is 404", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    if (!created.ok) throw new Error("create");
+    expect(await deleteShareLink(db, created.token)).toBe(true);
+    expect(await getShareLink(db, created.token)).toBeNull();
+    expect(await deleteShareLink(db, created.token)).toBe(false);
+  });
+
+  it("lets a batch token unlock member files", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt" }), file({ id: "2", name: "b.txt" })],
+    });
+    const created = await createShare(db, { kind: "batch", ids: ["1", "2"] }, now);
+    if (!created.ok) throw new Error("create");
+    const link = await getShareLink(db, created.token);
+    expect(link && shareAllowsFile(link, "1")).toBe(true);
+    expect(link && shareAllowsFile(link, "2")).toBe(true);
+    expect(link && shareAllowsFile(link, "nope")).toBe(false);
+    const gate = await evaluateShareAccess(link, { nextPath: "/dl/batch/x" });
+    expect(gate.status).toBe(200);
+    if (gate.status === 200) expect(gate.countShare).toBe(false);
+  });
+});

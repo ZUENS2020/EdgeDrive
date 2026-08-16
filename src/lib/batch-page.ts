@@ -3,6 +3,7 @@ import { extLabel, fileExpiryLabel, fileKind, formatSize } from "./format";
 import { DEFAULT_LOCALE, htmlLang, parseLocale, t, tBatchKind, type Locale } from "./i18n";
 import { PRODUCT_NAME, PRODUCT_SHORT } from "./product";
 import { escapeHtml } from "./sanitize";
+import { fileLongPath, originJoin } from "./share-urls";
 import type { PublicThemeVars } from "./themes";
 import { dlUrl, fileKey, type FileRow } from "./types";
 
@@ -14,6 +15,7 @@ export type RenderBatchPageOpts = {
   theme: PublicThemeVars;
   now?: number;
   locale?: Locale;
+  token?: string;
 };
 
 function publicPageCss(theme: PublicThemeVars): string {
@@ -51,13 +53,16 @@ export function renderBatchPage(opts: RenderBatchPageOpts): string {
   const locale = parseLocale(opts.locale ?? DEFAULT_LOCALE);
   const now = opts.now ?? Date.now();
   const files = opts.files;
-  const payload = JSON.stringify(downloadableFiles(files, opts.origin, now)).replace(/</g, "\\u003c");
+  const payload = JSON.stringify(downloadableFiles(files, opts.origin, now, opts.token)).replace(/</g, "\\u003c");
   const batchStatus = fileExpiryLabel(opts.expiresAt, now, locale);
   const rows = files
     .map((file) => {
-      const key = fileKey(file.path, file.name);
-      const preview = dlUrl(opts.origin, key, true);
-      const download = dlUrl(opts.origin, key);
+      const preview = opts.token
+        ? originJoin(opts.origin, fileLongPath(file, opts.token, true))
+        : dlUrl(opts.origin, fileKey(file.path, file.name), true);
+      const download = opts.token
+        ? originJoin(opts.origin, fileLongPath(file, opts.token))
+        : dlUrl(opts.origin, fileKey(file.path, file.name));
       return `<div class="row">
       <div class="kind">${escapeHtml(fileKindLabel(file.name, file.mime, locale))}</div>
       <div class="info">

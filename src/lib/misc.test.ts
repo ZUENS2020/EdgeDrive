@@ -13,12 +13,12 @@ describe("d1 schema helpers", () => {
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(EXPECTED_SCHEMA_VERSION).toBe(13);
-    expect(evaluateSchemaVersion(undefined, 13)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 13)).toBe("untracked");
-    expect(evaluateSchemaVersion("12", 13)).toBe("stale");
-    expect(evaluateSchemaVersion("13", 13)).toBe("ok");
-    expect(evaluateSchemaVersion("14", 13)).toBe("ok");
+    expect(EXPECTED_SCHEMA_VERSION).toBe(14);
+    expect(evaluateSchemaVersion(undefined, 14)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 14)).toBe("untracked");
+    expect(evaluateSchemaVersion("13", 14)).toBe("stale");
+    expect(evaluateSchemaVersion("14", 14)).toBe("ok");
+    expect(evaluateSchemaVersion("15", 14)).toBe("ok");
   });
 
   it("bootstrap SQL includes drive enhancements (migration 0011)", () => {
@@ -42,6 +42,13 @@ describe("d1 schema helpers", () => {
   it("bootstrap SQL includes language setting (migration 0013)", () => {
     expect(D1_BOOTSTRAP_SQL).toContain("('language', 'zh')");
     expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '13'/);
+  });
+
+  it("bootstrap SQL includes share_links (migration 0014)", () => {
+    expect(D1_BOOTSTRAP_SQL).toContain("CREATE TABLE IF NOT EXISTS share_links");
+    expect(D1_BOOTSTRAP_SQL).toContain("short_code");
+    expect(D1_BOOTSTRAP_SQL).toContain("password_hash");
+    expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '14'/);
   });
 });
 

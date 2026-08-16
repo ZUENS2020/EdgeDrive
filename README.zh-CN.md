@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/github/license/ZUENS2020/EdgeDrive)
 ![GitHub stars](https://img.shields.io/github/stars/ZUENS2020/EdgeDrive)
-![Tests](https://img.shields.io/badge/tests-178%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-216%20passing-brightgreen)
 ![Stack](https://img.shields.io/badge/stack-Next.js%2016%20%2B%20OpenNext%20%2B%20Cloudflare-blue)
 
 跑在 **Cloudflare Workers 边缘网络**上的 **Serverless 文件服务**：没有常驻服务器，按请求在就近节点执行。后台上传、设有效期、按文件夹整理；过期后下载返回 410。
@@ -21,8 +21,11 @@
 - **回收站**：删除为软删除，可还原；30 天后由 purge cron 彻底清除（R2+D1）
 - **标签 / 收藏 / 最近**：逗号标签筛选、行内星标、最近上传 tab
 - **有效期**：行内三档（小时 / 天数 / 永久）+ 批量设置 + 过期自动 410
-- **预览页**：`/dl/.../view` 图片灯箱（放大/缩小/旋转）、视频 Range 拖进度、音频、PDF、Markdown+Mermaid+代码高亮、TXT；Markdown/PDF/TXT 限高容器内滚动
-- **复制预览链接**：单文件复制 `/view` 落地页；多选则生成**一条**批量预览链接
+- **分享链接**：一个文件可建多条互不影响的链接（无密码 / 带密码 / 限次 / 不同有效期）。长链 `/dl/{路径}/{文件名}?t={token}`（可读），短链 `/s/{code}`
+- **密码保护**：SHA-256+盐、恒时比较、5 次错锁 10 分钟、HttpOnly cookie 30 分钟
+- **分享管理**：侧边栏「分享」页——列表、复制、改密码、延长、撤销、删除、转短链
+- **预览页**：`/dl/.../view?t=token` 图片灯箱（放大/缩小/旋转）、视频 Range 拖进度、音频、PDF、Markdown+Mermaid+代码高亮、TXT；Markdown/PDF/TXT 限高容器内滚动
+- **复制预览链接**：单文件复制 `/view?t=token` 落地页；多选则生成**一条**批量预览链接
 - **批量分享**：多选后批量栏「复制链接 / 复制预览链接」各生成一个 `/dl/batch/{token}` 网盘页（全部下载 + 逐文件预览/下载）
 - **选中高亮**：列表主色底、网格 3px 描边——深色 / 浅色 / Nocturne 下都明显
 - **主题系统**：Onyx（默认暗色）/ Porcelain（浅色）/ Nocturne（铃鹿夜空）——设置页卡片切换，D1 持久、公开页跟随
@@ -163,12 +166,19 @@ UPDATE settings SET value='0' WHERE key='access_enabled';
 - 批量勾选 → 批量设过期 / 转永久 / 立即过期
 - 文件过期后：`/dl` 下载返回 **410 Gone**；物理删除由 purge 任务（每日 04:00 UTC）执行
 
-### 直链
+### 直链 / 分享链接
 
-- 下载：`/dl/<路径>/<文件名>`（强制 attachment 下载）
-- 预览：`/dl/<路径>/<文件名>/view`（图片灯箱 / 视频 Range / 音频 / PDF / Markdown+Mermaid / TXT）
+- **长链（默认复制）**：`/dl/<路径>/<文件名>?t=<token>` —— 路径和文件名保留，方便辨认；`t` 是权限 token
+- **预览**：`/dl/<路径>/<文件名>/view?t=<token>`
+- **短链（可选）**：`/s/<short_code>`（6–8 位 base62）→ 302 到长链
+- **批量**：`/dl/batch/<token>`（预览）和 `?mode=download`（自动下载）
+- 旧的无 token `/dl/<路径>/<文件名>` 返回 **404** —— 下载必须带分享 token
+- 撤销 / 过期 / 超过下载上限 → **410**
+- 带密码的链接会跳到 `/share/<token>`（主题化 + 双语）。连续 5 次错误锁定 10 分钟；验证成功种 HttpOnly cookie，30 分钟有效
 - Markdown、PDF、TXT 在限高容器内滚动，不会把整页撑长
 - 支持 `Range` 头（断点续传、视频拖进度条）
+
+同一个文件可以同时有**多条**分享链接（无密码、带密码、限次、不同有效期）——互不影响。在 **管理台 → 分享** 里统一管理。
 
 ### 回收站 / 标签 / 收藏
 
@@ -189,16 +199,17 @@ UPDATE settings SET value='0' WHERE key='access_enabled';
 | **复制链接** | `/dl/batch/{token}?mode=download` | 网盘列表 + **自动逐个触发下载** |
 | **复制预览链接** | `/dl/batch/{token}` | 网盘列表，逐文件预览 / 下载 + 「全部下载」 |
 
-- 每次点击都会新建一条 batch（高熵 token，32 字节 base64url）
+- 每次点击都会新建一条 batch（高熵 token，32 字节 base64url），写入 `share_links`
 - 一次最多 100 个文件；有效期取所选文件的**最短过期时间**，全部永久则 batch 也永久
 - 页面列出类型图标 / 名称 / 大小 / 过期状态；已删除的文件会被跳过
 - **不做服务端 ZIP**（Workers CPU 限制）——「全部下载」= 浏览器里每隔 300ms 点一次 `<a download>`
 - 浏览器可能拦截无手势的多文件下载：页面会提示「如被拦截请点下方「全部下载」或允许浏览器下载」
-- 过期 batch 返回 **410**；无效 token 返回 **404**
-- 单文件行内 / 右键操作不变（仍是 `/dl/xx` 与 `/dl/xx/view`）
+- 过期 / 撤销 / 超限 batch 返回 **410**；无效 token 返回 **404**
+- 单文件行内 **分享** 菜单：复制默认长链（`/dl/.../?t=token`）或打开分享页再建一条
 
 ### 管理台界面
 
+- **分享** 侧边栏：所有文件/批量链接，支持复制 / 密码 / 延长 / 撤销 / 删除 / 转短链
 - **批量栏**（勾选 ≥1 个文件后出现在工具栏下方）：已选数量、复制链接、复制预览链接、移动、有效期、删除、取消
 - **移动**：树状文件夹选择（根目录 + 可展开子目录），不是下拉框
 - **选中**：列表行主色半透明底；网格卡片 3px 主色描边
@@ -275,9 +286,9 @@ npm run dev
 ## ✅ 测试
 
 ```bash
-npm test        # Vitest：sanitize / JWT / 有效期 / Access 守卫 / 批量分享 / 主题 / LIKE
+npm test        # Vitest：sanitize / JWT / 有效期 / Access 守卫 / 分享链接 / 批量 / 主题 / LIKE
 npm run typecheck
-npm run build   # 生成 D1 bootstrap SQL（含 batch_links）+ OpenNext Worker
+npm run build   # 生成 D1 bootstrap SQL（含 share_links）+ OpenNext Worker
 ```
 
 GitHub Actions 会在每次 push 时自动跑测试 + 类型检查。
@@ -287,20 +298,24 @@ GitHub Actions 会在每次 push 时自动跑测试 + 类型检查。
 ## 📁 项目结构
 
 ```
-migrations/                 D1 迁移（→ schema_version 12）
+migrations/                 D1 迁移（→ schema_version 14）
 src/
   app/
-    admin/                  管理台（文件 / 统计 / 设置）
+    admin/                  管理台（文件 / 分享 / 统计 / 设置）
     api/
+      share/                CRUD + 密码验证 + 短链（管理接口需 Access）
       batch/                POST 创建批量分享（Access 保护）
-      files/                列表、上传、MPU、批量过期/删除、复制、check（秒传）
-      cron/purge/           过期文件 + 过期 batch 清理
+      files/                列表、上传、MPU、批量过期/删除、复制、check、管理端下载
+      cron/purge/           过期文件 + 遗留 batch_links 清理
     dl/
-      [...path]/            单文件下载 / /view 预览页
+      [...path]/            带 token 的单文件下载 / /view 预览页
       batch/[token]/        批量分享页（公开）
-  components/admin/         FileManager、FolderTree、PickFolderDialog、主题设置、统计
+    s/[code]/               短链 302
+    share/[token]/          公开密码页
+  components/admin/         FileManager、ShareManager、FolderTree、PickFolderDialog、主题设置、统计
   lib/
-    batch.ts                token / 最短过期 / CRUD
+    share.ts                统一 share_links CRUD / 访问控制 / 密码 / 短链
+    batch.ts                基于 share_links 的批量助手
     batch-page.ts           批量页 HTML
     themes.ts               Onyx / Porcelain / Nocturne
     store.ts                files / folders / D1
@@ -312,7 +327,7 @@ scripts/                    cf-build / cf-deploy / wrangler shim
 ## 🧰 技术栈
 
 - [Next.js 16](https://nextjs.org)（App Router）+ [OpenNext](https://opennext.js.org) → Cloudflare Workers
-- [Cloudflare D1](https://developers.cloudflare.com/d1/)（SQLite 元数据 + 配置 + `batch_links`）
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)（SQLite 元数据 + 配置 + `share_links`）
 - [Cloudflare R2](https://developers.cloudflare.com/r2/)（对象存储，免费 10GB + 零出口流量费）
 - [Refine](https://refine.dev) + [MUI](https://mui.com)（管理台 hooks / 表格 / 对话框）
 - Cloudflare Access（JWT 认证）

@@ -41,6 +41,19 @@ describe("renderBatchPage", () => {
     expect(html).not.toContain("DOMContentLoaded");
   });
 
+  it("stamps the share token onto per-file urls", () => {
+    const html = renderBatchPage({
+      origin: "https://edgedrive.example",
+      files: [file({ id: "1", name: "photo.png" })],
+      expiresAt: null,
+      autoDownload: false,
+      theme,
+      token: "tok",
+    });
+    expect(html).toContain("https://edgedrive.example/dl/docs/photo.png/view?t=tok");
+    expect(html).toContain("https://edgedrive.example/dl/docs/photo.png?t=tok");
+  });
+
   it("auto-download mode injects staggered clicks and a blocker hint", () => {
     const html = renderBatchPage({
       origin: "https://x",

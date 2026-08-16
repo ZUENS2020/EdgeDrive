@@ -53,6 +53,7 @@ import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { copyToClipboard } from "@/lib/clipboard";
 import { copyErrorMessage } from "@/lib/copy";
 import { isGlobalFileFilter, type FileListFilter } from "@/lib/files-query";
@@ -77,6 +78,7 @@ const FILTER_IDS: Filter[] = ["all", "ok", "soon", "expired", "starred", "recent
 
 export function FileManager() {
   const { t, locale } = useI18n();
+  const router = useRouter();
   const { open: notify } = useNotification();
   const { siteSettings } = useSiteSettings();
   const [path, setPath] = useState<string | null>(null);
@@ -277,20 +279,40 @@ export function FileManager() {
     }
   }
 
+  async function createFileShare(file: FileView, view: boolean) {
+    const res = await fetch("/api/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "file", ids: [file.id], reuseDefault: true }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      url?: string;
+      viewUrl?: string;
+    };
+    if (!res.ok || !data.url) {
+      toast(tApiError(locale, data.error, "fileManager.shareFailed"), "error");
+      return;
+    }
+    const path = view ? data.viewUrl || data.url : data.url;
+    const ok = await copyToClipboard(`${window.location.origin}${path}`);
+    toast(ok ? (view ? t("fileManager.copiedView") : t("fileManager.copiedShare")) : t("common.copyFailed"), ok ? "success" : "error");
+  }
+
   function handleRowAction(file: FileView, event: FileRowActionEvent) {
     switch (event.type) {
       case "more":
         setCtx({ x: event.event.clientX, y: event.event.clientY, file });
         return;
-      case "copy_link":
-        void copyToClipboard(file.url).then((ok) =>
-          toast(ok ? t("fileManager.copiedDl") : t("common.copyFailed"), ok ? "success" : "error"),
-        );
+      case "share_copy":
+      case "share":
+        void createFileShare(file, false);
+        return;
+      case "share_new":
+        router.push(`/admin/shares?create=${encodeURIComponent(file.id)}`);
         return;
       case "copy_view_link":
-        void copyToClipboard(`${file.url}/view`).then((ok) =>
-          toast(ok ? t("fileManager.copiedView") : t("common.copyFailed"), ok ? "success" : "error"),
-        );
+        void createFileShare(file, true);
         return;
       case "expire":
         setExpireIds([file.id]);
@@ -864,7 +886,7 @@ export function FileManager() {
       >
         <MenuItem
           onClick={() => {
-            if (ctxFile) window.open(ctxFile.url, "_blank");
+            if (ctxFile) window.open(ctxFile.contentUrl, "_blank");
             setCtx(null);
           }}
         >
@@ -873,7 +895,7 @@ export function FileManager() {
         </MenuItem>
         <MenuItem
           onClick={() => {
-            if (ctxFile) window.open(`${ctxFile.url}/view`, "_blank");
+            if (ctxFile) window.open(ctxFile.adminViewUrl, "_blank");
             setCtx(null);
           }}
         >
@@ -881,23 +903,26 @@ export function FileManager() {
           {t("fileManager.preview")}
         </MenuItem>
         <MenuItem
-          onClick={async () => {
-            if (ctxFile) {
-              const ok = await copyToClipboard(ctxFile.url);
-              toast(ok ? t("fileManager.copiedDl") : t("common.copyFailed"), ok ? "success" : "error");
-            }
+          onClick={() => {
+            if (ctxFile) void createFileShare(ctxFile, false);
             setCtx(null);
           }}
         >
           <LinkIcon fontSize="small" sx={{ mr: 1 }} />
-          {t("fileManager.copyLink")}
+          {t("fileManager.shareCopy")}
         </MenuItem>
         <MenuItem
-          onClick={async () => {
-            if (ctxFile) {
-              const ok = await copyToClipboard(`${ctxFile.url}/view`);
-              toast(ok ? t("fileManager.copiedView") : t("common.copyFailed"), ok ? "success" : "error");
-            }
+          onClick={() => {
+            if (ctxFile) router.push(`/admin/shares?create=${encodeURIComponent(ctxFile.id)}`);
+            setCtx(null);
+          }}
+        >
+          <LinkIcon fontSize="small" sx={{ mr: 1 }} />
+          {t("fileManager.shareNew")}
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (ctxFile) void createFileShare(ctxFile, true);
             setCtx(null);
           }}
         >

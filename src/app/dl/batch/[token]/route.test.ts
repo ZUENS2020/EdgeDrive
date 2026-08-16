@@ -35,6 +35,24 @@ function memoryBatch(init: {
         bind(...args: unknown[]) {
           return {
             async first<T>() {
+              if (normalized.includes("FROM share_links") && normalized.includes("WHERE token")) {
+                const row = batches.get(String(args[0]));
+                if (!row) return null;
+                return {
+                  token: row.token,
+                  kind: "batch",
+                  target: row.file_ids,
+                  password_hash: null,
+                  max_downloads: null,
+                  download_count: 0,
+                  created_at: row.created_at,
+                  expires_at: row.expires_at,
+                  revoked: 0,
+                  short_code: null,
+                  fail_count: 0,
+                  locked_until: null,
+                } as T;
+              }
               if (normalized.includes("FROM batch_links") && normalized.includes("WHERE token")) {
                 return (batches.get(String(args[0])) ?? null) as T;
               }

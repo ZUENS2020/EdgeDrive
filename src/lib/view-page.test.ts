@@ -70,6 +70,19 @@ describe("renderViewPage", () => {
     expect(html).toContain("@media (max-width:640px)");
   });
 
+  it("keeps token on download, view, and inline urls", () => {
+    const html = renderViewPage({
+      origin: "https://edgedrive.example",
+      key: "clips/a.mp4",
+      meta: file({ id: "1", name: "a.mp4", mime: "video/mp4", path: "clips" }),
+      theme,
+      token: "tok",
+    });
+    expect(html).toContain("t=tok&amp;inline=1");
+    expect(html).toContain('href="https://edgedrive.example/dl/clips/a.mp4?t=tok"');
+    expect(html).toContain("https://edgedrive.example/dl/clips/a.mp4/view?t=tok");
+  });
+
   it("renders image lightbox controls", () => {
     const html = renderViewPage({
       origin: "https://x",

@@ -1,6 +1,10 @@
-import { fileKey, isExpired, MAX_BATCH_IDS, type FileRow } from "./types";
+import { getFilesByIds, parseBatchIds, parseFileIdsJson, shortestExpiry } from "./file-ids";
+import { generateShareToken } from "./share-token";
+import { batchSharePaths } from "./share-urls";
+import { encodeDlPath, fileKey, isExpired, MAX_BATCH_IDS, type FileRow } from "./types";
 
-export { MAX_BATCH_IDS };
+export { MAX_BATCH_IDS, getFilesByIds, parseBatchIds, parseFileIdsJson, shortestExpiry };
+export { batchSharePaths } from "./share-urls";
 export const DOWNLOAD_STAGGER_MS = 300;
 
 export type BatchLink = {
@@ -34,95 +38,43 @@ export type BatchPageOk = {
 
 export type BatchPageResult = { status: 404 } | { status: 410 } | BatchPageOk;
 
-function chunkIds(ids: string[], size = 90): string[][] {
-  const out: string[][] = [];
-  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
-  return out;
-}
+export const generateBatchToken = generateShareToken;
 
-export function generateBatchToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-export function batchSharePaths(token: string): { previewUrl: string; downloadUrl: string } {
-  const previewUrl = `/dl/batch/${encodeURIComponent(token)}`;
-  return { previewUrl, downloadUrl: `${previewUrl}?mode=download` };
-}
-
-export function parseBatchIds(body: unknown): { ids: string[]; error?: string } {
-  if (!body || typeof body !== "object") return { ids: [], error: "need ids" };
-  const raw = (body as { ids?: unknown }).ids;
-  if (!Array.isArray(raw)) return { ids: [], error: "need ids" };
-  const ids: string[] = [];
-  const seen = new Set<string>();
-  for (const item of raw) {
-    if (typeof item !== "string") continue;
-    const id = item.trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    ids.push(id);
-  }
-  if (!ids.length) return { ids: [], error: "need ids" };
-  if (ids.length > MAX_BATCH_IDS) return { ids: [], error: "too many ids" };
-  return { ids };
-}
-
-export function parseFileIdsJson(raw: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((id): id is string => typeof id === "string" && id.length > 0);
-  } catch {
-    return [];
-  }
-}
-
-/** Shortest file expiry; no expiry on any file → permanent (null). */
-export function shortestExpiry(files: { expires: string | null }[]): string | null {
-  let min: string | null = null;
-  for (const file of files) {
-    if (!file.expires) continue;
-    if (min == null || file.expires < min) min = file.expires;
-  }
-  return min;
-}
-
-export async function getFilesByIds(db: D1Database, ids: string[]): Promise<FileRow[]> {
-  if (!ids.length) return [];
-  const found = new Map<string, FileRow>();
-  for (const chunk of chunkIds(ids)) {
-    const placeholders = chunk.map(() => "?").join(",");
-    const rows = await db
-      .prepare(`SELECT * FROM files WHERE id IN (${placeholders}) AND deleted_at IS NULL`)
-      .bind(...chunk)
-      .all<FileRow>();
-    for (const row of rows.results || []) {
-      if (row.deleted_at) continue;
-      found.set(row.id, row);
-    }
-  }
-  return ids.map((id) => found.get(id)).filter((row): row is FileRow => Boolean(row));
+function toBatchLink(row: {
+  token: string;
+  target: string;
+  created_at: string;
+  expires_at: string | null;
+}): BatchLink {
+  return {
+    token: row.token,
+    file_ids: row.target,
+    created_at: row.created_at,
+    expires_at: row.expires_at,
+  };
 }
 
 export async function insertBatch(db: D1Database, row: BatchLink): Promise<void> {
   await db
-    .prepare("INSERT INTO batch_links (token, file_ids, created_at, expires_at) VALUES (?, ?, ?, ?)")
+    .prepare(
+      `INSERT INTO share_links (
+        token, kind, target, password_hash, max_downloads, download_count,
+        created_at, expires_at, revoked, short_code, fail_count, locked_until
+      ) VALUES (?, 'batch', ?, NULL, NULL, 0, ?, ?, 0, NULL, 0, NULL)`,
+    )
     .bind(row.token, row.file_ids, row.created_at, row.expires_at)
     .run();
 }
 
 export async function getBatch(db: D1Database, token: string): Promise<BatchLink | null> {
   if (!token) return null;
-  return (
-    (await db
-      .prepare("SELECT token, file_ids, created_at, expires_at FROM batch_links WHERE token = ?")
-      .bind(token)
-      .first<BatchLink>()) || null
-  );
+  const row = await db
+    .prepare(
+      "SELECT token, target, created_at, expires_at FROM share_links WHERE token = ? AND kind = 'batch'",
+    )
+    .bind(token)
+    .first<{ token: string; target: string; created_at: string; expires_at: string | null }>();
+  return row ? toBatchLink(row) : null;
 }
 
 export async function createBatch(
@@ -180,29 +132,40 @@ export async function resolveBatchPage(
   return { status: 200, batch, files };
 }
 
+/** Legacy batch_links cleanup only. share_links rows are kept for history. */
 export async function deleteExpiredBatches(db: D1Database, now = new Date()): Promise<number> {
   const nowIso = now.toISOString();
-  const rows = await db
-    .prepare("SELECT token FROM batch_links WHERE expires_at IS NOT NULL AND expires_at < ?")
-    .bind(nowIso)
-    .all<{ token: string }>();
-  const tokens = (rows.results || []).map((r) => r.token);
-  if (!tokens.length) return 0;
-  await db
-    .prepare("DELETE FROM batch_links WHERE expires_at IS NOT NULL AND expires_at < ?")
-    .bind(nowIso)
-    .run();
-  return tokens.length;
+  try {
+    const rows = await db
+      .prepare("SELECT token FROM batch_links WHERE expires_at IS NOT NULL AND expires_at < ?")
+      .bind(nowIso)
+      .all<{ token: string }>();
+    const tokens = (rows.results || []).map((r) => r.token);
+    if (!tokens.length) return 0;
+    await db
+      .prepare("DELETE FROM batch_links WHERE expires_at IS NOT NULL AND expires_at < ?")
+      .bind(nowIso)
+      .run();
+    return tokens.length;
+  } catch {
+    return 0;
+  }
 }
 
-export function downloadableFiles(files: FileRow[], origin: string, now = Date.now()): { url: string; name: string }[] {
+export function downloadableFiles(
+  files: FileRow[],
+  origin: string,
+  now = Date.now(),
+  token?: string,
+): { url: string; name: string }[] {
+  const base = origin.replace(/\/$/, "");
   return files
     .filter((file) => !isExpired(file.expires, now))
-    .map((file) => ({
-      url: `${origin.replace(/\/$/, "")}/dl/${fileKey(file.path, file.name)
-        .split("/")
-        .map(encodeURIComponent)
-        .join("/")}`,
-      name: file.name,
-    }));
+    .map((file) => {
+      const path = encodeDlPath(fileKey(file.path, file.name));
+      const url = token
+        ? `${base}/dl/${path}?t=${encodeURIComponent(token)}`
+        : `${base}/dl/${path}`;
+      return { url, name: file.name };
+    });
 }

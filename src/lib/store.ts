@@ -11,6 +11,7 @@ import { escapeLike } from "./like";
 import { sanitizeFileName, sanitizeFolderName, sanitizeKey, splitKey } from "./sanitize";
 import { normalizeSha256 } from "./sha256";
 import { collectUniqueTags, serializeTags } from "./tags";
+import { adminFileContentPath, adminFileViewPath } from "./share-urls";
 import {
   dlUrl,
   fileKey,
@@ -48,6 +49,8 @@ function toView(row: FileRow, origin: string, now = Date.now()): FileView {
     key,
     url: dlUrl(origin, key),
     viewUrl: dlUrl(origin, key, true),
+    contentUrl: adminFileContentPath(row.id),
+    adminViewUrl: adminFileViewPath(row.id),
     expired: isExpired(n.expires, now),
   };
 }

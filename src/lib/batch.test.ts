@@ -39,7 +39,13 @@ function file(partial: Partial<FileRow> & Pick<FileRow, "id" | "name">): FileRow
 
 function memoryDrive(init?: { files?: FileRow[]; batches?: BatchRow[] }): D1Database {
   const files = new Map((init?.files ?? []).map((row) => [row.id, { ...row }]));
-  const batches = new Map((init?.batches ?? []).map((row) => [row.token, { ...row }]));
+  const shares = new Map(
+    (init?.batches ?? []).map((row) => [
+      row.token,
+      { token: row.token, target: row.file_ids, created_at: row.created_at, expires_at: row.expires_at, kind: "batch" },
+    ]),
+  );
+  const legacyBatches = new Map((init?.batches ?? []).map((row) => [row.token, { ...row }]));
 
   const api = {
     prepare(sql: string) {
@@ -48,9 +54,14 @@ function memoryDrive(init?: { files?: FileRow[]; batches?: BatchRow[] }): D1Data
         bind(...args: unknown[]) {
           return {
             async first<T>() {
+              if (normalized.includes("FROM share_links") && normalized.includes("WHERE token")) {
+                const row = shares.get(String(args[0]));
+                if (!row) return null;
+                if (normalized.includes("kind = 'batch'") && row.kind !== "batch") return null;
+                return row as T;
+              }
               if (normalized.includes("FROM batch_links") && normalized.includes("WHERE token")) {
-                const row = batches.get(String(args[0]));
-                return (row ?? null) as T;
+                return (legacyBatches.get(String(args[0])) ?? null) as T;
               }
               return null;
             },
@@ -63,7 +74,7 @@ function memoryDrive(init?: { files?: FileRow[]; batches?: BatchRow[] }): D1Data
               }
               if (normalized.includes("FROM batch_links") && normalized.includes("expires_at IS NOT NULL")) {
                 const cutoff = String(args[0]);
-                const results = [...batches.values()].filter(
+                const results = [...legacyBatches.values()].filter(
                   (row) => row.expires_at != null && row.expires_at < cutoff,
                 );
                 return { results: results as T[] };
@@ -71,8 +82,16 @@ function memoryDrive(init?: { files?: FileRow[]; batches?: BatchRow[] }): D1Data
               return { results: [] as T[] };
             },
             async run() {
-              if (normalized.startsWith("INSERT INTO batch_links")) {
-                batches.set(String(args[0]), {
+              if (normalized.startsWith("INSERT INTO share_links")) {
+                shares.set(String(args[0]), {
+                  token: String(args[0]),
+                  target: String(args[1]),
+                  created_at: String(args[2]),
+                  expires_at: args[3] == null ? null : String(args[3]),
+                  kind: "batch",
+                });
+              } else if (normalized.startsWith("INSERT INTO batch_links")) {
+                legacyBatches.set(String(args[0]), {
                   token: String(args[0]),
                   file_ids: String(args[1]),
                   created_at: String(args[2]),
@@ -80,8 +99,10 @@ function memoryDrive(init?: { files?: FileRow[]; batches?: BatchRow[] }): D1Data
                 });
               } else if (normalized.startsWith("DELETE FROM batch_links")) {
                 const cutoff = String(args[0]);
-                for (const [token, row] of batches) {
-                  if (row.expires_at != null && row.expires_at < cutoff) batches.delete(token);
+                for (const [token, row] of legacyBatches) {
+                  if (row.expires_at != null && row.expires_at < cutoff) {
+                    legacyBatches.delete(token);
+                  }
                 }
               }
               return { success: true };
@@ -255,7 +276,7 @@ describe("resolveBatchPage", () => {
 });
 
 describe("deleteExpiredBatches", () => {
-  it("only deletes rows with expires_at in the past", async () => {
+  it("only deletes leftover batch_links rows, not share_links", async () => {
     const db = memoryDrive({
       batches: [
         {
@@ -282,6 +303,6 @@ describe("deleteExpiredBatches", () => {
     expect(n).toBe(1);
     expect(await getBatch(db, "perm")).not.toBeNull();
     expect(await getBatch(db, "future")).not.toBeNull();
-    expect(await getBatch(db, "old")).toBeNull();
+    expect(await getBatch(db, "old")).not.toBeNull();
   });
 });

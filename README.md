@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/github/license/ZUENS2020/EdgeDrive)
 ![GitHub stars](https://img.shields.io/github/stars/ZUENS2020/EdgeDrive)
-![Tests](https://img.shields.io/badge/tests-178%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-216%20passing-brightgreen)
 ![Stack](https://img.shields.io/badge/stack-Next.js%2016%20%2B%20OpenNext%20%2B%20Cloudflare-blue)
 
 **A Serverless file-sharing service running on the Cloudflare Workers edge network** — no server to rent, no Docker to run, no ops to babysit. Upload with a background queue, set expiry dates, organize into folders — expired downloads return `410`.
@@ -21,8 +21,11 @@
 - **Recycle bin**: deletes are soft — restorable; purge cron permanently removes after 30 days (R2 + D1)
 - **Tags / Star / Recent**: comma-tag filtering, inline star toggle, recent-uploads tab
 - **Expiry**: three inline presets (hours / days / permanent) + bulk set + auto `410`
-- **Preview pages**: `/dl/.../view` — image lightbox (zoom/rotate), video Range streaming (seekable), audio, PDF, Markdown+Mermaid+code highlight, TXT; Markdown/PDF/TXT scroll inside height-limited containers
-- **Copy preview link**: copy `/view` landing page per file; multi-select generates **one** batch preview link
+- **Share links**: one file can have many links (open / password / limited / different expiry). Long URL `/dl/{path}/{name}?t={token}` (readable) or short `/s/{code}`
+- **Password protection**: SHA-256+salt, constant-time compare, 5-strike lockout (10 min), HttpOnly cookie 30 min
+- **Share admin**: sidebar Shares tab — list, copy, password, extend, revoke, delete, shorten
+- **Preview pages**: `/dl/.../view?t=token` — image lightbox (zoom/rotate), video Range streaming (seekable), audio, PDF, Markdown+Mermaid+code highlight, TXT; Markdown/PDF/TXT scroll inside height-limited containers
+- **Copy preview link**: copy `/view?t=token` landing page per file; multi-select generates **one** batch preview link
 - **Batch sharing**: multi-select → bulk bar "Copy link / Copy preview link" → `/dl/batch/{token}` web-disk page (download all + per-file preview/download)
 - **Selection highlight**: primary-tinted rows in list view, 3px outline in grid view — visible in dark / light / Nocturne themes
 - **Theme system**: Onyx (default dark) / Porcelain (light) / Nocturne — switch from Settings, persisted in D1, public pages follow
@@ -163,12 +166,19 @@ UPDATE settings SET value='0' WHERE key='access_enabled';
 - Bulk select → bulk set expiry / make permanent / expire now
 - After expiry: `/dl` returns **410 Gone**; physical deletion runs in the daily purge (04:00 UTC)
 
-### Direct links
+### Direct / share links
 
-- Download: `/dl/<path>/<filename>` (forces attachment)
-- Preview: `/dl/<path>/<filename>/view` (image lightbox / video Range / audio / PDF / Markdown+Mermaid / TXT)
+- **Long file link** (default copy): `/dl/<path>/<filename>?t=<token>` — path + name stay readable; `t` is the capability token
+- **Preview**: `/dl/<path>/<filename>/view?t=<token>`
+- **Short link** (optional): `/s/<short_code>` (6–8 char base62) → 302 to the long URL
+- **Batch**: `/dl/batch/<token>` (preview) and `?mode=download` (auto-download)
+- Old tokenless `/dl/<path>/<filename>` returns **404** — downloads require a share token
+- Revoked / expired / download-limit exhausted → **410**
+- Password-protected links redirect to `/share/<token>` (themed + i18n). 5 wrong tries lock for 10 minutes; success sets an HttpOnly cookie for 30 minutes
 - Markdown, PDF, TXT scroll inside height-limited containers — never stretch the page
 - Supports `Range` headers (resume, video seeking)
+
+One file can have **many** share links at once (open, password, limited, different expiry) — they do not affect each other. Manage them under **Admin → Shares**.
 
 ### Recycle bin / Tags / Star
 
@@ -189,16 +199,17 @@ Multi-select → bulk bar has two buttons (no nested dialogs):
 | **Copy link** | `/dl/batch/{token}?mode=download` | Web-disk list + **auto-triggered per-file downloads** |
 | **Copy preview link** | `/dl/batch/{token}` | Web-disk list, per-file preview / download + "Download all" |
 
-- Each click creates a new batch (high-entropy token, 32-byte base64url)
+- Each click creates a new batch (high-entropy token, 32-byte base64url); stored in `share_links`
 - Up to 100 files; expiry = **shortest expiry among selected files**; all-permanent → batch is permanent
 - Page lists type icon / name / size / expiry status; deleted files are skipped
 - **No server-side ZIP** (Workers CPU limit) — "Download all" = browser clicks `<a download>` every 300ms
 - Browsers may block gesture-less multi-downloads: the page shows "if blocked, click Download all below or allow downloads"
-- Expired batch → **410**; invalid token → **404**
-- Single-file inline / context actions unchanged (`/dl/xx` and `/dl/xx/view`)
+- Expired / revoked / exhausted batch → **410**; invalid token → **404**
+- Single-file row action **Share** copies a default long link (`/dl/.../?t=token`) or opens Shares to create another
 
 ### Admin UI
 
+- **Shares** sidebar: every file/batch link with copy / password / extend / revoke / delete / shorten
 - **Bulk bar** (appears when ≥1 file selected): count, copy link, copy preview link, move, expiry, delete, clear
 - **Move**: tree-style folder picker (root + expandable children), not a dropdown
 - **Selection**: list rows get primary-tinted background; grid cards get 3px primary outline
@@ -271,9 +282,9 @@ Requires the D1 / R2 bindings in `wrangler.jsonc`. Typecheck: `npm run typecheck
 ## ✅ Testing
 
 ```bash
-npm test        # Vitest: sanitize / JWT / expiry / Access guard / batch share / themes / LIKE
+npm test        # Vitest: sanitize / JWT / expiry / Access guard / share links / batch / themes / LIKE
 npm run typecheck
-npm run build   # generates D1 bootstrap SQL (incl. batch_links) + OpenNext Worker
+npm run build   # generates D1 bootstrap SQL (incl. share_links) + OpenNext Worker
 ```
 
 GitHub Actions runs tests + typecheck on every push.
@@ -283,20 +294,24 @@ GitHub Actions runs tests + typecheck on every push.
 ## 📁 Project Structure
 
 ```
-migrations/                 D1 migrations (→ schema_version 12)
+migrations/                 D1 migrations (→ schema_version 14)
 src/
   app/
-    admin/                  Admin (files / stats / settings)
+    admin/                  Admin (files / shares / stats / settings)
     api/
+      share/                CRUD + password verify + short codes (Access on admin routes)
       batch/                POST create batch share (Access protected)
-      files/                list, upload, MPU, batch expiry/delete, copy, check (instant upload)
-      cron/purge/           expired files + expired batches cleanup
+      files/                list, upload, MPU, batch expiry/delete, copy, check, admin download
+      cron/purge/           expired files + leftover batch_links cleanup
     dl/
-      [...path]/            single-file download / /view preview page
+      [...path]/            tokenized single-file download / /view preview
       batch/[token]/        batch share page (public)
-  components/admin/         FileManager, FolderTree, PickFolderDialog, theme settings, stats
+    s/[code]/               short-link 302
+    share/[token]/          public password page
+  components/admin/         FileManager, ShareManager, FolderTree, PickFolderDialog, theme settings, stats
   lib/
-    batch.ts                token / shortest-expiry / CRUD
+    share.ts                unified share_links CRUD / access / password / short codes
+    batch.ts                batch helpers on share_links
     batch-page.ts           batch page HTML
     themes.ts               Onyx / Porcelain / Nocturne
     store.ts                files / folders / D1
@@ -308,7 +323,7 @@ scripts/                    cf-build / cf-deploy / wrangler shim
 ## 🧰 Tech Stack
 
 - [Next.js 16](https://nextjs.org) (App Router) + [OpenNext](https://opennext.js.org) → Cloudflare Workers
-- [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite metadata + config + `batch_links`)
+- [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite metadata + config + `share_links`)
 - [Cloudflare R2](https://developers.cloudflare.com/r2/) (object storage, free 10GB + zero egress)
 - [Refine](https://refine.dev) + [MUI](https://mui.com) (admin hooks / tables / dialogs)
 - Cloudflare Access (JWT auth)

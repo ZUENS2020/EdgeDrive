@@ -1,7 +1,7 @@
 export const ROW_ACTION_IDS = [
   "download",
   "preview",
-  "copy_link",
+  "share",
   "copy_view_link",
   "expire",
   "star",
@@ -16,7 +16,7 @@ export type RowActionId = (typeof ROW_ACTION_IDS)[number];
 export const DEFAULT_ROW_ACTIONS: RowActionId[] = [
   "download",
   "preview",
-  "copy_link",
+  "share",
   "copy_view_link",
   "expire",
   "delete",
@@ -49,7 +49,7 @@ export function parseRowActions(raw: unknown): RowActionId[] {
   const out: RowActionId[] = [];
   for (const item of parsed) {
     if (typeof item !== "string") continue;
-    const id = item.trim();
+    const id = item.trim() === "copy_link" ? "share" : item.trim();
     if (!isRowActionId(id) || seen.has(id)) continue;
     seen.add(id);
     out.push(id);

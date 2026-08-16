@@ -1,39 +1,20 @@
 import { NextRequest } from "next/server";
-import { getR2 } from "@/lib/cloudflare";
-import { scheduleDownloadIncrement, shouldCountDownload } from "@/lib/download-count";
-import { guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
+import { getDB, getR2 } from "@/lib/cloudflare";
+import { scheduleDownloadIncrement, scheduleShareDownloadIncrement, shouldCountDownload } from "@/lib/download-count";
+import { looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
 import { DEFAULTS, getSettings } from "@/lib/settings";
+import { authorizeFileShare } from "@/lib/share";
+import { dlText, DL_CORS, serveR2Object } from "@/lib/serve-r2";
 import { getFileByKey } from "@/lib/store";
 import { publicThemeVars } from "@/lib/themes";
 import { isExpired, type FileRow } from "@/lib/types";
 import { parseLocale, t } from "@/lib/i18n";
-import { isInlineSafe, renderViewPage } from "@/lib/view-page";
+import { renderViewPage } from "@/lib/view-page";
 
 export const dynamic = "force-dynamic";
 
-const CORS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-  "Access-Control-Allow-Headers": "Range, Content-Type",
-  "Access-Control-Expose-Headers":
-    "Content-Length, Content-Range, Content-Disposition, ETag, Accept-Ranges",
-  "Access-Control-Max-Age": "86400",
-};
-
-function text(body: string, status: number, extra?: Record<string, string>) {
-  return new Response(body, {
-    status,
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "X-Content-Type-Options": "nosniff",
-      ...CORS,
-      ...extra,
-    },
-  });
-}
-
 export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS });
+  return new Response(null, { status: 204, headers: DL_CORS });
 }
 
 export async function GET(
@@ -66,17 +47,31 @@ async function resolveFile(segments: string[]): Promise<{ key: string; meta: Fil
   return null;
 }
 
+function gateResponse(
+  gate: { status: 404 } | { status: 410 } | { status: 302; location: string },
+  gone: string,
+) {
+  if (gate.status === 302) {
+    return new Response(null, {
+      status: 302,
+      headers: { Location: gate.location, ...DL_CORS },
+    });
+  }
+  if (gate.status === 410) return dlText(gone, 410);
+  return dlText("404 Not Found", 404);
+}
+
 async function handle(
   request: NextRequest,
   ctx: { params: Promise<{ path: string[] }> },
   headOnly: boolean,
 ) {
   if (looksLikeTraversal(request.url, request.nextUrl.pathname)) {
-    return text("400 Bad filename: path-traversal", 400);
+    return dlText("400 Bad filename: path-traversal", 400);
   }
   const { path } = await ctx.params;
   const resolved = await resolveFile(path || []);
-  if (!resolved) return text("404 Not Found", 404);
+  if (!resolved) return dlText("404 Not Found", 404);
   const { key, meta, view } = resolved;
   let settings = DEFAULTS;
   try {
@@ -86,8 +81,19 @@ async function handle(
   }
   const locale = parseLocale(settings.language);
   if (isExpired(meta.expires)) {
-    return text(t(locale, "dl.gone"), 410);
+    return dlText(t(locale, "dl.gone"), 410);
   }
+
+  const token = request.nextUrl.searchParams.get("t");
+  const db = await getDB();
+  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const gate = await authorizeFileShare(db, {
+    fileId: meta.id,
+    token,
+    cookieHeader: request.headers.get("cookie"),
+    nextPath,
+  });
+  if (gate.status !== 200) return gateResponse(gate, t(locale, "dl.gone"));
 
   if (view) {
     const themeVars = publicThemeVars(settings.theme_name);
@@ -97,6 +103,7 @@ async function handle(
       meta,
       theme: themeVars,
       locale,
+      token: gate.link.token,
     });
     return new Response(headOnly ? null : html, {
       status: 200,
@@ -104,63 +111,31 @@ async function handle(
         "Content-Type": "text/html; charset=utf-8",
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "public, max-age=30, must-revalidate",
-        ...CORS,
+        ...DL_CORS,
       },
     });
   }
 
   const r2 = await getR2();
   const obj = await r2.get(key);
-  if (!obj) return text("404 Not Found", 404);
+  if (!obj) return dlText("404 Not Found", 404);
 
   const inline = request.nextUrl.searchParams.get("inline") === "1";
-  let ct = obj.httpMetadata?.contentType || meta.mime || guessMime(key) || "application/octet-stream";
-  if (/html|xhtml|svg|xml|javascript|ecmascript/i.test(ct)) ct = "application/octet-stream";
-
-  const filename = key.split("/").pop() || "download";
-  const disposition =
-    inline && isInlineSafe(filename, ct)
-      ? `inline; filename*=UTF-8''${encodeURIComponent(filename)}`
-      : `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`;
-
-  const headers: Record<string, string> = {
-    ...CORS,
-    "Content-Type": ct,
-    "Accept-Ranges": "bytes",
-    "X-Content-Type-Options": "nosniff",
-    ETag: obj.httpEtag,
-    "Content-Disposition": disposition,
-  };
-  if (meta.expires) {
-    const ttl = Math.max(0, Math.floor((new Date(meta.expires).getTime() - Date.now()) / 1000));
-    headers["Cache-Control"] = `public, max-age=${Math.min(60, ttl)}, must-revalidate`;
-  } else {
-    headers["Cache-Control"] = "public, max-age=300";
-  }
-
   const rangeHeader = request.headers.get("Range");
   const range = parseRange(rangeHeader, obj.size);
-  if (rangeHeader && !range) {
-    return new Response("416 Range Not Satisfiable", {
-      status: 416,
-      headers: { ...headers, "Content-Range": `bytes */${obj.size}` },
-    });
-  }
 
   if (shouldCountDownload({ headOnly, inline, range })) {
     await scheduleDownloadIncrement(meta.id);
+    if (gate.countShare) await scheduleShareDownloadIncrement(gate.link.token);
   }
 
-  if (range) {
-    const part = await r2.get(key, { range: { offset: range.start, length: range.length } });
-    if (!part) return text("404 Not Found", 404);
-    headers["Content-Range"] = `bytes ${range.start}-${range.end}/${obj.size}`;
-    headers["Content-Length"] = String(range.length);
-    if (headOnly) return new Response(null, { status: 206, headers });
-    return new Response(part.body, { status: 206, headers });
-  }
-
-  headers["Content-Length"] = String(obj.size);
-  if (headOnly) return new Response(null, { status: 200, headers });
-  return new Response(obj.body, { status: 200, headers });
+  return serveR2Object({
+    r2,
+    obj,
+    key,
+    meta,
+    inline,
+    rangeHeader,
+    headOnly,
+  });
 }

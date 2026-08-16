@@ -2,6 +2,7 @@ import { fileExpiryLabel, formatSize, formatTime, isInlineSafe, previewKind, typ
 import { DEFAULT_LOCALE, htmlLang, parseLocale, t, type Locale } from "./i18n";
 import { PRODUCT_NAME, PRODUCT_SHORT } from "./product";
 import { escapeHtml } from "./sanitize";
+import { withSearch } from "./share-urls";
 import type { PublicThemeVars } from "./themes";
 import type { FileRow } from "./types";
 
@@ -24,10 +25,15 @@ export type RenderViewPageOpts = {
   meta: FileRow;
   theme?: PublicThemeVars;
   locale?: Locale;
+  token?: string;
+  downloadHref?: string;
+  inlineHref?: string;
+  viewHref?: string;
 };
 
-function dlPath(origin: string, key: string): string {
-  return `${origin.replace(/\/$/, "")}/dl/${key.split("/").map(encodeURIComponent).join("/")}`;
+function dlPath(origin: string, key: string, token?: string, view = false): string {
+  const path = `${origin.replace(/\/$/, "")}/dl/${key.split("/").map(encodeURIComponent).join("/")}${view ? "/view" : ""}`;
+  return token ? withSearch(path, { t: token }) : path;
 }
 
 const VIEW_CSS = `* { box-sizing: border-box; }
@@ -277,8 +283,9 @@ export function extractMermaidBlocks(src: string): { markdown: string; blocks: s
 export function renderViewPage(opts: RenderViewPageOpts): string {
   const locale = parseLocale(opts.locale);
   const origin = opts.origin.replace(/\/$/, "");
-  const dl = dlPath(origin, opts.key);
-  const inline = `${dl}?inline=1`;
+  const dl = opts.downloadHref || dlPath(origin, opts.key, opts.token);
+  const inline = opts.inlineHref || withSearch(dl, { inline: "1" });
+  const view = opts.viewHref || dlPath(origin, opts.key, opts.token, true);
   const kind = previewKind(opts.meta.name, opts.meta.mime);
   const theme = opts.theme;
   const dark = theme?.dark ?? true;
@@ -329,7 +336,7 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
     <div class="actions">
       <a class="btn" href="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.download"))}</a>
       <button type="button" class="btn ghost" data-copy="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.copyDl"))}</button>
-      <button type="button" class="btn ghost" data-copy="${escapeHtml(`${dl}/view`)}">${escapeHtml(t(locale, "viewPage.copyView"))}</button>
+      <button type="button" class="btn ghost" data-copy="${escapeHtml(view)}">${escapeHtml(t(locale, "viewPage.copyView"))}</button>
     </div>
     <div class="footer">
       <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(t(locale, "product.tagline"))}</span>

@@ -20,6 +20,8 @@ export type FileView = FileRow & {
   key: string;
   url: string;
   viewUrl: string;
+  contentUrl: string;
+  adminViewUrl: string;
   expired: boolean;
 };
 
