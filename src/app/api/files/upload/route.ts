@@ -5,6 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { guessMime, sanitizeKey, splitKey } from "@/lib/sanitize";
 import { getR2 } from "@/lib/cloudflare";
 import { upsertFile } from "@/lib/store";
+import { sha256Hex } from "@/lib/sha256";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,13 @@ const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
 const MAX_FORM_SIZE = 10 * 1024 * 1024;
 
 /** 落库 + 组响应（form 与裸流两个分支共用）。 */
-async function saveUploaded(parts: { path: string; name: string }, size: number, mime: string, expires: string | null) {
+async function saveUploaded(
+  parts: { path: string; name: string },
+  size: number,
+  mime: string,
+  expires: string | null,
+  sha256: string | null,
+) {
   const id = crypto.randomUUID();
   await upsertFile({
     id,
@@ -33,9 +40,10 @@ async function saveUploaded(parts: { path: string; name: string }, size: number,
     expires,
     created_at: new Date().toISOString(),
     tags: "",
+    sha256,
   });
   const key = parts.path ? `${parts.path}/${parts.name}` : parts.name;
-  return { ok: true as const, id, key, url: `/dl/${key.split("/").map(encodeURIComponent).join("/")}`, expires };
+  return { ok: true as const, id, key, url: `/dl/${key.split("/").map(encodeURIComponent).join("/")}`, expires, sha256 };
 }
 
 async function upload(request: Request) {
@@ -102,13 +110,17 @@ async function upload(request: Request) {
     const formParts = splitKey(formKeyRes.value);
     const formKey = formKeyRes.value;
     try {
-      await r2.put(formKey, file.stream(), { ...opts, httpMetadata: { contentType: guessMime(formParts.name) } });
+      const buf = await file.arrayBuffer();
+      const sha256 = await sha256Hex(buf);
+      await r2.put(formKey, buf, { ...opts, httpMetadata: { contentType: guessMime(formParts.name) } });
+      const head = await r2.head(formKey);
+      return NextResponse.json(
+        await saveUploaded(formParts, head?.size || buf.byteLength, guessMime(formParts.name), parsed.value, sha256),
+      );
     } catch (err) {
       await r2.delete(formKey).catch(() => {});
       return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
     }
-    const head = await r2.head(formKey);
-    return NextResponse.json(await saveUploaded(formParts, head?.size || file.size, guessMime(formParts.name), parsed.value));
   }
 
   // 直传：OpenNext 下 request.body 会丢失 known length（R2 put 流要求 length）——
@@ -140,5 +152,6 @@ async function upload(request: Request) {
     await r2.delete(key).catch(() => {});
     return NextResponse.json({ error: "empty body" }, { status: 400 });
   }
-  return NextResponse.json(await saveUploaded(parts, head.size, contentType, parsed.value));
+  const sha256 = await sha256Hex(buf);
+  return NextResponse.json(await saveUploaded(parts, head.size, contentType, parsed.value, sha256));
 }

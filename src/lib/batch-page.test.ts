@@ -12,6 +12,9 @@ function file(partial: Partial<FileRow> & Pick<FileRow, "id" | "name">): FileRow
     download_count: 0,
     created_at: "2026-08-16T00:00:00.000Z",
     tags: "",
+    deleted_at: null,
+    starred: 0,
+    sha256: null,
     ...partial,
   };
 }

@@ -144,6 +144,7 @@ export type PublicThemeVars = {
   text3: string;
   surface: string;
   line: string;
+  dark: boolean;
 };
 
 /** Public /dl pages (view + batch) — same CSS variables as the view landing page. */
@@ -156,6 +157,7 @@ export function publicThemeVars(themeId?: string | null): PublicThemeVars {
     text3: palette.text.secondary,
     surface: palette.background.paper,
     line: palette.divider,
+    dark: palette.mode === "dark",
   };
 }
 

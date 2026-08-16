@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
 import { getR2 } from "@/lib/cloudflare";
 import { scheduleDownloadIncrement, shouldCountDownload } from "@/lib/download-count";
-import { fileKind, fileExpiryLabel, formatSize } from "@/lib/format";
-import { PRODUCT_NAME, PRODUCT_SHORT, PRODUCT_TAGLINE } from "@/lib/product";
-import { escapeHtml, guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
+import { guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { getFileByKey } from "@/lib/store";
-import { publicThemeVars, type PublicThemeVars } from "@/lib/themes";
+import { publicThemeVars } from "@/lib/themes";
 import { isExpired, type FileRow } from "@/lib/types";
+import { isInlineSafe, renderViewPage } from "@/lib/view-page";
 
 export const dynamic = "force-dynamic";
 
@@ -50,17 +49,6 @@ export async function HEAD(
   return handle(request, ctx, true);
 }
 
-function isInlineSafe(name: string, mime: string | null) {
-  const lower = name.toLowerCase();
-  if (lower.endsWith(".svg") || /html|xhtml|svg|xml|javascript|ecmascript/i.test(mime || "")) {
-    return false;
-  }
-  const kind = fileKind(name, mime);
-  if (kind === "img" || kind === "vid" || kind === "pdf") return true;
-  const m = (mime || "").toLowerCase();
-  return m.startsWith("audio/") || m.startsWith("image/") || m.startsWith("video/");
-}
-
 async function resolveFile(segments: string[]): Promise<{ key: string; meta: FileRow; view: boolean } | null> {
   const full = segments.join("/");
   const fullKey = sanitizeKey(full);
@@ -101,7 +89,7 @@ async function handle(
       // ignore
     }
     const themeVars = publicThemeVars(settings.theme_name);
-    const html = renderViewPage(request.nextUrl.origin, key, meta, themeVars);
+    const html = renderViewPage({ origin: request.nextUrl.origin, key, meta, theme: themeVars });
     return new Response(headOnly ? null : html, {
       status: 200,
       headers: {
@@ -167,69 +155,4 @@ async function handle(
   headers["Content-Length"] = String(obj.size);
   if (headOnly) return new Response(null, { status: 200, headers });
   return new Response(obj.body, { status: 200, headers });
-}
-
-function renderViewPage(
-  origin: string,
-  key: string,
-  meta: FileRow,
-  themeVars?: PublicThemeVars,
-) {
-  const dl = `${origin}/dl/${key.split("/").map(encodeURIComponent).join("/")}`;
-  const inline = `${dl}?inline=1`;
-  const kind = fileKind(meta.name, meta.mime);
-  const safeInline = isInlineSafe(meta.name, meta.mime);
-  const status = fileExpiryLabel(meta.expires);
-  let embed = "";
-  if (safeInline && kind === "img") {
-    embed = `<img class="preview" src="${escapeHtml(inline)}" alt="${escapeHtml(meta.name)}">`;
-  } else if (safeInline && kind === "vid") {
-    embed = `<video class="preview" controls src="${escapeHtml(inline)}"></video>`;
-  } else if (safeInline && (meta.mime || "").startsWith("audio/")) {
-    embed = `<audio controls src="${escapeHtml(inline)}"></audio>`;
-  } else if (safeInline && kind === "pdf") {
-    embed = `<iframe class="preview pdf" src="${escapeHtml(inline)}" title="${escapeHtml(meta.name)}"></iframe>`;
-  }
-
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(meta.name)} · ${escapeHtml(PRODUCT_NAME)}</title>
-  <style>
-    :root { --brand:${escapeHtml(themeVars?.brand ?? "#171717")}; --bg:${escapeHtml(themeVars?.bg ?? "#f6f5f2")}; --text:${escapeHtml(themeVars?.text ?? "#171717")}; --text-3:${escapeHtml(themeVars?.text3 ?? "#737373")}; --surface:${escapeHtml(themeVars?.surface ?? "#fff")}; --line:${escapeHtml(themeVars?.line ?? "rgba(23,23,23,.1)")}; }
-    * { box-sizing: border-box; }
-    body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font:16px/1.5 "Noto Sans SC","PingFang SC","Hiragino Sans GB",sans-serif; }
-    .wrap { max-width:720px; margin:0 auto; padding:48px 20px 64px; }
-    .brand { display:flex; gap:10px; align-items:center; margin-bottom:24px; }
-    .logo { min-width:28px; height:28px; padding:0 6px; border-radius:6px; background:var(--brand); color:#fff; display:grid; place-items:center; font-weight:600; font-size:10px; letter-spacing:.06em; }
-    h1 { font-size:22px; font-weight:600; letter-spacing:-.03em; margin:0 0 8px; word-break:break-all; }
-    .meta { color:var(--text-3); font-size:14px; margin:0 0 20px; }
-    a.btn { display:inline-flex; align-items:center; height:32px; padding:0 12px; background:var(--brand); color:#fff; text-decoration:none; border-radius:8px; font-size:14px; font-weight:500; }
-    .preview { max-width:100%; border:1px solid var(--line); border-radius:8px; background:var(--surface); margin:0 0 20px; }
-    iframe.pdf { width:100%; height:70vh; }
-    audio { width:100%; margin:0 0 20px; }
-    .footer { margin-top:40px; padding-top:16px; border-top:1px solid var(--line); display:flex; gap:14px; align-items:center; }
-    .footer a { color:var(--text-3); text-decoration:none; font-size:13px; }
-    .footer a:hover { color:var(--brand); }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="brand">
-      <div class="logo">${escapeHtml(PRODUCT_SHORT)}</div>
-      <div>${escapeHtml(PRODUCT_NAME)}</div>
-    </div>
-    <h1>${escapeHtml(meta.name)}</h1>
-    <p class="meta">${escapeHtml(formatSize(meta.size))} · ${escapeHtml(status)}${meta.path ? ` · ${escapeHtml(meta.path)}` : ""}</p>
-    ${embed}
-    <p><a class="btn" href="${escapeHtml(dl)}">下载</a></p>
-    <div class="footer">
-      <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(PRODUCT_TAGLINE)}</span>
-      <a href="https://github.com/ZUENS2020/edgedrive" target="_blank" rel="noopener">GitHub</a>
-    </div>
-  </div>
-</body>
-</html>`;
 }

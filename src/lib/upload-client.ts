@@ -1,17 +1,34 @@
 import { MPU_CONCURRENCY, uploadMpuParts } from "./mpu-pool";
+import { sha256File } from "./sha256";
 
 const PART = 8 * 1024 * 1024;
 
-export type UploadProgress = { label: string; pct: number; error?: string };
+export type UploadProgress = { label: string; pct: number; error?: string; instant?: boolean };
 
 export async function uploadOne(
   file: File,
   folderPath: string,
   onPct: (n: number) => void,
-): Promise<{ id?: string }> {
+  onLabel?: (label: string) => void,
+): Promise<{ id?: string; instant?: boolean }> {
+  onLabel?.("计算指纹");
+  const sha256 = await sha256File(file);
+  const check = await fetch("/api/files/check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sha256, name: file.name, path: folderPath }),
+  });
+  if (check.ok) {
+    const data = (await check.json()) as { hit?: boolean; id?: string };
+    if (data.hit && data.id) {
+      onPct(100);
+      return { id: data.id, instant: true };
+    }
+  }
+
   const key = folderPath ? `${folderPath}/${file.name}` : file.name;
   if (file.size <= PART) {
-    const params = new URLSearchParams({ name: file.name, path: folderPath });
+    const params = new URLSearchParams({ name: file.name, path: folderPath, sha256 });
     const res = await fetch(`/api/files/upload?${params}`, {
       method: "PUT",
       headers: { "Content-Type": file.type || "application/octet-stream" },
@@ -58,7 +75,7 @@ export async function uploadOne(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parts }),
+        body: JSON.stringify({ parts, sha256 }),
       },
     );
     if (!done.ok) {
@@ -87,10 +104,20 @@ export async function uploadFilesQueued(
     const file = arr[i];
     onProgress({ label: `上传 ${file.name}（${i + 1}/${arr.length}）`, pct: 0 });
     try {
-      const uploaded = await uploadOne(file, folderPath, (pct) =>
-        onProgress({ label: `上传 ${file.name}（${i + 1}/${arr.length}）`, pct }),
+      const uploaded = await uploadOne(
+        file,
+        folderPath,
+        (pct) => onProgress({ label: `上传 ${file.name}（${i + 1}/${arr.length}）`, pct }),
+        (phase) => onProgress({ label: `${phase} ${file.name}（${i + 1}/${arr.length}）`, pct: 0 }),
       );
       if (uploaded.id) ids.push(uploaded.id);
+      if (uploaded.instant) {
+        onProgress({
+          label: `秒传 ${file.name}（${i + 1}/${arr.length}）`,
+          pct: 100,
+          instant: true,
+        });
+      }
     } catch (err) {
       onProgress({
         label: `上传 ${file.name}（${i + 1}/${arr.length}）`,

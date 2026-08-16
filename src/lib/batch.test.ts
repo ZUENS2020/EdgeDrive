@@ -30,6 +30,9 @@ function file(partial: Partial<FileRow> & Pick<FileRow, "id" | "name">): FileRow
     download_count: 0,
     created_at: "2026-08-16T00:00:00.000Z",
     tags: "",
+    deleted_at: null,
+    starred: 0,
+    sha256: null,
     ...partial,
   };
 }
@@ -164,9 +167,15 @@ describe("createBatch / getBatch", () => {
   });
 
   it("rejects empty ids and missing files", async () => {
-    const db = memoryDrive({ files: [file({ id: "1", name: "a.txt" })] });
+    const db = memoryDrive({
+      files: [
+        file({ id: "1", name: "a.txt" }),
+        file({ id: "gone", name: "gone.txt", deleted_at: "2026-08-16T00:00:00.000Z" }),
+      ],
+    });
     expect(await createBatch(db, [], now)).toEqual({ error: "need ids", status: 400 });
     expect(await createBatch(db, ["1", "missing"], now)).toEqual({ error: "files not found", status: 400 });
+    expect(await createBatch(db, ["gone"], now)).toEqual({ error: "files not found", status: 400 });
   });
 
   it("getBatch returns null for an unknown token", async () => {
@@ -225,7 +234,10 @@ describe("resolveBatchPage", () => {
 
   it("skips deleted files when rendering a live batch", async () => {
     const db = memoryDrive({
-      files: [file({ id: "keep", name: "keep.txt" })],
+      files: [
+        file({ id: "keep", name: "keep.txt" }),
+        file({ id: "gone", name: "gone.txt", deleted_at: "2026-08-16T00:00:00.000Z" }),
+      ],
       batches: [
         {
           token: "live",

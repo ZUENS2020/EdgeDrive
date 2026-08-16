@@ -72,5 +72,7 @@ describe("publicThemeVars", () => {
     expect(vars.text).toBe("#E9E6E0");
     expect(vars.text3).toBe("#8B8F98");
     expect(vars.line).toBe("#1F2125");
+    expect(vars.dark).toBe(true);
+    expect(publicThemeVars("light").dark).toBe(false);
   });
 });

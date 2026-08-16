@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { parseExpireInput, type ExpireInput } from "@/lib/expires";
-import { deleteFiles, setFileExpires } from "@/lib/store";
+import { deleteFiles, restoreFiles, setFileExpires, softDeleteFiles } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 type BatchBody = {
   ids?: string[];
-  action?: "expire" | "expireNow" | "permanent" | "delete";
+  action?: "expire" | "expireNow" | "permanent" | "delete" | "restore" | "purge";
 } & ExpireInput;
 
 export async function POST(request: Request) {
@@ -24,6 +24,22 @@ export async function POST(request: Request) {
   const action = body.action || "expire";
 
   if (action === "delete") {
+    const result = await softDeleteFiles(ids);
+    return NextResponse.json({ ok: true, ...result });
+  }
+
+  if (action === "restore") {
+    try {
+      const result = await restoreFiles(ids);
+      return NextResponse.json({ ok: true, ...result });
+    } catch (err) {
+      const msg = String((err as Error).message || err);
+      const status = msg === "file-exists" ? 409 : 400;
+      return NextResponse.json({ error: msg }, { status });
+    }
+  }
+
+  if (action === "purge") {
     const result = await deleteFiles(ids);
     return NextResponse.json({ ok: true, ...result });
   }

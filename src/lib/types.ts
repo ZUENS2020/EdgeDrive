@@ -8,6 +8,9 @@ export type FileRow = {
   download_count: number;
   created_at: string;
   tags: string;
+  deleted_at: string | null;
+  starred: number;
+  sha256: string | null;
 };
 
 export type FileView = FileRow & {

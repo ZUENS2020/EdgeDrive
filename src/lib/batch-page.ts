@@ -11,6 +11,9 @@ const KIND_LABEL: Record<ReturnType<typeof fileKind>, string> = {
   zip: "包",
   pdf: "PDF",
   doc: "文",
+  md: "MD",
+  txt: "TXT",
+  audio: "音",
   "": "文件",
 };
 

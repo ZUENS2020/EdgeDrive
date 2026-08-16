@@ -97,10 +97,13 @@ export async function getFilesByIds(db: D1Database, ids: string[]): Promise<File
   for (const chunk of chunkIds(ids)) {
     const placeholders = chunk.map(() => "?").join(",");
     const rows = await db
-      .prepare(`SELECT * FROM files WHERE id IN (${placeholders})`)
+      .prepare(`SELECT * FROM files WHERE id IN (${placeholders}) AND deleted_at IS NULL`)
       .bind(...chunk)
       .all<FileRow>();
-    for (const row of rows.results || []) found.set(row.id, row);
+    for (const row of rows.results || []) {
+      if (row.deleted_at) continue;
+      found.set(row.id, row);
+    }
   }
   return ids.map((id) => found.get(id)).filter((row): row is FileRow => Boolean(row));
 }

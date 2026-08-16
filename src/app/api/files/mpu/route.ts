@@ -4,6 +4,7 @@ import { expireFromSearchParams, parseDefaultExpires, parseExpireInput } from "@
 import { getSettings } from "@/lib/settings";
 import { guessMime, sanitizeKey, splitKey } from "@/lib/sanitize";
 import { getR2 } from "@/lib/cloudflare";
+import { normalizeSha256 } from "@/lib/sha256";
 import { upsertFile } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
   if (action === "complete") {
     const uploadId = url.searchParams.get("uploadId");
     if (!uploadId) return NextResponse.json({ error: "need uploadId" }, { status: 400 });
-    let body: { parts?: { partNumber: number; etag: string }[] };
+    let body: { parts?: { partNumber: number; etag: string }[]; sha256?: string };
     try {
       body = await request.json();
     } catch {
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
     }
     const parts = (body.parts || []).slice().sort((a, b) => a.partNumber - b.partNumber);
     if (!parts.length) return NextResponse.json({ error: "empty parts" }, { status: 400 });
+    const sha256 = normalizeSha256(body.sha256);
     const mpu = r2.resumeMultipartUpload(key, uploadId);
     try {
       const object = await mpu.complete(parts);
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
         expires: object.customMetadata?.expires || null,
         created_at: new Date().toISOString(),
         tags: "",
+        sha256,
       });
       return NextResponse.json({
         ok: true,

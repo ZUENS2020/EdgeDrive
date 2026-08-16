@@ -13,18 +13,22 @@ describe("d1 schema helpers", () => {
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(EXPECTED_SCHEMA_VERSION).toBe(10);
-    expect(evaluateSchemaVersion(undefined, 10)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 10)).toBe("untracked");
-    expect(evaluateSchemaVersion("9", 10)).toBe("stale");
-    expect(evaluateSchemaVersion("10", 10)).toBe("ok");
-    expect(evaluateSchemaVersion("11", 10)).toBe("ok");
+    expect(EXPECTED_SCHEMA_VERSION).toBe(11);
+    expect(evaluateSchemaVersion(undefined, 11)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 11)).toBe("untracked");
+    expect(evaluateSchemaVersion("10", 11)).toBe("stale");
+    expect(evaluateSchemaVersion("11", 11)).toBe("ok");
+    expect(evaluateSchemaVersion("12", 11)).toBe("ok");
   });
 
-  it("bootstrap SQL includes batch_links (migration 0010)", () => {
+  it("bootstrap SQL includes drive enhancements (migration 0011)", () => {
     expect(D1_BOOTSTRAP_SQL).toContain("CREATE TABLE IF NOT EXISTS batch_links");
     expect(D1_BOOTSTRAP_SQL).toContain("idx_batch_expires");
-    expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '10'/);
+    expect(D1_BOOTSTRAP_SQL).toContain("idx_files_alive_path_name");
+    expect(D1_BOOTSTRAP_SQL).toContain("deleted_at");
+    expect(D1_BOOTSTRAP_SQL).toContain("starred");
+    expect(D1_BOOTSTRAP_SQL).toContain("sha256");
+    expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '11'/);
   });
 });
 

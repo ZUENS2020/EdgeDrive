@@ -1,15 +1,20 @@
 "use client";
 
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DriveFileMoveIcon from "@mui/icons-material/DriveFileMove";
 import DownloadIcon from "@mui/icons-material/Download";
 import EditIcon from "@mui/icons-material/Edit";
 import GridViewIcon from "@mui/icons-material/GridView";
 import LinkIcon from "@mui/icons-material/Link";
+import LocalOfferIcon from "@mui/icons-material/LocalOffer";
+import RestoreFromTrashIcon from "@mui/icons-material/RestoreFromTrash";
 import SearchIcon from "@mui/icons-material/Search";
 import PreviewIcon from "@mui/icons-material/Preview";
 import ScheduleIcon from "@mui/icons-material/Schedule";
+import StarIcon from "@mui/icons-material/Star";
+import StarBorderIcon from "@mui/icons-material/StarBorder";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import UploadIcon from "@mui/icons-material/Upload";
 import ViewListIcon from "@mui/icons-material/ViewList";
@@ -24,13 +29,16 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
+import FormControl from "@mui/material/FormControl";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
+import InputLabel from "@mui/material/InputLabel";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
+import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -47,14 +55,26 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
+import { isGlobalFileFilter, type FileListFilter } from "@/lib/files-query";
 import { formatSize, formatTime } from "@/lib/format";
+import { parseTags } from "@/lib/tags";
 import { MAX_BATCH_IDS, type FileView, type FolderNode, type SiteSettings } from "@/lib/types";
 import { uploadFilesQueued } from "@/lib/upload-client";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FolderTree } from "./FolderTree";
 import { MoveDialog } from "./MoveDialog";
 
-type Filter = "all" | "ok" | "soon" | "expired";
+type Filter = FileListFilter;
+
+const FILTER_CHIPS: { id: Filter; label: string }[] = [
+  { id: "all", label: "全部" },
+  { id: "ok", label: "正常" },
+  { id: "soon", label: "即将过期" },
+  { id: "expired", label: "已过期" },
+  { id: "starred", label: "收藏" },
+  { id: "recent", label: "最近" },
+  { id: "trash", label: "回收站" },
+];
 
 function statusOf(file: FileView) {
   if (!file.expires) return { kind: "perm" as const, label: "永久", color: "default" as const };
@@ -69,6 +89,8 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
   const [path, setPath] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [tag, setTag] = useState("");
+  const [allTags, setAllTags] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const [view, setView] = useState<"list" | "grid">("list");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -81,6 +103,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
   const [prompt, setPrompt] = useState<{ title: string; label: string; value: string; run: (v: string) => void } | null>(
     null,
   );
+  const [tagEdit, setTagEdit] = useState<{ ids: string[]; value: string } | null>(null);
   const [promptValue, setPromptValue] = useState("");
   const [progress, setProgress] = useState<{ label: string; pct: number } | null>(null);
   const [pageDrop, setPageDrop] = useState(false);
@@ -95,6 +118,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
       { field: "q", operator: "eq", value: q.trim() || undefined },
       { field: "path", operator: "eq", value: q.trim() ? undefined : path == null ? "__all__" : path || "__root__" },
       { field: "filter", operator: "eq", value: filter },
+      { field: "tag", operator: "eq", value: tag.trim() || undefined },
     ],
     queryOptions: { retry: false },
   });
@@ -113,6 +137,16 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
   useEffect(() => {
     if (prompt) setPromptValue(prompt.value);
   }, [prompt]);
+
+  useEffect(() => {
+    void fetch("/api/files?page=1&pageSize=1")
+      .then((r) => r.json())
+      .then((d) => {
+        const tags = (d as { allTags?: unknown }).allTags;
+        setAllTags(Array.isArray(tags) ? tags.filter((t): t is string => typeof t === "string") : []);
+      })
+      .catch(() => {});
+  }, [filesQuery.query.dataUpdatedAt]);
 
   const toast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
@@ -210,16 +244,20 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
   }
 
   async function onUpload(list: FileList | File[]) {
+    let instant = 0;
     try {
       const ids = await uploadFilesQueued(list, path || "", (p) => {
         if (p.error) toast(`${p.label}: ${p.error}`, "error");
-        else setProgress({ label: p.label, pct: p.pct });
+        else {
+          if (p.instant) instant += 1;
+          setProgress({ label: p.label, pct: p.pct });
+        }
       });
       setProgress(null);
       await reload();
       if (ids.length) {
         setSelected(new Set(ids));
-        toast(`已上传 ${ids.length} 个并勾选`);
+        toast(instant ? `已处理 ${ids.length} 个（${instant} 个秒传）` : `已上传 ${ids.length} 个并勾选`);
       }
     } catch (err) {
       setProgress(null);
@@ -228,6 +266,9 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
   }
 
   function crumbs() {
+    if (filter === "trash") return [{ label: "回收站", path: null as string | null }];
+    if (filter === "starred") return [{ label: "收藏", path: null as string | null }];
+    if (filter === "recent") return [{ label: "最近", path: null as string | null }];
     if (q.trim()) return [{ label: "搜索", path: null as string | null }];
     if (path == null) return [{ label: "全部文件", path: null }];
     const parts = path.split("/").filter(Boolean);
@@ -286,6 +327,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
             setPath(p);
             setQ("");
             setPage(0);
+            if (isGlobalFileFilter(filter)) setFilter("all");
           }}
           onCreate={(parentId) =>
             setPrompt({
@@ -405,74 +447,130 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
           </Box>
         ) : null}
 
-        <Stack direction="row" spacing={1} sx={{ px: 2, py: 1, flexWrap: "wrap" }}>
-          {(["all", "ok", "soon", "expired"] as Filter[]).map((f) => (
+        <Stack direction="row" spacing={1} sx={{ px: 2, py: 1, flexWrap: "wrap", alignItems: "center" }}>
+          {FILTER_CHIPS.map((f) => (
             <Chip
-              key={f}
-              label={f === "all" ? "全部" : f === "ok" ? "正常" : f === "soon" ? "即将过期" : "已过期"}
-              color={filter === f ? "primary" : "default"}
-              variant={filter === f ? "filled" : "outlined"}
+              key={f.id}
+              label={f.label}
+              color={filter === f.id ? "primary" : "default"}
+              variant={filter === f.id ? "filled" : "outlined"}
               onClick={() => {
-                setFilter(f);
+                setFilter(f.id);
                 setPage(0);
+                setSelected(new Set());
               }}
             />
           ))}
+          <FormControl size="small" sx={{ minWidth: 140, ml: "auto" }}>
+            <InputLabel id="ed-tag-filter">标签</InputLabel>
+            <Select
+              labelId="ed-tag-filter"
+              label="标签"
+              value={tag}
+              onChange={(e) => {
+                setTag(String(e.target.value));
+                setPage(0);
+              }}
+            >
+              <MenuItem value="">全部标签</MenuItem>
+              {tag && !allTags.includes(tag) ? <MenuItem value={tag}>{tag}</MenuItem> : null}
+              {allTags.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Stack>
 
         {selected.size > 0 ? (
           <Paper square sx={{ px: 2, py: 1, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
             <Typography variant="body2">已选 {selected.size}</Typography>
-            <Button
-              size="small"
-              startIcon={<LinkIcon />}
-              disabled={shareBusy}
-              onClick={() => void copyBatchShare("download")}
-            >
-              复制链接
-            </Button>
-            <Button
-              size="small"
-              startIcon={<VisibilityIcon />}
-              disabled={shareBusy}
-              onClick={() => void copyBatchShare("preview")}
-            >
-              复制预览链接
-            </Button>
-            <Button
-              size="small"
-              startIcon={<DriveFileMoveIcon />}
-              onClick={() => {
-                setMoveIds([...selected]);
-                setMoveOpen(true);
-              }}
-            >
-              移动
-            </Button>
-            <Button
-              size="small"
-              startIcon={<ScheduleIcon />}
-              onClick={() => {
-                setExpireIds([...selected]);
-                setExpireOpen(true);
-              }}
-            >
-              有效期
-            </Button>
-            <Button
-              size="small"
-              color="error"
-              startIcon={<DeleteOutlineIcon />}
-              onClick={() =>
-                setConfirm({
-                  title: "删除文件",
-                  body: `确定删除 ${selected.size} 个文件？此操作无法撤销。`,
-                  run: () => batch({ ids: [...selected], action: "delete" }),
-                })
-              }
-            >
-              删除
-            </Button>
+            {filter === "trash" ? (
+              <>
+                <Button
+                  size="small"
+                  startIcon={<RestoreFromTrashIcon />}
+                  onClick={() => void batch({ ids: [...selected], action: "restore" }).then(() => toast("已还原"))}
+                >
+                  还原
+                </Button>
+                <Button
+                  size="small"
+                  color="error"
+                  startIcon={<DeleteForeverIcon />}
+                  onClick={() =>
+                    setConfirm({
+                      title: "彻底删除",
+                      body: `确定彻底删除 ${selected.size} 个文件？此操作无法撤销。`,
+                      run: () => batch({ ids: [...selected], action: "purge" }),
+                    })
+                  }
+                >
+                  彻底删除
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="small"
+                  startIcon={<LinkIcon />}
+                  disabled={shareBusy}
+                  onClick={() => void copyBatchShare("download")}
+                >
+                  复制链接
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<VisibilityIcon />}
+                  disabled={shareBusy}
+                  onClick={() => void copyBatchShare("preview")}
+                >
+                  复制预览链接
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<DriveFileMoveIcon />}
+                  onClick={() => {
+                    setMoveIds([...selected]);
+                    setMoveOpen(true);
+                  }}
+                >
+                  移动
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<ScheduleIcon />}
+                  onClick={() => {
+                    setExpireIds([...selected]);
+                    setExpireOpen(true);
+                  }}
+                >
+                  有效期
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<LocalOfferIcon />}
+                  onClick={() => setTagEdit({ ids: [...selected], value: "" })}
+                >
+                  标签
+                </Button>
+                <Button
+                  size="small"
+                  color="error"
+                  startIcon={<DeleteOutlineIcon />}
+                  onClick={() =>
+                    setConfirm({
+                      title: "移入回收站",
+                      body: `确定把 ${selected.size} 个文件移入回收站？可在 30 天内还原。`,
+                      run: () => batch({ ids: [...selected], action: "delete" }),
+                    })
+                  }
+                >
+                  删除
+                </Button>
+              </>
+            )}
             <Button size="small" onClick={() => setSelected(new Set())}>
               取消
             </Button>
@@ -513,7 +611,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                   <TableRow>
                     <TableCell colSpan={7}>
                       <Typography color="text.secondary" sx={{ p: 2 }}>
-                        没有文件。拖拽到此上传。
+                        没有文件。{filter === "trash" ? "回收站是空的。" : "拖拽到此上传。"}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -549,6 +647,22 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                         <Typography variant="caption" color="text.secondary" noWrap>
                           {file.path || "/"}
                         </Typography>
+                        {parseTags(file.tags).length ? (
+                          <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                            {parseTags(file.tags).map((t) => (
+                              <Chip
+                                key={t}
+                                size="small"
+                                label={t}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTag(t);
+                                  setPage(0);
+                                }}
+                              />
+                            ))}
+                          </Stack>
+                        ) : null}
                       </TableCell>
                       <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{formatSize(file.size)}</TableCell>
                       <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{file.download_count}</TableCell>
@@ -557,54 +671,101 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                         <Chip size="small" label={st.label} color={st.color} />
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                        <IconButton size="small" href={file.url} target="_blank" aria-label="下载">
-                          <DownloadIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton size="small" href={`${file.url}/view`} target="_blank" title="预览" aria-label="预览">
-                          <PreviewIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={async () => {
-                            const ok = await copyToClipboard(file.url);
-                            toast(ok ? "已复制下载链接" : "复制失败", ok ? "success" : "error");
-                          }}
-                        >
-                          <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          title="复制预览链接"
-                          aria-label="复制预览链接"
-                          onClick={async () => {
-                            const ok = await copyToClipboard(`${file.url}/view`);
-                            toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
-                          }}
-                        >
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setExpireIds([file.id]);
-                            setExpireOpen(true);
-                          }}
-                        >
-                          <ScheduleIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() =>
-                            setConfirm({
-                              title: "删除文件",
-                              body: `确定删除「${file.name}」？`,
-                              run: () => batch({ ids: [file.id], action: "delete" }),
-                            })
-                          }
-                        >
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
+                        {filter === "trash" ? (
+                          <>
+                            <IconButton
+                              size="small"
+                              title="还原"
+                              aria-label="还原"
+                              onClick={() => void batch({ ids: [file.id], action: "restore" }).then(() => toast("已还原"))}
+                            >
+                              <RestoreFromTrashIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              title="彻底删除"
+                              aria-label="彻底删除"
+                              onClick={() =>
+                                setConfirm({
+                                  title: "彻底删除",
+                                  body: `确定彻底删除「${file.name}」？此操作无法撤销。`,
+                                  run: () => batch({ ids: [file.id], action: "purge" }),
+                                })
+                              }
+                            >
+                              <DeleteForeverIcon fontSize="small" />
+                            </IconButton>
+                          </>
+                        ) : (
+                          <>
+                            <IconButton
+                              size="small"
+                              color={file.starred ? "warning" : "default"}
+                              title={file.starred ? "取消收藏" : "收藏"}
+                              aria-label={file.starred ? "取消收藏" : "收藏"}
+                              onClick={() => void patchFiles({ id: file.id, starred: file.starred ? 0 : 1 })}
+                            >
+                              {file.starred ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                            </IconButton>
+                            <IconButton size="small" href={file.url} target="_blank" aria-label="下载">
+                              <DownloadIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton size="small" href={`${file.url}/view`} target="_blank" title="预览" aria-label="预览">
+                              <PreviewIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={async () => {
+                                const ok = await copyToClipboard(file.url);
+                                toast(ok ? "已复制下载链接" : "复制失败", ok ? "success" : "error");
+                              }}
+                            >
+                              <ContentCopyIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              title="复制预览链接"
+                              aria-label="复制预览链接"
+                              onClick={async () => {
+                                const ok = await copyToClipboard(`${file.url}/view`);
+                                toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
+                              }}
+                            >
+                              <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              title="标签"
+                              aria-label="标签"
+                              onClick={() => setTagEdit({ ids: [file.id], value: file.tags || "" })}
+                            >
+                              <LocalOfferIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setExpireIds([file.id]);
+                                setExpireOpen(true);
+                              }}
+                            >
+                              <ScheduleIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() =>
+                                setConfirm({
+                                  title: "移入回收站",
+                                  body: `确定把「${file.name}」移入回收站？可在 30 天内还原。`,
+                                  run: () => batch({ ids: [file.id], action: "delete" }),
+                                })
+                              }
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -641,9 +802,13 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                   <Typography variant="caption" color="text.secondary">
                     {formatSize(file.size)}
                   </Typography>
-                  <Box sx={{ mt: 1 }}>
+                  <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ mt: 1 }} alignItems="center">
                     <Chip size="small" label={st.label} color={st.color} />
-                  </Box>
+                    {file.starred ? <StarIcon fontSize="small" color="warning" /> : null}
+                    {parseTags(file.tags).map((t) => (
+                      <Chip key={t} size="small" label={t} />
+                    ))}
+                  </Stack>
                 </Paper>
               );
             })}
@@ -763,18 +928,68 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
         <MenuItem
           onClick={() => {
             if (!ctxFile) return;
-            setConfirm({
-              title: "删除文件",
-              body: `确定删除「${ctxFile.name}」？`,
-              run: () => batch({ ids: [ctxFile.id], action: "delete" }),
-            });
+            void patchFiles({ id: ctxFile.id, starred: ctxFile.starred ? 0 : 1 });
             setCtx(null);
           }}
-          sx={{ color: "error.main" }}
         >
-          <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />
-          删除
+          {ctxFile?.starred ? <StarIcon fontSize="small" sx={{ mr: 1 }} /> : <StarBorderIcon fontSize="small" sx={{ mr: 1 }} />}
+          {ctxFile?.starred ? "取消收藏" : "收藏"}
         </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (!ctxFile) return;
+            setTagEdit({ ids: [ctxFile.id], value: ctxFile.tags || "" });
+            setCtx(null);
+          }}
+        >
+          <LocalOfferIcon fontSize="small" sx={{ mr: 1 }} />
+          标签
+        </MenuItem>
+        {filter === "trash" ? (
+          <>
+            <MenuItem
+              onClick={() => {
+                if (!ctxFile) return;
+                void batch({ ids: [ctxFile.id], action: "restore" }).then(() => toast("已还原"));
+                setCtx(null);
+              }}
+            >
+              <RestoreFromTrashIcon fontSize="small" sx={{ mr: 1 }} />
+              还原
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                if (!ctxFile) return;
+                setConfirm({
+                  title: "彻底删除",
+                  body: `确定彻底删除「${ctxFile.name}」？此操作无法撤销。`,
+                  run: () => batch({ ids: [ctxFile.id], action: "purge" }),
+                });
+                setCtx(null);
+              }}
+              sx={{ color: "error.main" }}
+            >
+              <DeleteForeverIcon fontSize="small" sx={{ mr: 1 }} />
+              彻底删除
+            </MenuItem>
+          </>
+        ) : (
+          <MenuItem
+            onClick={() => {
+              if (!ctxFile) return;
+              setConfirm({
+                title: "移入回收站",
+                body: `确定把「${ctxFile.name}」移入回收站？可在 30 天内还原。`,
+                run: () => batch({ ids: [ctxFile.id], action: "delete" }),
+              });
+              setCtx(null);
+            }}
+            sx={{ color: "error.main" }}
+          >
+            <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />
+            删除
+          </MenuItem>
+        )}
       </Menu>
 
       <ExpireDialog
@@ -840,6 +1055,38 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
             }}
           >
             确定
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={!!tagEdit} onClose={() => setTagEdit(null)} fullWidth maxWidth="xs">
+        <DialogTitle>编辑标签</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 1 }}>逗号分隔，最多 20 个。</DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            margin="dense"
+            label="标签"
+            placeholder="工作, 合同"
+            value={tagEdit?.value ?? ""}
+            onChange={(e) => setTagEdit(tagEdit ? { ...tagEdit, value: e.target.value } : null)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTagEdit(null)}>取消</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (!tagEdit) return;
+              const ids = tagEdit.ids;
+              const value = tagEdit.value;
+              setTagEdit(null);
+              void patchFiles({ ids, tags: value }).then((ok) => {
+                if (ok) toast("标签已更新");
+              });
+            }}
+          >
+            保存
           </Button>
         </DialogActions>
       </Dialog>

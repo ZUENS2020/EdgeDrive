@@ -1,3 +1,15 @@
+# EdgeDrive 第十二轮迭代（R12 · 2026-08-16）
+
+## 目标
+
+网盘增强 6 项：回收站（软删除 + 还原 + 30 天清）、标签筛选、收藏星标、最近文件、秒传（SHA-256）、预览体验（视频 Range / 图片灯箱 / 音频 / PDF / Markdown+Mermaid / TXT / 限高滚动 / 响应式）。
+
+## 验证
+
+- `npm test` / `tsc --noUnusedLocals` / `npm run build`
+
+---
+
 # EdgeDrive 第八轮迭代（R8 · 2026-08-16）
 
 ## 目标

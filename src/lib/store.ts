@@ -1,7 +1,25 @@
 import { getDB, getR2 } from "./cloudflare";
+import {
+  buildFileListWhere,
+  parseFileListFilter,
+  trashCutoffIso,
+  type FileListFilter,
+} from "./files-query";
 import { escapeLike } from "./like";
-import { dlUrl, fileKey, flattenFolderPaths, isExpired, type FileRow, type FileView, type FolderNode, type FolderRow, type StatsPayload } from "./types";
 import { sanitizeFileName, sanitizeFolderName, sanitizeKey, splitKey } from "./sanitize";
+import { normalizeSha256 } from "./sha256";
+import { collectUniqueTags, serializeTags } from "./tags";
+import {
+  dlUrl,
+  fileKey,
+  flattenFolderPaths,
+  isExpired,
+  type FileRow,
+  type FileView,
+  type FolderNode,
+  type FolderRow,
+  type StatsPayload,
+} from "./types";
 
 /** D1 单查询绑定参数上限 100——分批用。 */
 function chunkIds(ids: string[], size = 90): string[][] {
@@ -10,15 +28,34 @@ function chunkIds(ids: string[], size = 90): string[][] {
   return out;
 }
 
-function toView(row: FileRow, origin: string, now = Date.now()): FileView {
-  const key = fileKey(row.path, row.name);
+export function normalizeFileRow(row: FileRow): FileRow {
   return {
     ...row,
+    tags: row.tags || "",
+    deleted_at: row.deleted_at ?? null,
+    starred: Number(row.starred) ? 1 : 0,
+    sha256: row.sha256 ?? null,
+  };
+}
+
+function toView(row: FileRow, origin: string, now = Date.now()): FileView {
+  const key = fileKey(row.path, row.name);
+  const n = normalizeFileRow(row);
+  return {
+    ...n,
     key,
     url: dlUrl(origin, key),
     viewUrl: dlUrl(origin, key, true),
-    expired: isExpired(row.expires, now),
+    expired: isExpired(n.expires, now),
   };
+}
+
+export async function listFileTags(): Promise<string[]> {
+  const db = await getDB();
+  const rows = await db
+    .prepare("SELECT tags FROM files WHERE deleted_at IS NULL AND tags != ''")
+    .all<{ tags: string }>();
+  return collectUniqueTags(rows.results || []);
 }
 
 export async function listFiles(opts: {
@@ -27,8 +64,9 @@ export async function listFiles(opts: {
   q?: string;
   page?: number;
   pageSize?: number;
-  filter?: "all" | "ok" | "soon" | "expired";
-}): Promise<{ files: FileView[]; total: number }> {
+  filter?: FileListFilter;
+  tag?: string;
+}): Promise<{ files: FileView[]; total: number; allTags: string[] }> {
   const db = await getDB();
   const page = Math.max(1, opts.page || 1);
   const pageSize = Math.min(200, Math.max(1, opts.pageSize || 50));
@@ -36,32 +74,15 @@ export async function listFiles(opts: {
   const now = Date.now();
   const soon = new Date(now + 24 * 3600e3).toISOString();
   const nowIso = new Date(now).toISOString();
-
-  const where: string[] = [];
-  const binds: unknown[] = [];
-
-  if (opts.q && opts.q.trim()) {
-    // D1 LIKE 模式限 50 字节——截断到 40 字符防 500
-    const q = opts.q.trim().slice(0, 40);
-    where.push("name LIKE ? ESCAPE '\\'");
-    binds.push(`%${escapeLike(q)}%`);
-  } else if (opts.path != null) {
-    where.push("path = ?");
-    binds.push(opts.path);
-  }
-
-  if (opts.filter === "expired") {
-    where.push("expires IS NOT NULL AND expires < ?");
-    binds.push(nowIso);
-  } else if (opts.filter === "soon") {
-    where.push("expires IS NOT NULL AND expires >= ? AND expires < ?");
-    binds.push(nowIso, soon);
-  } else if (opts.filter === "ok") {
-    where.push("(expires IS NULL OR expires >= ?)");
-    binds.push(nowIso);
-  }
-
-  const clause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const filter = parseFileListFilter(opts.filter);
+  const { clause, binds } = buildFileListWhere({
+    q: opts.q,
+    path: opts.path,
+    filter,
+    tag: opts.tag,
+    nowIso,
+    soonIso: soon,
+  });
   const count = await db
     .prepare(`SELECT COUNT(*) as n FROM files ${clause}`)
     .bind(...binds)
@@ -70,42 +91,60 @@ export async function listFiles(opts: {
     .prepare(`SELECT * FROM files ${clause} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
     .bind(...binds, pageSize, offset)
     .all<FileRow>();
+  const allTags = await listFileTags();
 
   return {
     files: (rows.results || []).map((r) => toView(r, opts.origin, now)),
     total: count?.n || 0,
+    allTags,
   };
 }
 
 export async function getFileById(id: string): Promise<FileRow | null> {
   const db = await getDB();
-  return (await db.prepare("SELECT * FROM files WHERE id = ?").bind(id).first<FileRow>()) || null;
+  const row = (await db.prepare("SELECT * FROM files WHERE id = ?").bind(id).first<FileRow>()) || null;
+  return row ? normalizeFileRow(row) : null;
 }
 
 export async function getFileByKey(key: string): Promise<FileRow | null> {
   const { path, name } = splitKey(key);
   const db = await getDB();
-  return (
+  const row =
     (await db
-      .prepare("SELECT * FROM files WHERE path = ? AND name = ?")
+      .prepare("SELECT * FROM files WHERE path = ? AND name = ? AND deleted_at IS NULL")
       .bind(path, name)
-      .first<FileRow>()) || null
-  );
+      .first<FileRow>()) || null;
+  return row ? normalizeFileRow(row) : null;
 }
 
-export async function upsertFile(row: Omit<FileRow, "download_count"> & { download_count?: number }) {
+export async function upsertFile(row: Omit<FileRow, "download_count" | "deleted_at" | "starred" | "sha256"> & {
+  download_count?: number;
+  deleted_at?: string | null;
+  starred?: number;
+  sha256?: string | null;
+}) {
   const db = await getDB();
+  const tags = serializeTags(row.tags);
+  const sha256 = normalizeSha256(row.sha256) || row.sha256 || null;
+  const starred = Number(row.starred) ? 1 : 0;
+  const existing = await db
+    .prepare("SELECT id, download_count, starred FROM files WHERE path = ? AND name = ? AND deleted_at IS NULL")
+    .bind(row.path, row.name)
+    .first<{ id: string; download_count: number; starred: number }>();
+  if (existing) {
+    await db
+      .prepare(
+        `UPDATE files SET size = ?, mime = ?, expires = ?, created_at = ?, tags = ?, sha256 = ?
+         WHERE id = ?`,
+      )
+      .bind(row.size, row.mime, row.expires, row.created_at, tags, sha256, existing.id)
+      .run();
+    return;
+  }
   await db
     .prepare(
-      `INSERT INTO files (id, name, path, size, mime, expires, download_count, created_at, tags)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(path, name) DO UPDATE SET
-         id = excluded.id,
-         size = excluded.size,
-         mime = excluded.mime,
-         expires = excluded.expires,
-         created_at = excluded.created_at,
-         tags = excluded.tags`,
+      `INSERT INTO files (id, name, path, size, mime, expires, download_count, created_at, tags, deleted_at, starred, sha256)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       row.id,
@@ -116,9 +155,88 @@ export async function upsertFile(row: Omit<FileRow, "download_count"> & { downlo
       row.expires,
       row.download_count ?? 0,
       row.created_at,
-      row.tags || "",
+      tags,
+      row.deleted_at ?? null,
+      starred,
+      sha256,
     )
     .run();
+}
+
+export async function setFileTags(ids: string[], tags: string) {
+  const db = await getDB();
+  if (!ids.length) return;
+  const value = serializeTags(tags);
+  for (const chunk of chunkIds(ids)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    await db
+      .prepare(`UPDATE files SET tags = ? WHERE id IN (${placeholders}) AND deleted_at IS NULL`)
+      .bind(value, ...chunk)
+      .run();
+  }
+}
+
+export async function setFileStarred(ids: string[], starred: boolean | number) {
+  const db = await getDB();
+  if (!ids.length) return;
+  const value = starred ? 1 : 0;
+  for (const chunk of chunkIds(ids)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    await db
+      .prepare(`UPDATE files SET starred = ? WHERE id IN (${placeholders}) AND deleted_at IS NULL`)
+      .bind(value, ...chunk)
+      .run();
+  }
+}
+
+export async function softDeleteFiles(ids: string[]): Promise<{ deleted: number }> {
+  if (!ids.length) return { deleted: 0 };
+  const db = await getDB();
+  const now = new Date().toISOString();
+  let deleted = 0;
+  for (const chunk of chunkIds(ids)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const rows = await db
+      .prepare(`SELECT id FROM files WHERE id IN (${placeholders}) AND deleted_at IS NULL`)
+      .bind(...chunk)
+      .all<{ id: string }>();
+    const live = (rows.results || []).map((r) => r.id);
+    if (!live.length) continue;
+    const marks = live.map(() => "?").join(",");
+    await db
+      .prepare(`UPDATE files SET deleted_at = ? WHERE id IN (${marks})`)
+      .bind(now, ...live)
+      .run();
+    deleted += live.length;
+  }
+  return { deleted };
+}
+
+export async function restoreFiles(ids: string[]): Promise<{ restored: number }> {
+  if (!ids.length) return { restored: 0 };
+  const db = await getDB();
+  const files: FileRow[] = [];
+  for (const chunk of chunkIds(ids)) {
+    const placeholders = chunk.map(() => "?").join(",");
+    const rows = await db
+      .prepare(`SELECT * FROM files WHERE id IN (${placeholders}) AND deleted_at IS NOT NULL`)
+      .bind(...chunk)
+      .all<FileRow>();
+    files.push(...(rows.results || []));
+  }
+  for (const file of files) {
+    const clash = await db
+      .prepare("SELECT id FROM files WHERE path = ? AND name = ? AND deleted_at IS NULL AND id != ?")
+      .bind(file.path, file.name, file.id)
+      .first<{ id: string }>();
+    if (clash) throw new Error("file-exists");
+  }
+  let restored = 0;
+  for (const file of files) {
+    await db.prepare("UPDATE files SET deleted_at = NULL WHERE id = ?").bind(file.id).run();
+    restored += 1;
+  }
+  return { restored };
 }
 
 export async function setFileExpires(ids: string[], expires: string | null) {
@@ -336,7 +454,7 @@ export async function getStats(origin: string): Promise<StatsPayload> {
          COALESCE(SUM(download_count), 0) as downloadTotal,
          SUM(CASE WHEN expires IS NOT NULL AND expires < ? THEN 1 ELSE 0 END) as expiredCount,
          SUM(CASE WHEN expires IS NOT NULL AND expires >= ? AND expires < ? THEN 1 ELSE 0 END) as soonCount
-       FROM files`,
+       FROM files WHERE deleted_at IS NULL`,
     )
     .bind(nowIso, nowIso, soonIso)
     .first<{
@@ -348,7 +466,7 @@ export async function getStats(origin: string): Promise<StatsPayload> {
     }>();
   const soonRows = await db
     .prepare(
-      "SELECT * FROM files WHERE expires IS NOT NULL AND expires >= ? AND expires < ? ORDER BY expires ASC LIMIT 8",
+      "SELECT * FROM files WHERE deleted_at IS NULL AND expires IS NOT NULL AND expires >= ? AND expires < ? ORDER BY expires ASC LIMIT 8",
     )
     .bind(nowIso, soonIso)
     .all<FileRow>();
@@ -372,6 +490,28 @@ export async function purgeExpired(graceDays: number): Promise<{ deleted: number
     const rows = await db
       .prepare(
         "SELECT id FROM files WHERE expires IS NOT NULL AND expires < ? ORDER BY expires ASC LIMIT 50",
+      )
+      .bind(cutoff)
+      .all<{ id: string }>();
+    const ids = (rows.results || []).map((r) => r.id);
+    if (!ids.length) break;
+    const result = await deleteFiles(ids);
+    deleted += result.deleted;
+    batches += 1;
+    if (ids.length < 50) break;
+  }
+  return { deleted, batches };
+}
+
+export async function purgeTrash(): Promise<{ deleted: number; batches: number }> {
+  const cutoff = trashCutoffIso();
+  const db = await getDB();
+  let deleted = 0;
+  let batches = 0;
+  for (let i = 0; i < 20; i++) {
+    const rows = await db
+      .prepare(
+        "SELECT id FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ? ORDER BY deleted_at ASC LIMIT 50",
       )
       .bind(cutoff)
       .all<{ id: string }>();
@@ -420,7 +560,7 @@ export async function moveFiles(
   for (const chunk of chunkIds(ids)) {
     const placeholders = chunk.map(() => "?").join(",");
     const rows = await db
-      .prepare(`SELECT * FROM files WHERE id IN (${placeholders})`)
+      .prepare(`SELECT * FROM files WHERE id IN (${placeholders}) AND deleted_at IS NULL`)
       .bind(...chunk)
       .all<FileRow>();
     files.push(...(rows.results || []));
@@ -436,7 +576,7 @@ export async function moveFiles(
     if (fromKey === toKey) continue;
 
     const clash = await db
-      .prepare("SELECT id FROM files WHERE path = ? AND name = ? AND id != ?")
+      .prepare("SELECT id FROM files WHERE path = ? AND name = ? AND deleted_at IS NULL AND id != ?")
       .bind(nextPath, nextName, file.id)
       .first<{ id: string }>();
     if (clash) throw new Error("file-exists");
@@ -456,6 +596,66 @@ export async function moveFiles(
     moved += 1;
   }
   return { moved };
+}
+
+export async function findAliveBySha256(sha256: string): Promise<FileRow | null> {
+  const hash = normalizeSha256(sha256);
+  if (!hash) return null;
+  const db = await getDB();
+  const row =
+    (await db
+      .prepare(
+        "SELECT * FROM files WHERE sha256 = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1",
+      )
+      .bind(hash)
+      .first<FileRow>()) || null;
+  return row ? normalizeFileRow(row) : null;
+}
+
+export async function instantCopy(opts: {
+  sha256: string;
+  name: string;
+  path: string;
+  expires: string | null;
+  mime?: string | null;
+}): Promise<{ id: string; key: string; size: number; mime: string | null } | { error: string }> {
+  const hash = normalizeSha256(opts.sha256);
+  if (!hash) return { error: "bad-sha256" };
+  const src = await findAliveBySha256(hash);
+  if (!src) return { error: "miss" };
+  const destKey = fileKey(opts.path, opts.name);
+  const srcKey = fileKey(src.path, src.name);
+  const existing = await getFileByKey(destKey);
+  if (existing) {
+    if (existing.sha256 === hash) {
+      return { id: existing.id, key: destKey, size: existing.size, mime: existing.mime };
+    }
+    return { error: "file-exists" };
+  }
+  const r2 = await getR2();
+  if (srcKey !== destKey) {
+    const obj = await r2.get(srcKey);
+    if (!obj) return { error: "miss" };
+    await r2.put(destKey, obj.body, {
+      httpMetadata: obj.httpMetadata,
+      customMetadata: opts.expires ? { expires: opts.expires } : obj.customMetadata,
+    });
+  }
+  const id = crypto.randomUUID();
+  const mime = opts.mime || src.mime;
+  await upsertFile({
+    id,
+    name: opts.name,
+    path: opts.path,
+    size: src.size,
+    mime,
+    expires: opts.expires,
+    created_at: new Date().toISOString(),
+    tags: "",
+    starred: 0,
+    sha256: hash,
+  });
+  return { id, key: destKey, size: src.size, mime };
 }
 
 export function assertKey(raw: string) {

@@ -28,9 +28,11 @@ export const dataProvider = {
       const q = filterValue(filters, "q");
       const path = filterValue(filters, "path");
       const filter = filterValue(filters, "filter") || "all";
+      const tag = filterValue(filters, "tag");
       if (q) params.set("q", q);
       else if (path != null && path !== "__all__") params.set("path", path === "__root__" ? "" : path);
       params.set("filter", filter);
+      if (tag) params.set("tag", tag);
       params.set("page", String(pagination?.currentPage ?? 1));
       params.set("pageSize", String(pagination?.pageSize ?? 50));
       const data = await json<{ files: FileView[]; total: number }>(await fetch(`/api/files?${params}`));

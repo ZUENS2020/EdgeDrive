@@ -5,7 +5,7 @@ import { deleteExpiredBatches } from "@/lib/batch";
 import { getDB } from "@/lib/cloudflare";
 import { bearerMatches } from "@/lib/cron-auth";
 import { getSettings } from "@/lib/settings";
-import { purgeExpired } from "@/lib/store";
+import { purgeExpired, purgeTrash } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +23,16 @@ async function runPurge(request: Request) {
   }
   const settings = await getSettings();
   const result = await purgeExpired(settings.purge_after_days);
+  const trash = await purgeTrash();
   const expiredBatchLinks = await deleteExpiredBatches(await getDB());
-  return NextResponse.json({ ok: true, ...result, expiredBatchLinks, graceDays: settings.purge_after_days });
+  return NextResponse.json({
+    ok: true,
+    ...result,
+    trashDeleted: trash.deleted,
+    trashBatches: trash.batches,
+    expiredBatchLinks,
+    graceDays: settings.purge_after_days,
+  });
 }
 
 export async function GET(request: Request) {
