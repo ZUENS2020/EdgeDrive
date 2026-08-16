@@ -1,4 +1,6 @@
 import { createTheme } from "@mui/material/styles";
+import { enUS, zhCN } from "@mui/material/locale";
+import type { Locale } from "@/lib/i18n";
 import {
   getTheme,
   resolveThemePalette,
@@ -28,7 +30,7 @@ declare module "@mui/material/styles" {
   }
 }
 
-export function createAdminTheme(appearance: Partial<Appearance> = {}) {
+export function createAdminTheme(appearance: Partial<Appearance> = {}, locale: Locale = "zh") {
   const def = getTheme(appearance.theme_name);
   const palette = resolveThemePalette(appearance.theme_name);
   const isSuzuka = def.id === "suzuka";
@@ -149,7 +151,7 @@ export function createAdminTheme(appearance: Partial<Appearance> = {}) {
         },
       },
     },
-  });
+  }, locale === "en" ? enUS : zhCN);
 }
 
 export function appearanceCssVars(appearance: Partial<Appearance>): Record<string, string> {

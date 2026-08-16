@@ -11,8 +11,10 @@ import Typography from "@mui/material/Typography";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
+import { useI18n } from "./I18nProvider";
 
 export function SetupGuide({ tokenRequired }: { tokenRequired: boolean }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [team, setTeam] = useState("");
   const [aud, setAud] = useState("");
@@ -38,12 +40,12 @@ export function SetupGuide({ tokenRequired }: { tokenRequired: boolean }) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       setError(
         data.error === "bad-setup-token"
-          ? "SETUP_TOKEN 不对"
+          ? t("setup.badToken")
           : data.error?.startsWith("access-needs-team-aud")
-            ? "请填写 Access Team 和 AUD"
+            ? t("setup.needTeamAud")
             : data.error === "access-already-enabled"
-              ? "Access 已启用，请通过 Cloudflare Access 登录"
-              : "启用失败",
+              ? t("setup.alreadyEnabled")
+              : t("setup.enableFailed"),
       );
       return;
     }
@@ -72,26 +74,25 @@ export function SetupGuide({ tokenRequired }: { tokenRequired: boolean }) {
           <Box>
             <Typography fontWeight={700}>{PRODUCT_NAME}</Typography>
             <Typography variant="body2" color="text.secondary">
-              首次配置 · Cloudflare Access
+              {t("setup.subtitle")}
             </Typography>
           </Box>
         </Stack>
         <Alert severity="info" icon={<CloudIcon />} sx={{ mb: 2 }}>
-          部署后请立刻填写 Access Team / AUD 并启用。启用后所有管理请求走 Access JWT，未认证一律拒绝。公开下载{" "}
-          <code>/dl/*</code> 不受影响。
+          {t("setup.alert")}
         </Alert>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          1. Zero Trust → Access → Applications → Self-hosted，域名填 <code>你的域名/admin*</code>
+          {t("setup.step1")}
           <br />
-          2. Team 是 <code>https://&lt;team&gt;.cloudflareaccess.com</code> 的前缀
+          {t("setup.step2")}
           <br />
-          3. AUD 在应用 → 其他设置 → AUD 标签
+          {t("setup.step3")}
         </Typography>
         <Box component="form" onSubmit={onSubmit}>
           <Stack spacing={2}>
             <TextField
               label="Access Team"
-              placeholder="例如 zuens2020"
+              placeholder={t("setup.teamPlaceholder")}
               value={team}
               onChange={(e) => setTeam(e.target.value)}
               required
@@ -117,7 +118,7 @@ export function SetupGuide({ tokenRequired }: { tokenRequired: boolean }) {
             ) : null}
             {error ? <Alert severity="error">{error}</Alert> : null}
             <Button type="submit" variant="contained" disabled={pending} size="large">
-              {pending ? "启用中…" : "启用 Access"}
+              {pending ? t("setup.enabling") : t("setup.enable")}
             </Button>
           </Stack>
         </Box>

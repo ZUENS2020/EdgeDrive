@@ -4,6 +4,7 @@ import { AdminProviders } from "@/components/admin/AdminProviders";
 import { SetupProviders } from "@/components/admin/SetupProviders";
 import { requireAdminPage } from "@/lib/auth-guard";
 import { getSetupToken } from "@/lib/cloudflare";
+import { parseLocale, t } from "@/lib/i18n";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -11,10 +12,21 @@ export const dynamic = "force-dynamic";
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const gate = await requireAdminPage();
   if (gate.setup) {
-    return <SetupProviders tokenRequired={Boolean(await getSetupToken())} />;
+    let locale = parseLocale(DEFAULTS.language);
+    try {
+      locale = parseLocale((await getSettings()).language);
+    } catch {
+      // ignore
+    }
+    return <SetupProviders tokenRequired={Boolean(await getSetupToken())} locale={locale} />;
   }
   if (!gate.ok) {
-    // 已启用 Access 但未带有效 JWT：显示 401 页（不跳 /login——避免死循环）
+    let locale = parseLocale(DEFAULTS.language);
+    try {
+      locale = parseLocale((await getSettings()).language);
+    } catch {
+      // ignore
+    }
     return (
       <div className="login-wrap">
         <div className="login-card">
@@ -22,13 +34,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             <div className="logo">{PRODUCT_SHORT}</div>
             <div>
               <div className="brand-name">{PRODUCT_NAME}</div>
-              <div className="brand-sub">未认证</div>
+              <div className="brand-sub">{t(locale, "login.unauthSub")}</div>
             </div>
           </div>
           <p style={{ color: "var(--text-3)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>
-            此站点由 Cloudflare Access 保护，但当前请求未携带有效的 Access 凭证（401）。
-            <br />
-            请确认 Cloudflare Access 已正确保护此路径（<code>/admin*</code>），并通过 Access 完成登录。
+            {t(locale, "login.unauthBody")}
           </p>
         </div>
       </div>

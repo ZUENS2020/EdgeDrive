@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE, t, type Locale } from "./i18n";
 import { MPU_CONCURRENCY, uploadMpuParts } from "./mpu-pool";
 import { sha256File } from "./sha256";
 
@@ -10,8 +11,9 @@ export async function uploadOne(
   folderPath: string,
   onPct: (n: number) => void,
   onLabel?: (label: string) => void,
+  locale: Locale = DEFAULT_LOCALE,
 ): Promise<{ id?: string; instant?: boolean }> {
-  onLabel?.("计算指纹");
+  onLabel?.(t(locale, "upload.hashing"));
   const sha256 = await sha256File(file);
   const check = await fetch("/api/files/check", {
     method: "POST",
@@ -97,30 +99,33 @@ export async function uploadFilesQueued(
   list: FileList | File[],
   folderPath: string,
   onProgress: (p: UploadProgress) => void,
+  locale: Locale = DEFAULT_LOCALE,
 ): Promise<string[]> {
   const arr = Array.from(list);
   const ids: string[] = [];
   for (let i = 0; i < arr.length; i++) {
     const file = arr[i];
-    onProgress({ label: `上传 ${file.name}（${i + 1}/${arr.length}）`, pct: 0 });
+    const vars = { name: file.name, current: i + 1, total: arr.length };
+    onProgress({ label: t(locale, "upload.uploading", vars), pct: 0 });
     try {
       const uploaded = await uploadOne(
         file,
         folderPath,
-        (pct) => onProgress({ label: `上传 ${file.name}（${i + 1}/${arr.length}）`, pct }),
-        (phase) => onProgress({ label: `${phase} ${file.name}（${i + 1}/${arr.length}）`, pct: 0 }),
+        (pct) => onProgress({ label: t(locale, "upload.uploading", vars), pct }),
+        (phase) => onProgress({ label: t(locale, "upload.phase", { ...vars, phase }), pct: 0 }),
+        locale,
       );
       if (uploaded.id) ids.push(uploaded.id);
       if (uploaded.instant) {
         onProgress({
-          label: `秒传 ${file.name}（${i + 1}/${arr.length}）`,
+          label: t(locale, "upload.instant", vars),
           pct: 100,
           instant: true,
         });
       }
     } catch (err) {
       onProgress({
-        label: `上传 ${file.name}（${i + 1}/${arr.length}）`,
+        label: t(locale, "upload.uploading", vars),
         pct: 0,
         error: String(err),
       });

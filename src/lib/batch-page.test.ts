@@ -80,4 +80,20 @@ describe("renderBatchPage", () => {
     expect(html).toContain("0 个文件");
     expect(html).toContain("这些文件已被删除。");
   });
+
+  it("renders English copy when locale is en", () => {
+    const html = renderBatchPage({
+      origin: "https://x",
+      files: [file({ id: "1", name: "a.txt", mime: "text/plain" })],
+      expiresAt: null,
+      autoDownload: true,
+      theme,
+      locale: "en",
+    });
+    expect(html).toContain("1 file");
+    expect(html).toContain("Download all");
+    expect(html).toContain("If the browser blocks");
+    expect(html).toContain('lang="en"');
+    expect(html).not.toContain("全部下载");
+  });
 });

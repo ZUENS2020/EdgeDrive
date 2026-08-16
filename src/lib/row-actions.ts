@@ -22,18 +22,6 @@ export const DEFAULT_ROW_ACTIONS: RowActionId[] = [
   "delete",
 ];
 
-export const ROW_ACTION_LABELS: Record<RowActionId, string> = {
-  download: "下载",
-  preview: "预览",
-  copy_link: "复制链接",
-  copy_view_link: "复制预览链接",
-  expire: "改有效期",
-  star: "收藏/星标",
-  tags: "编辑标签",
-  copy_to: "复制到…",
-  delete: "删除",
-};
-
 const ALLOWED = new Set<string>(ROW_ACTION_IDS);
 
 export function isRowActionId(value: string): value is RowActionId {
@@ -42,7 +30,7 @@ export function isRowActionId(value: string): value is RowActionId {
 
 /**
  * Parse D1 JSON / API payload into a de-duped list of known actions.
- * Empty array is valid (inline only shows「更多」). Invalid input falls back to default.
+ * Empty array is valid (inline only shows More). Invalid input falls back to default.
  */
 export function parseRowActions(raw: unknown): RowActionId[] {
   if (raw == null) return [...DEFAULT_ROW_ACTIONS];

@@ -1,5 +1,15 @@
-export const PURGE_CONFIRM_TITLE = "立即清理过期文件";
-export const PURGE_CONFIRM_MESSAGE = "确定立即清理所有过期文件？此操作不可撤销";
+import { DEFAULT_LOCALE, t, type Locale } from "./i18n";
+
+export function purgeConfirmTitle(locale: Locale = DEFAULT_LOCALE): string {
+  return t(locale, "settings.purgeConfirmTitle");
+}
+
+export function purgeConfirmMessage(locale: Locale = DEFAULT_LOCALE): string {
+  return t(locale, "settings.purgeConfirmMessage");
+}
+
+export const PURGE_CONFIRM_TITLE = purgeConfirmTitle();
+export const PURGE_CONFIRM_MESSAGE = purgeConfirmMessage();
 
 export type PurgeConfirmChoice = "confirm" | "cancel";
 

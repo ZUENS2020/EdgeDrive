@@ -54,42 +54,29 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
-import { FOLDER_DELETE_CONFIRM_TITLE, folderDeleteConfirmMessage } from "@/lib/folder-delete-confirm";
+import { copyErrorMessage } from "@/lib/copy";
 import { isGlobalFileFilter, type FileListFilter } from "@/lib/files-query";
+import { folderDeleteConfirmMessage, folderDeleteConfirmTitle } from "@/lib/folder-delete-confirm";
 import { formatSize, formatTime } from "@/lib/format";
+import { tApiError, tFilter } from "@/lib/i18n";
+import { parseRowActions } from "@/lib/row-actions";
 import { parseTags } from "@/lib/tags";
 import { MAX_BATCH_IDS, type FileView, type FolderNode } from "@/lib/types";
-import { parseRowActions } from "@/lib/row-actions";
 import { uploadFilesQueued } from "@/lib/upload-client";
-import { copyErrorMessage } from "@/lib/copy";
 import { useSiteSettings } from "./AdminProviders";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FileRowActions, type FileRowActionEvent } from "./FileRowActions";
 import { FolderTree } from "./FolderTree";
+import { useI18n } from "./I18nProvider";
 import { MoveDialog } from "./MoveDialog";
 import { PickFolderDialog } from "./PickFolderDialog";
 
 type Filter = FileListFilter;
 
-const FILTER_CHIPS: { id: Filter; label: string }[] = [
-  { id: "all", label: "全部" },
-  { id: "ok", label: "正常" },
-  { id: "soon", label: "即将过期" },
-  { id: "expired", label: "已过期" },
-  { id: "starred", label: "收藏" },
-  { id: "recent", label: "最近" },
-  { id: "trash", label: "回收站" },
-];
-
-function statusOf(file: FileView) {
-  if (!file.expires) return { kind: "perm" as const, label: "永久", color: "default" as const };
-  const t = new Date(file.expires).getTime();
-  if (t < Date.now()) return { kind: "expired" as const, label: "已过期", color: "error" as const };
-  if (t - Date.now() < 24 * 3600e3) return { kind: "soon" as const, label: "即将过期", color: "warning" as const };
-  return { kind: "ok" as const, label: "正常", color: "success" as const };
-}
+const FILTER_IDS: Filter[] = ["all", "ok", "soon", "expired", "starred", "recent", "trash"];
 
 export function FileManager() {
+  const { t, locale } = useI18n();
   const { open: notify } = useNotification();
   const { siteSettings } = useSiteSettings();
   const [path, setPath] = useState<string | null>(null);
@@ -119,6 +106,14 @@ export function FileManager() {
   const fileInput = useRef<HTMLInputElement>(null);
   const pageSize = siteSettings.page_size || 50;
   const rowActions = parseRowActions(siteSettings.row_actions);
+
+  function statusOf(file: FileView) {
+    if (!file.expires) return { kind: "perm" as const, label: t("status.perm"), color: "default" as const };
+    const ts = new Date(file.expires).getTime();
+    if (ts < Date.now()) return { kind: "expired" as const, label: t("status.expired"), color: "error" as const };
+    if (ts - Date.now() < 24 * 3600e3) return { kind: "soon" as const, label: t("status.soon"), color: "warning" as const };
+    return { kind: "ok" as const, label: t("status.ok"), color: "success" as const };
+  }
 
   const filesQuery = useList<FileView>({
     resource: "files",
@@ -173,7 +168,7 @@ export function FileManager() {
     const ids = [...selected];
     if (!ids.length) return;
     if (ids.length > MAX_BATCH_IDS) {
-      toast(`一次最多分享 ${MAX_BATCH_IDS} 个文件`, "error");
+      toast(t("fileManager.batchTooMany", { max: MAX_BATCH_IDS }), "error");
       return;
     }
     setShareBusy(true);
@@ -189,24 +184,24 @@ export function FileManager() {
         downloadUrl?: string;
       };
       if (!res.ok || !data.previewUrl || !data.downloadUrl) {
-        const map: Record<string, string> = {
-          "need ids": "请选择文件",
-          "too many ids": `一次最多分享 ${MAX_BATCH_IDS} 个文件`,
-          "files not found": "部分文件已不存在，请刷新后重试",
-          unauthorized: "未认证",
-          "setup-required": "请先完成 Access 配置",
-        };
-        toast(map[data.error || ""] || data.error || "创建批量链接失败", "error");
+        toast(
+          tApiError(locale, data.error, "fileManager.batchFailed", { max: MAX_BATCH_IDS }),
+          "error",
+        );
         return;
       }
       const path = kind === "download" ? data.downloadUrl : data.previewUrl;
       const ok = await copyToClipboard(`${window.location.origin}${path}`);
       toast(
-        ok ? (kind === "download" ? "已复制批量下载链接" : "已复制批量预览链接") : "复制失败",
+        ok
+          ? kind === "download"
+            ? t("fileManager.copiedBatchDl")
+            : t("fileManager.copiedBatchView")
+          : t("common.copyFailed"),
         ok ? "success" : "error",
       );
     } catch {
-      toast("创建批量链接失败", "error");
+      toast(t("fileManager.batchFailed"), "error");
     } finally {
       setShareBusy(false);
     }
@@ -220,7 +215,7 @@ export function FileManager() {
     });
     if (!res.ok) {
       const err = (await res.json().catch(() => ({}))) as { error?: string };
-      toast(err.error || "操作失败", "error");
+      toast(tApiError(locale, err.error, "common.failed"), "error");
       return;
     }
     setSelected(new Set());
@@ -251,21 +246,21 @@ export function FileManager() {
       const copied = data.copied ?? 0;
       const failed = data.failed ?? (data.results || []).filter((r) => !r.ok).length;
       const firstFail = (data.results || []).find((r) => !r.ok);
-      const failText = firstFail?.message || copyErrorMessage(firstFail?.error || data.error) || data.message;
+      const failText = copyErrorMessage(firstFail?.error || data.error, locale) || data.message || "";
       if (copied && failed) {
-        toast(`已复制 ${copied} 个，${failed} 个失败：${failText}`);
+        toast(t("fileManager.copiedSome", { copied, failed, detail: failText }));
         await reload();
         return;
       }
       if (copied) {
         setSelected(new Set());
-        toast(`已复制 ${copied} 个`);
+        toast(t("fileManager.copiedN", { count: copied }));
         await reload();
         return;
       }
-      toast(data.message || failText || "复制失败", "error");
+      toast(data.message || failText || t("common.copyFailed"), "error");
     } catch {
-      toast("复制失败", "error");
+      toast(t("common.copyFailed"), "error");
     }
   }
 
@@ -276,13 +271,8 @@ export function FileManager() {
       await reload();
       return true;
     } catch (err) {
-      const map: Record<string, string> = {
-        "file-exists": "目标位置已有同名文件",
-        "folder-not-found": "文件夹不存在",
-        "rename-single": "一次只能改一个文件名",
-      };
-      const msg = err instanceof Error ? err.message : "操作失败";
-      toast(map[msg] || msg, "error");
+      const msg = err instanceof Error ? err.message : "";
+      toast(tApiError(locale, msg, "common.failed"), "error");
       return false;
     }
   }
@@ -294,12 +284,12 @@ export function FileManager() {
         return;
       case "copy_link":
         void copyToClipboard(file.url).then((ok) =>
-          toast(ok ? "已复制下载链接" : "复制失败", ok ? "success" : "error"),
+          toast(ok ? t("fileManager.copiedDl") : t("common.copyFailed"), ok ? "success" : "error"),
         );
         return;
       case "copy_view_link":
         void copyToClipboard(`${file.url}/view`).then((ok) =>
-          toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error"),
+          toast(ok ? t("fileManager.copiedView") : t("common.copyFailed"), ok ? "success" : "error"),
         );
         return;
       case "expire":
@@ -318,18 +308,18 @@ export function FileManager() {
         return;
       case "delete":
         setConfirm({
-          title: "移入回收站",
-          body: `确定把「${file.name}」移入回收站？可在 30 天内还原。`,
+          title: t("fileManager.trashTitle"),
+          body: t("fileManager.trashOne", { name: file.name }),
           run: () => batch({ ids: [file.id], action: "delete" }),
         });
         return;
       case "restore":
-        void batch({ ids: [file.id], action: "restore" }).then(() => toast("已还原"));
+        void batch({ ids: [file.id], action: "restore" }).then(() => toast(t("fileManager.restored")));
         return;
       case "purge":
         setConfirm({
-          title: "彻底删除",
-          body: `确定彻底删除「${file.name}」？此操作无法撤销。`,
+          title: t("fileManager.purgeTitle"),
+          body: t("fileManager.purgeOne", { name: file.name }),
           run: () => batch({ ids: [file.id], action: "purge" }),
         });
         return;
@@ -347,12 +337,16 @@ export function FileManager() {
           if (p.instant) instant += 1;
           setProgress({ label: p.label, pct: p.pct });
         }
-      });
+      }, locale);
       setProgress(null);
       await reload();
       if (ids.length) {
         setSelected(new Set(ids));
-        toast(instant ? `已处理 ${ids.length} 个（${instant} 个秒传）` : `已上传 ${ids.length} 个并勾选`);
+        toast(
+          instant
+            ? t("fileManager.uploadedInstant", { count: ids.length, instant })
+            : t("fileManager.uploaded", { count: ids.length }),
+        );
       }
     } catch (err) {
       setProgress(null);
@@ -361,13 +355,13 @@ export function FileManager() {
   }
 
   function crumbs() {
-    if (filter === "trash") return [{ label: "回收站", path: null as string | null }];
-    if (filter === "starred") return [{ label: "收藏", path: null as string | null }];
-    if (filter === "recent") return [{ label: "最近", path: null as string | null }];
-    if (q.trim()) return [{ label: "搜索", path: null as string | null }];
-    if (path == null) return [{ label: "全部文件", path: null }];
+    if (filter === "trash") return [{ label: t("filter.trash"), path: null as string | null }];
+    if (filter === "starred") return [{ label: t("filter.starred"), path: null as string | null }];
+    if (filter === "recent") return [{ label: t("filter.recent"), path: null as string | null }];
+    if (q.trim()) return [{ label: t("fileManager.crumbSearch"), path: null as string | null }];
+    if (path == null) return [{ label: t("fileManager.crumbAll"), path: null }];
     const parts = path.split("/").filter(Boolean);
-    const items: { label: string; path: string | null }[] = [{ label: "根目录", path: "" }];
+    const items: { label: string; path: string | null }[] = [{ label: t("common.root"), path: "" }];
     let acc = "";
     for (const part of parts) {
       acc = acc ? `${acc}/${part}` : part;
@@ -426,48 +420,48 @@ export function FileManager() {
           }}
           onCreate={(parentId) =>
             setPrompt({
-              title: parentId ? "新建子文件夹" : "新建文件夹",
-              label: "文件夹名称",
+              title: parentId ? t("fileManager.newSubfolder") : t("fileManager.newFolder"),
+              label: t("fileManager.folderName"),
               value: "",
               run: async (name) => {
                 try {
                   await createFolder({ resource: "folders", values: { name, parent_id: parentId } });
-                  toast("文件夹已创建");
+                  toast(t("fileManager.folderCreated"));
                   await reload();
                 } catch (err) {
-                  toast(err instanceof Error ? err.message : "创建失败", "error");
+                  toast(tApiError(locale, err instanceof Error ? err.message : "", "fileManager.createFailed"), "error");
                 }
               },
             })
           }
           onRename={(id, name) =>
             setPrompt({
-              title: "重命名文件夹",
-              label: "新名称",
+              title: t("fileManager.renameFolder"),
+              label: t("fileManager.newName"),
               value: name,
               run: async (next) => {
                 try {
                   await updateFolder({ resource: "folders", id, values: { name: next } });
-                  toast("已重命名");
+                  toast(t("fileManager.folderRenamed"));
                   await reload();
                 } catch (err) {
-                  toast(err instanceof Error ? err.message : "重命名失败", "error");
+                  toast(tApiError(locale, err instanceof Error ? err.message : "", "fileManager.renameFailed"), "error");
                 }
               },
             })
           }
           onDelete={(id, folderPath, name) =>
             setConfirm({
-              title: FOLDER_DELETE_CONFIRM_TITLE,
-              body: folderDeleteConfirmMessage(name),
+              title: folderDeleteConfirmTitle(locale),
+              body: folderDeleteConfirmMessage(name, locale),
               run: async () => {
                 try {
                   await deleteFolder({ resource: "folders", id });
                   if (path === folderPath || (path && path.startsWith(`${folderPath}/`))) setPath(null);
-                  toast("文件夹已删除");
+                  toast(t("fileManager.folderDeleted"));
                   await reload();
                 } catch (err) {
-                  toast(err instanceof Error ? err.message : "删除失败", "error");
+                  toast(tApiError(locale, err instanceof Error ? err.message : "", "fileManager.deleteFailed"), "error");
                 }
               },
             })
@@ -503,7 +497,7 @@ export function FileManager() {
           <Chip label={total} size="small" />
           <TextField
             size="small"
-            placeholder="搜索文件名"
+            placeholder={t("fileManager.search")}
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
@@ -520,13 +514,13 @@ export function FileManager() {
             }}
           />
           <Button variant="contained" startIcon={<UploadIcon />} onClick={() => fileInput.current?.click()}>
-            上传
+            {t("fileManager.upload")}
           </Button>
           <ToggleButtonGroup exclusive size="small" value={view} onChange={(_, v) => v && setView(v)}>
-            <ToggleButton value="list" aria-label="列表">
+            <ToggleButton value="list" aria-label={t("fileManager.list")}>
               <ViewListIcon />
             </ToggleButton>
-            <ToggleButton value="grid" aria-label="网格">
+            <ToggleButton value="grid" aria-label={t("fileManager.grid")}>
               <GridViewIcon />
             </ToggleButton>
           </ToggleButtonGroup>
@@ -543,35 +537,35 @@ export function FileManager() {
         ) : null}
 
         <Stack direction="row" spacing={1} sx={{ px: 2, py: 1, flexWrap: "wrap", alignItems: "center" }}>
-          {FILTER_CHIPS.map((f) => (
+          {FILTER_IDS.map((id) => (
             <Chip
-              key={f.id}
-              label={f.label}
-              color={filter === f.id ? "primary" : "default"}
-              variant={filter === f.id ? "filled" : "outlined"}
+              key={id}
+              label={tFilter(locale, id)}
+              color={filter === id ? "primary" : "default"}
+              variant={filter === id ? "filled" : "outlined"}
               onClick={() => {
-                setFilter(f.id);
+                setFilter(id);
                 setPage(0);
                 setSelected(new Set());
               }}
             />
           ))}
           <FormControl size="small" sx={{ minWidth: 140, ml: "auto" }}>
-            <InputLabel id="ed-tag-filter">标签</InputLabel>
+            <InputLabel id="ed-tag-filter">{t("fileManager.tags")}</InputLabel>
             <Select
               labelId="ed-tag-filter"
-              label="标签"
+              label={t("fileManager.tags")}
               value={tag}
               onChange={(e) => {
                 setTag(String(e.target.value));
                 setPage(0);
               }}
             >
-              <MenuItem value="">全部标签</MenuItem>
+              <MenuItem value="">{t("fileManager.allTags")}</MenuItem>
               {tag && !allTags.includes(tag) ? <MenuItem value={tag}>{tag}</MenuItem> : null}
-              {allTags.map((t) => (
-                <MenuItem key={t} value={t}>
-                  {t}
+              {allTags.map((tagName) => (
+                <MenuItem key={tagName} value={tagName}>
+                  {tagName}
                 </MenuItem>
               ))}
             </Select>
@@ -580,15 +574,15 @@ export function FileManager() {
 
         {selected.size > 0 ? (
           <Paper square sx={{ px: 2, py: 1, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-            <Typography variant="body2">已选 {selected.size}</Typography>
+            <Typography variant="body2">{t("fileManager.selected", { count: selected.size })}</Typography>
             {filter === "trash" ? (
               <>
                 <Button
                   size="small"
                   startIcon={<RestoreFromTrashIcon />}
-                  onClick={() => void batch({ ids: [...selected], action: "restore" }).then(() => toast("已还原"))}
+                  onClick={() => void batch({ ids: [...selected], action: "restore" }).then(() => toast(t("fileManager.restored")))}
                 >
-                  还原
+                  {t("fileManager.restore")}
                 </Button>
                 <Button
                   size="small"
@@ -596,13 +590,13 @@ export function FileManager() {
                   startIcon={<DeleteForeverIcon />}
                   onClick={() =>
                     setConfirm({
-                      title: "彻底删除",
-                      body: `确定彻底删除 ${selected.size} 个文件？此操作无法撤销。`,
+                      title: t("fileManager.purgeTitle"),
+                      body: t("fileManager.purgeMany", { count: selected.size }),
                       run: () => batch({ ids: [...selected], action: "purge" }),
                     })
                   }
                 >
-                  彻底删除
+                  {t("fileManager.purge")}
                 </Button>
               </>
             ) : (
@@ -613,7 +607,7 @@ export function FileManager() {
                   disabled={shareBusy}
                   onClick={() => void copyBatchShare("download")}
                 >
-                  复制链接
+                  {t("fileManager.copyLink")}
                 </Button>
                 <Button
                   size="small"
@@ -621,7 +615,7 @@ export function FileManager() {
                   disabled={shareBusy}
                   onClick={() => void copyBatchShare("preview")}
                 >
-                  复制预览链接
+                  {t("fileManager.copyViewLink")}
                 </Button>
                 <Button
                   size="small"
@@ -631,7 +625,7 @@ export function FileManager() {
                     setMoveOpen(true);
                   }}
                 >
-                  移动
+                  {t("fileManager.move")}
                 </Button>
                 <Button
                   size="small"
@@ -641,7 +635,7 @@ export function FileManager() {
                     setCopyOpen(true);
                   }}
                 >
-                  复制到…
+                  {t("fileManager.copyTo")}
                 </Button>
                 <Button
                   size="small"
@@ -651,14 +645,14 @@ export function FileManager() {
                     setExpireOpen(true);
                   }}
                 >
-                  有效期
+                  {t("fileManager.expire")}
                 </Button>
                 <Button
                   size="small"
                   startIcon={<LabelIcon />}
                   onClick={() => setTagEdit({ ids: [...selected], value: "" })}
                 >
-                  标签
+                  {t("fileManager.tags")}
                 </Button>
                 <Button
                   size="small"
@@ -666,18 +660,18 @@ export function FileManager() {
                   startIcon={<DeleteOutlineIcon />}
                   onClick={() =>
                     setConfirm({
-                      title: "移入回收站",
-                      body: `确定把 ${selected.size} 个文件移入回收站？可在 30 天内还原。`,
+                      title: t("fileManager.trashTitle"),
+                      body: t("fileManager.trashMany", { count: selected.size }),
                       run: () => batch({ ids: [...selected], action: "delete" }),
                     })
                   }
                 >
-                  删除
+                  {t("fileManager.delete")}
                 </Button>
               </>
             )}
             <Button size="small" onClick={() => setSelected(new Set())}>
-              取消
+              {t("common.cancel")}
             </Button>
           </Paper>
         ) : null}
@@ -694,12 +688,12 @@ export function FileManager() {
                       onChange={() => setSelected(allOn ? new Set() : new Set(files.map((f) => f.id)))}
                     />
                   </TableCell>
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>文件</TableCell>
-                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>大小</TableCell>
-                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>下载</TableCell>
-                  <TableCell sx={{ display: { xs: "none", md: "table-cell" }, whiteSpace: "nowrap" }}>上传时间</TableCell>
-                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>状态</TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>操作</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{t("fileManager.colFile")}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>{t("fileManager.colSize")}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>{t("fileManager.colDownloads")}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", md: "table-cell" }, whiteSpace: "nowrap" }}>{t("fileManager.colUploaded")}</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, whiteSpace: "nowrap" }}>{t("fileManager.colStatus")}</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>{t("common.actions")}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -707,7 +701,7 @@ export function FileManager() {
                   <TableRow>
                     <TableCell colSpan={7}>
                       <Typography color="text.secondary" sx={{ p: 2 }}>
-                        正在加载…
+                        {t("common.loading")}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -716,7 +710,7 @@ export function FileManager() {
                   <TableRow>
                     <TableCell colSpan={7}>
                       <Typography color="text.secondary" sx={{ p: 2 }}>
-                        没有文件。{filter === "trash" ? "回收站是空的。" : "拖拽到此上传。"}
+                        {filter === "trash" ? t("fileManager.emptyTrash") : t("fileManager.empty")}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -754,14 +748,14 @@ export function FileManager() {
                         </Typography>
                         {parseTags(file.tags).length ? (
                           <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                            {parseTags(file.tags).map((t) => (
+                            {parseTags(file.tags).map((tagName) => (
                               <Chip
-                                key={t}
+                                key={tagName}
                                 size="small"
-                                label={t}
+                                label={tagName}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setTag(t);
+                                  setTag(tagName);
                                   setPage(0);
                                 }}
                               />
@@ -821,8 +815,8 @@ export function FileManager() {
                   <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ mt: 1 }} alignItems="center">
                     <Chip size="small" label={st.label} color={st.color} />
                     {file.starred ? <StarIcon fontSize="small" color="warning" /> : null}
-                    {parseTags(file.tags).map((t) => (
-                      <Chip key={t} size="small" label={t} />
+                    {parseTags(file.tags).map((tagName) => (
+                      <Chip key={tagName} size="small" label={tagName} />
                     ))}
                   </Stack>
                   <Stack direction="row" gap={0} flexWrap="wrap" sx={{ mt: 0.5 }} onClick={(e) => e.stopPropagation()}>
@@ -846,7 +840,8 @@ export function FileManager() {
           onPageChange={(_, p) => setPage(p)}
           rowsPerPage={pageSize}
           rowsPerPageOptions={[pageSize]}
-          labelRowsPerPage="每页"
+          labelRowsPerPage={t("fileManager.perPage")}
+          labelDisplayedRows={({ from, to, count }) => t("fileManager.displayedRows", { from, to, count })}
         />
       </Box>
 
@@ -874,7 +869,7 @@ export function FileManager() {
           }}
         >
           <DownloadIcon fontSize="small" sx={{ mr: 1 }} />
-          下载
+          {t("fileManager.download")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -883,49 +878,49 @@ export function FileManager() {
           }}
         >
           <PreviewIcon fontSize="small" sx={{ mr: 1 }} />
-          预览
+          {t("fileManager.preview")}
         </MenuItem>
         <MenuItem
           onClick={async () => {
             if (ctxFile) {
               const ok = await copyToClipboard(ctxFile.url);
-              toast(ok ? "已复制下载链接" : "复制失败", ok ? "success" : "error");
+              toast(ok ? t("fileManager.copiedDl") : t("common.copyFailed"), ok ? "success" : "error");
             }
             setCtx(null);
           }}
         >
           <LinkIcon fontSize="small" sx={{ mr: 1 }} />
-          复制链接
+          {t("fileManager.copyLink")}
         </MenuItem>
         <MenuItem
           onClick={async () => {
             if (ctxFile) {
               const ok = await copyToClipboard(`${ctxFile.url}/view`);
-              toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
+              toast(ok ? t("fileManager.copiedView") : t("common.copyFailed"), ok ? "success" : "error");
             }
             setCtx(null);
           }}
         >
           <VisibilityIcon fontSize="small" sx={{ mr: 1 }} />
-          复制预览链接
+          {t("fileManager.copyViewLink")}
         </MenuItem>
         <MenuItem
           onClick={() => {
             if (!ctxFile) return;
             setPrompt({
-              title: "重命名文件",
-              label: "新文件名",
+              title: t("fileManager.renameFile"),
+              label: t("fileManager.newFileName"),
               value: ctxFile.name,
               run: async (name) => {
                 const ok = await patchFiles({ id: ctxFile.id, name });
-                if (ok) toast("已改名");
+                if (ok) toast(t("fileManager.renamed"));
               },
             });
             setCtx(null);
           }}
         >
           <EditIcon fontSize="small" sx={{ mr: 1 }} />
-          重命名
+          {t("fileManager.rename")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -936,7 +931,7 @@ export function FileManager() {
           }}
         >
           <DriveFileMoveIcon fontSize="small" sx={{ mr: 1 }} />
-          移动
+          {t("fileManager.move")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -947,7 +942,7 @@ export function FileManager() {
           }}
         >
           <FileCopyIcon fontSize="small" sx={{ mr: 1 }} />
-          复制到…
+          {t("fileManager.copyTo")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -958,7 +953,7 @@ export function FileManager() {
           }}
         >
           <ScheduleIcon fontSize="small" sx={{ mr: 1 }} />
-          有效期
+          {t("fileManager.expire")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -968,7 +963,7 @@ export function FileManager() {
           }}
         >
           {ctxFile?.starred ? <StarIcon fontSize="small" sx={{ mr: 1 }} /> : <StarBorderIcon fontSize="small" sx={{ mr: 1 }} />}
-          {ctxFile?.starred ? "取消收藏" : "收藏"}
+          {ctxFile?.starred ? t("fileManager.unstar") : t("fileManager.star")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -978,26 +973,26 @@ export function FileManager() {
           }}
         >
           <LabelIcon fontSize="small" sx={{ mr: 1 }} />
-          标签
+          {t("fileManager.tags")}
         </MenuItem>
         {filter === "trash" ? (
           <>
             <MenuItem
               onClick={() => {
                 if (!ctxFile) return;
-                void batch({ ids: [ctxFile.id], action: "restore" }).then(() => toast("已还原"));
+                void batch({ ids: [ctxFile.id], action: "restore" }).then(() => toast(t("fileManager.restored")));
                 setCtx(null);
               }}
             >
               <RestoreFromTrashIcon fontSize="small" sx={{ mr: 1 }} />
-              还原
+              {t("fileManager.restore")}
             </MenuItem>
             <MenuItem
               onClick={() => {
                 if (!ctxFile) return;
                 setConfirm({
-                  title: "彻底删除",
-                  body: `确定彻底删除「${ctxFile.name}」？此操作无法撤销。`,
+                  title: t("fileManager.purgeTitle"),
+                  body: t("fileManager.purgeOne", { name: ctxFile.name }),
                   run: () => batch({ ids: [ctxFile.id], action: "purge" }),
                 });
                 setCtx(null);
@@ -1005,7 +1000,7 @@ export function FileManager() {
               sx={{ color: "error.main" }}
             >
               <DeleteForeverIcon fontSize="small" sx={{ mr: 1 }} />
-              彻底删除
+              {t("fileManager.purge")}
             </MenuItem>
           </>
         ) : (
@@ -1013,8 +1008,8 @@ export function FileManager() {
             onClick={() => {
               if (!ctxFile) return;
               setConfirm({
-                title: "移入回收站",
-                body: `确定把「${ctxFile.name}」移入回收站？可在 30 天内还原。`,
+                title: t("fileManager.trashTitle"),
+                body: t("fileManager.trashOne", { name: ctxFile.name }),
                 run: () => batch({ ids: [ctxFile.id], action: "delete" }),
               });
               setCtx(null);
@@ -1022,7 +1017,7 @@ export function FileManager() {
             sx={{ color: "error.main" }}
           >
             <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />
-            删除
+            {t("fileManager.delete")}
           </MenuItem>
         )}
       </Menu>
@@ -1043,14 +1038,14 @@ export function FileManager() {
           const ok = await patchFiles({ ids: moveIds, path: dest });
           if (ok) {
             setSelected(new Set());
-            toast("已移动");
+            toast(t("fileManager.moved"));
           }
         }}
       />
       <PickFolderDialog
         open={copyOpen}
-        title={`复制到文件夹${copyIds.length > 1 ? `（${copyIds.length} 个）` : ""}`}
-        confirmLabel="复制"
+        title={copyIds.length > 1 ? t("fileManager.copyTitleN", { count: copyIds.length }) : t("fileManager.copyTitle")}
+        confirmLabel={t("fileManager.copy")}
         folders={folders}
         onClose={() => setCopyOpen(false)}
         onSubmit={(dest) => {
@@ -1065,7 +1060,7 @@ export function FileManager() {
           <DialogContentText>{confirm?.body}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirm(null)}>取消</Button>
+          <Button onClick={() => setConfirm(null)}>{t("common.cancel")}</Button>
           <Button
             color="error"
             variant="contained"
@@ -1075,7 +1070,7 @@ export function FileManager() {
               run?.();
             }}
           >
-            确定
+            {t("common.confirm")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1092,7 +1087,7 @@ export function FileManager() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPrompt(null)}>取消</Button>
+          <Button onClick={() => setPrompt(null)}>{t("common.cancel")}</Button>
           <Button
             variant="contained"
             onClick={() => {
@@ -1101,26 +1096,26 @@ export function FileManager() {
               if (promptValue.trim()) run?.(promptValue.trim());
             }}
           >
-            确定
+            {t("common.confirm")}
           </Button>
         </DialogActions>
       </Dialog>
       <Dialog open={!!tagEdit} onClose={() => setTagEdit(null)} fullWidth maxWidth="xs">
-        <DialogTitle>编辑标签</DialogTitle>
+        <DialogTitle>{t("fileManager.editTags")}</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ mb: 1 }}>逗号分隔，最多 20 个。</DialogContentText>
+          <DialogContentText sx={{ mb: 1 }}>{t("fileManager.tagsHelp")}</DialogContentText>
           <TextField
             autoFocus
             fullWidth
             margin="dense"
-            label="标签"
-            placeholder="工作, 合同"
+            label={t("fileManager.tags")}
+            placeholder={t("fileManager.tagsPlaceholder")}
             value={tagEdit?.value ?? ""}
             onChange={(e) => setTagEdit(tagEdit ? { ...tagEdit, value: e.target.value } : null)}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTagEdit(null)}>取消</Button>
+          <Button onClick={() => setTagEdit(null)}>{t("common.cancel")}</Button>
           <Button
             variant="contained"
             onClick={() => {
@@ -1129,11 +1124,11 @@ export function FileManager() {
               const value = tagEdit.value;
               setTagEdit(null);
               void patchFiles({ ids, tags: value }).then((ok) => {
-                if (ok) toast("标签已更新");
+                if (ok) toast(t("fileManager.tagsUpdated"));
               });
             }}
           >
-            保存
+            {t("common.save")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1153,7 +1148,7 @@ export function FileManager() {
             fontWeight: 700,
           }}
         >
-          放开以上传
+          {t("fileManager.dropToUpload")}
         </Box>
       ) : null}
     </Box>

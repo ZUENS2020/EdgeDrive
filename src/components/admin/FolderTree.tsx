@@ -21,6 +21,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
 import type { FolderNode } from "@/lib/types";
+import { useI18n } from "./I18nProvider";
 
 export function FolderTree({
   folders,
@@ -37,13 +38,14 @@ export function FolderTree({
   onRename: (id: string, name: string) => void;
   onDelete: (id: string, path: string, name: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <Box>
       <Box sx={{ display: "flex", alignItems: "center", px: 1, mb: 0.5 }}>
         <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-          文件夹
+          {t("folderTree.title")}
         </Typography>
-        <IconButton size="small" onClick={() => onCreate("")} aria-label="新建文件夹">
+        <IconButton size="small" onClick={() => onCreate("")} aria-label={t("folderTree.new")}>
           <CreateNewFolderIcon fontSize="small" />
         </IconButton>
       </Box>
@@ -52,13 +54,13 @@ export function FolderTree({
           <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
             <FolderOpenIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="全部" />
+          <ListItemText primary={t("folderTree.all")} />
         </ListItemButton>
         <ListItemButton selected={currentPath === ""} onClick={() => onSelect("")}>
           <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
             <FolderIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="根目录" />
+          <ListItemText primary={t("folderTree.root")} />
         </ListItemButton>
         {folders.map((node) => (
           <TreeNode
@@ -94,6 +96,7 @@ function TreeNode({
   const [open, setOpen] = useState(true);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const hasKids = node.children.length > 0;
+  const { t } = useI18n();
 
   return (
     <>
@@ -121,7 +124,7 @@ function TreeNode({
         <ListItemText primary={node.name} primaryTypographyProps={{ noWrap: true }} />
         <IconButton
           size="small"
-          aria-label={`${node.name} 操作`}
+          aria-label={t("folderTree.actions", { name: node.name })}
           onClick={(e) => {
             e.stopPropagation();
             setMenu(e.currentTarget);
@@ -137,7 +140,7 @@ function TreeNode({
             onCreate(node.id);
           }}
         >
-          新建子文件夹
+          {t("folderTree.newSub")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -146,7 +149,7 @@ function TreeNode({
           }}
         >
           <EditIcon fontSize="small" sx={{ mr: 1 }} />
-          重命名
+          {t("folderTree.rename")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -155,7 +158,7 @@ function TreeNode({
           }}
         >
           <DriveFileMoveIcon fontSize="small" sx={{ mr: 1 }} />
-          打开
+          {t("folderTree.open")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -165,7 +168,7 @@ function TreeNode({
           sx={{ color: "error.main" }}
         >
           <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />
-          删除
+          {t("folderTree.delete")}
         </MenuItem>
       </Menu>
       {hasKids ? (

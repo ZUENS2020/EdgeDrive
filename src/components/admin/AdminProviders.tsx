@@ -8,12 +8,14 @@ import { RefineSnackbarProvider, useNotificationProvider } from "@refinedev/mui"
 import routerProvider from "@refinedev/nextjs-router";
 import Box from "@mui/material/Box";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { htmlLang, parseLocale } from "@/lib/i18n";
 import { authProvider } from "@/lib/refine/auth-provider";
 import { dataProvider } from "@/lib/refine/data-provider";
 import { appearanceCssVars, createAdminTheme } from "@/lib/refine/theme";
 import type { Appearance } from "@/lib/themes";
 import type { SiteSettings } from "@/lib/types";
 import { AdminShell } from "./AdminShell";
+import { I18nProvider, useI18n } from "./I18nProvider";
 
 const AppearanceContext = createContext<{
   appearance: Appearance;
@@ -54,7 +56,8 @@ export function AdminProviders({
   const setSiteSettings = useCallback((patch: Partial<SiteSettings>) => {
     setSiteSettingsState((prev) => ({ ...prev, ...patch }));
   }, []);
-  const theme = useMemo(() => createAdminTheme(appearance), [appearance]);
+  const locale = parseLocale(siteSettings.language);
+  const theme = useMemo(() => createAdminTheme(appearance, locale), [appearance, locale]);
   const cssVars = useMemo(() => appearanceCssVars(appearance), [appearance]);
 
   useEffect(() => {
@@ -62,31 +65,34 @@ export function AdminProviders({
     const dark = theme.palette.mode === "dark";
     root.classList.toggle("dark", dark);
     root.style.colorScheme = theme.palette.mode;
+    root.lang = htmlLang(locale);
     for (const [name, value] of Object.entries(cssVars)) {
       root.style.setProperty(name, value);
     }
-  }, [cssVars, theme.palette.mode]);
+  }, [cssVars, locale, theme.palette.mode]);
 
   return (
     <AppearanceContext.Provider value={{ appearance, setAppearance }}>
       <SiteSettingsContext.Provider value={{ siteSettings, setSiteSettings }}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <GlobalStyles
-            styles={{
-              "html:root": { ...cssVars, colorScheme: theme.palette.mode },
-              body: { color: theme.palette.text.primary, backgroundColor: theme.palette.background.default },
-            }}
-          />
-          <Box
-            style={cssVars as CSSProperties}
-            sx={{ minHeight: "100vh", color: "text.primary", bgcolor: "background.default" }}
-          >
-            <RefineSnackbarProvider>
-              <RefineApp>{children}</RefineApp>
-            </RefineSnackbarProvider>
-          </Box>
-        </ThemeProvider>
+        <I18nProvider locale={locale}>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <GlobalStyles
+              styles={{
+                "html:root": { ...cssVars, colorScheme: theme.palette.mode },
+                body: { color: theme.palette.text.primary, backgroundColor: theme.palette.background.default },
+              }}
+            />
+            <Box
+              style={cssVars as CSSProperties}
+              sx={{ minHeight: "100vh", color: "text.primary", bgcolor: "background.default" }}
+            >
+              <RefineSnackbarProvider>
+                <RefineApp>{children}</RefineApp>
+              </RefineSnackbarProvider>
+            </Box>
+          </ThemeProvider>
+        </I18nProvider>
       </SiteSettingsContext.Provider>
     </AppearanceContext.Provider>
   );
@@ -94,6 +100,7 @@ export function AdminProviders({
 
 function RefineApp({ children }: { children: ReactNode }) {
   const notificationProvider = useNotificationProvider();
+  const { t } = useI18n();
   return (
     <Refine
       routerProvider={routerProvider}
@@ -106,9 +113,9 @@ function RefineApp({ children }: { children: ReactNode }) {
         disableTelemetry: true,
       }}
       resources={[
-        { name: "files", list: "/admin", meta: { label: "文件" } },
-        { name: "usage", list: "/admin/usage", meta: { label: "统计" } },
-        { name: "settings", list: "/admin/settings", meta: { label: "设置" } },
+        { name: "files", list: "/admin", meta: { label: t("nav.files") } },
+        { name: "usage", list: "/admin/usage", meta: { label: t("nav.usage") } },
+        { name: "settings", list: "/admin/settings", meta: { label: t("nav.settings") } },
         { name: "folders", meta: { hide: true } },
       ]}
     >

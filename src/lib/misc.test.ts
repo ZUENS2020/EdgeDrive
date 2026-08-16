@@ -13,12 +13,12 @@ describe("d1 schema helpers", () => {
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(EXPECTED_SCHEMA_VERSION).toBe(12);
-    expect(evaluateSchemaVersion(undefined, 12)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 12)).toBe("untracked");
-    expect(evaluateSchemaVersion("11", 12)).toBe("stale");
-    expect(evaluateSchemaVersion("12", 12)).toBe("ok");
-    expect(evaluateSchemaVersion("13", 12)).toBe("ok");
+    expect(EXPECTED_SCHEMA_VERSION).toBe(13);
+    expect(evaluateSchemaVersion(undefined, 13)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 13)).toBe("untracked");
+    expect(evaluateSchemaVersion("12", 13)).toBe("stale");
+    expect(evaluateSchemaVersion("13", 13)).toBe("ok");
+    expect(evaluateSchemaVersion("14", 13)).toBe("ok");
   });
 
   it("bootstrap SQL includes drive enhancements (migration 0011)", () => {
@@ -37,6 +37,11 @@ describe("d1 schema helpers", () => {
       '["download","preview","copy_link","copy_view_link","expire","delete"]',
     );
     expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '12'/);
+  });
+
+  it("bootstrap SQL includes language setting (migration 0013)", () => {
+    expect(D1_BOOTSTRAP_SQL).toContain("('language', 'zh')");
+    expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '13'/);
   });
 });
 
@@ -82,5 +87,8 @@ describe("fileExpiryLabel", () => {
     expect(fileExpiryLabel(null, now)).toBe("永久");
     expect(fileExpiryLabel("2026-08-15T00:00:00.000Z", now)).toBe("已过期");
     expect(fileExpiryLabel("2026-09-01T08:30:00.000Z", now)).toMatch(/^有效期至 /);
+    expect(fileExpiryLabel(null, now, "en")).toBe("Never expires");
+    expect(fileExpiryLabel("2026-08-15T00:00:00.000Z", now, "en")).toBe("Expired");
+    expect(fileExpiryLabel("2026-09-01T08:30:00.000Z", now, "en")).toMatch(/^Expires /);
   });
 });

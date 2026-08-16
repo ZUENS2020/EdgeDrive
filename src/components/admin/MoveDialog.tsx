@@ -1,6 +1,7 @@
 "use client";
 
 import type { FolderNode } from "@/lib/types";
+import { useI18n } from "./I18nProvider";
 import { PickFolderDialog } from "./PickFolderDialog";
 
 export function MoveDialog({
@@ -16,11 +17,12 @@ export function MoveDialog({
   onClose: () => void;
   onSubmit: (path: string) => void;
 }) {
+  const { t } = useI18n();
   return (
     <PickFolderDialog
       open={open}
-      title={`移动到文件夹${count > 1 ? `（${count} 个）` : ""}`}
-      confirmLabel="移动"
+      title={count > 1 ? t("fileManager.moveTitleN", { count }) : t("fileManager.moveTitle")}
+      confirmLabel={t("fileManager.move")}
       folders={folders}
       onClose={onClose}
       onSubmit={onSubmit}

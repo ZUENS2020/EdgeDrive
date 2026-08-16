@@ -13,6 +13,7 @@ import Typography from "@mui/material/Typography";
 import { useMemo, useState } from "react";
 import { parseExpireInput } from "@/lib/expires";
 import { formatTime } from "@/lib/format";
+import { useI18n } from "./I18nProvider";
 
 export type ExpireSubmit =
   | { action: "permanent" }
@@ -30,25 +31,30 @@ export function ExpireDialog({
   onClose: () => void;
   onSubmit: (payload: ExpireSubmit) => void;
 }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<"dur" | "until" | "perm">("dur");
   const [n, setN] = useState("24");
   const [unit, setUnit] = useState<"hours" | "days">("hours");
   const [until, setUntil] = useState("");
 
   const preview = useMemo(() => {
-    if (mode === "perm") return "永久（expires = null）";
+    if (mode === "perm") return t("expire.previewPerm");
     if (mode === "until") {
       const parsed = parseExpireInput({ expires: until ? new Date(until).toISOString() : undefined });
-      return parsed.value ? `截止 ${formatTime(parsed.value)}` : "请选择截止时间";
+      if (parsed.value) return t("expire.previewUntil", { time: formatTime(parsed.value) });
+      return t("expire.pickUntil");
     }
     const num = Number(n);
     const parsed = parseExpireInput(unit === "days" ? { days: num } : { hours: num });
-    return parsed.value ? `到期 ${formatTime(parsed.value)}` : parsed.error || "";
-  }, [mode, n, unit, until]);
+    if (parsed.value) return t("expire.previewAt", { time: formatTime(parsed.value) });
+    if (parsed.error?.includes("too large")) return t("expire.tooLarge");
+    if (parsed.error) return t("expire.mustPositive");
+    return "";
+  }, [mode, n, t, unit, until]);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{count > 1 ? `设置有效期（${count} 个文件）` : "设置有效期"}</DialogTitle>
+      <DialogTitle>{count > 1 ? t("expire.titleN", { count }) : t("expire.title")}</DialogTitle>
       <DialogContent>
         <ToggleButtonGroup
           exclusive
@@ -58,16 +64,16 @@ export function ExpireDialog({
           onChange={(_, v) => v && setMode(v)}
           sx={{ my: 1 }}
         >
-          <ToggleButton value="dur">持续时长</ToggleButton>
-          <ToggleButton value="until">截止时间</ToggleButton>
-          <ToggleButton value="perm">永久</ToggleButton>
+          <ToggleButton value="dur">{t("expire.duration")}</ToggleButton>
+          <ToggleButton value="until">{t("expire.until")}</ToggleButton>
+          <ToggleButton value="perm">{t("expire.permanent")}</ToggleButton>
         </ToggleButtonGroup>
         {mode === "dur" ? (
           <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-            <TextField type="number" value={n} onChange={(e) => setN(e.target.value)} label="数量" fullWidth />
+            <TextField type="number" value={n} onChange={(e) => setN(e.target.value)} label={t("expire.amount")} fullWidth />
             <ToggleButtonGroup exclusive value={unit} onChange={(_, v) => v && setUnit(v)}>
-              <ToggleButton value="hours">小时</ToggleButton>
-              <ToggleButton value="days">天</ToggleButton>
+              <ToggleButton value="hours">{t("expire.hours")}</ToggleButton>
+              <ToggleButton value="days">{t("expire.days")}</ToggleButton>
             </ToggleButtonGroup>
           </Stack>
         ) : null}
@@ -86,10 +92,10 @@ export function ExpireDialog({
       </DialogContent>
       <DialogActions sx={{ justifyContent: "space-between", px: 3, pb: 2 }}>
         <Button color="warning" onClick={() => onSubmit({ action: "expireNow" })}>
-          立即过期
+          {t("expire.expireNow")}
         </Button>
         <Stack direction="row" spacing={1}>
-          <Button onClick={onClose}>取消</Button>
+          <Button onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             variant="contained"
             onClick={() => {
@@ -103,7 +109,7 @@ export function ExpireDialog({
               onSubmit(unit === "days" ? { action: "expire", days: num } : { action: "expire", hours: num });
             }}
           >
-            保存
+            {t("common.save")}
           </Button>
         </Stack>
       </DialogActions>

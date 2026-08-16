@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, t, type Locale } from "./i18n";
+
 export function formatSize(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "0 B";
   if (n < 1024) return `${n} B`;
@@ -14,11 +16,15 @@ export function formatTime(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function fileExpiryLabel(expires: string | null, now = Date.now()): string {
-  if (!expires) return "永久";
-  const t = new Date(expires).getTime();
-  if (Number.isFinite(t) && t < now) return "已过期";
-  return `有效期至 ${formatTime(expires)}`;
+export function fileExpiryLabel(
+  expires: string | null,
+  now = Date.now(),
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  if (!expires) return t(locale, "format.permanent");
+  const ts = new Date(expires).getTime();
+  if (Number.isFinite(ts) && ts < now) return t(locale, "format.expired");
+  return t(locale, "format.expiresAt", { time: formatTime(expires) });
 }
 
 export function extLabel(name: string): string {

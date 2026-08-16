@@ -11,6 +11,7 @@ describe("folder delete confirm dialog", () => {
     expect(folderDeleteConfirmMessage("资料")).toBe(
       "确定删除文件夹「资料」及其中的所有文件？此操作无法撤销。",
     );
+    expect(folderDeleteConfirmMessage("docs", "en")).toContain('"docs"');
   });
 
   it("runs delete only after confirm", () => {

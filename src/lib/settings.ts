@@ -1,12 +1,14 @@
 import { ensureCronSecret, getKv, KV, parseFlag, setKv } from "./app-config";
 import { cfApiTokenConfigured, readEnvSecret } from "./cf-credentials";
 import { getDB } from "./cloudflare";
+import { DEFAULT_LOCALE, parseLocale } from "./i18n";
 import { DEFAULT_ROW_ACTIONS, parseRowActions, serializeRowActions } from "./row-actions";
 import { getTheme } from "./themes";
 import type { SiteSettings } from "./types";
 
 export const DEFAULTS: SiteSettings = {
   theme_name: "default",
+  language: DEFAULT_LOCALE,
   page_size: 50,
   row_actions: [...DEFAULT_ROW_ACTIONS],
   default_expires: "24h",
@@ -50,6 +52,7 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
   const pageSize = Number(map.get("page_size") || DEFAULTS.page_size);
   return {
     theme_name: getTheme(map.get("theme_name")).id,
+    language: parseLocale(map.get("language") || DEFAULTS.language),
     page_size: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(200, Math.floor(pageSize)) : 50,
     row_actions: parseRowActions(map.get("row_actions")),
     default_expires: map.get("default_expires") || DEFAULTS.default_expires,
@@ -88,6 +91,9 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
   if (patch.theme_name != null) {
     next.theme_name = getTheme(patch.theme_name).id;
   }
+  if (patch.language != null) {
+    next.language = parseLocale(patch.language);
+  }
   if (patch.purge_after_days != null) {
     next.purge_after_days = clampDays(String(patch.purge_after_days), current.purge_after_days);
   }
@@ -96,6 +102,7 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
 
   const entries: [string, string][] = [
     ["theme_name", next.theme_name],
+    ["language", next.language],
     ["page_size", String(next.page_size)],
     ["row_actions", serializeRowActions(next.row_actions)],
     ["default_expires", next.default_expires],
@@ -146,7 +153,7 @@ export async function enableAccess(
   const nextTeam = unset(team);
   const nextAud = unset(aud);
   if (!nextTeam || !nextAud) {
-    throw new Error("access-needs-team-aud: 请填写 Cloudflare Access Team 和 AUD");
+    throw new Error("access-needs-team-aud");
   }
   await setKv(conn, KV.cfAccessTeam, nextTeam);
   await setKv(conn, KV.cfAccessAud, nextAud);

@@ -1,5 +1,6 @@
 import { fileExpiryLabel, formatSize, formatTime, isInlineSafe, previewKind, type PreviewKind } from "./format";
-import { PRODUCT_NAME, PRODUCT_SHORT, PRODUCT_TAGLINE } from "./product";
+import { DEFAULT_LOCALE, htmlLang, parseLocale, t, type Locale } from "./i18n";
+import { PRODUCT_NAME, PRODUCT_SHORT } from "./product";
 import { escapeHtml } from "./sanitize";
 import type { PublicThemeVars } from "./themes";
 import type { FileRow } from "./types";
@@ -22,6 +23,7 @@ export type RenderViewPageOpts = {
   key: string;
   meta: FileRow;
   theme?: PublicThemeVars;
+  locale?: Locale;
 };
 
 function dlPath(origin: string, key: string): string {
@@ -72,7 +74,7 @@ const VIEW_CSS = `* { box-sizing: border-box; }
       a.btn, button.btn { width:100%; }
     }`;
 
-function embedHtml(kind: PreviewKind, inline: string, name: string): string {
+function embedHtml(kind: PreviewKind, inline: string, name: string, locale: Locale): string {
   const src = escapeHtml(inline);
   const alt = escapeHtml(name);
   if (kind === "img") {
@@ -80,10 +82,10 @@ function embedHtml(kind: PreviewKind, inline: string, name: string): string {
 <div class="lightbox" id="ed-box">
   <img id="ed-box-img" alt="${alt}">
   <div class="tools">
-    <button type="button" class="btn ghost" data-lb="zoom-out">缩小</button>
-    <button type="button" class="btn ghost" data-lb="zoom-in">放大</button>
-    <button type="button" class="btn ghost" data-lb="rot">旋转</button>
-    <button type="button" class="btn" data-lb="close">关闭</button>
+    <button type="button" class="btn ghost" data-lb="zoom-out">${escapeHtml(t(locale, "viewPage.zoomOut"))}</button>
+    <button type="button" class="btn ghost" data-lb="zoom-in">${escapeHtml(t(locale, "viewPage.zoomIn"))}</button>
+    <button type="button" class="btn ghost" data-lb="rot">${escapeHtml(t(locale, "viewPage.rotate"))}</button>
+    <button type="button" class="btn" data-lb="close">${escapeHtml(t(locale, "viewPage.close"))}</button>
   </div>
 </div>`;
   }
@@ -97,20 +99,40 @@ function embedHtml(kind: PreviewKind, inline: string, name: string): string {
     return `<div class="preview-frame pdf-frame"><iframe class="pdf" src="${src}" title="${alt}"></iframe></div>`;
   }
   if (kind === "md") {
-    return `<div class="preview-frame" id="ed-md"><p class="hint" style="padding:16px">正在渲染 Markdown…</p></div>`;
+    return `<div class="preview-frame" id="ed-md"><p class="hint" style="padding:16px">${escapeHtml(t(locale, "viewPage.renderingMd"))}</p></div>`;
   }
   if (kind === "txt") {
-    return `<div class="preview-frame" id="ed-txt"><p class="hint" style="padding:16px">正在载入文本…</p></div>`;
+    return `<div class="preview-frame" id="ed-txt"><p class="hint" style="padding:16px">${escapeHtml(t(locale, "viewPage.loadingText"))}</p></div>`;
   }
-  return `<p class="hint">此类型不支持在线预览，请下载查看。</p>`;
+  return `<p class="hint">${escapeHtml(t(locale, "viewPage.unsupported"))}</p>`;
 }
 
 function infoRow(label: string, value: string): string {
   return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
 }
 
+export type ViewPageClientMessages = {
+  copied: string;
+  copyFailed: string;
+  truncated: string;
+  loadFailed: string;
+};
+
+export function viewPageClientMessages(locale: Locale = DEFAULT_LOCALE): ViewPageClientMessages {
+  return {
+    copied: t(locale, "viewPage.copied"),
+    copyFailed: t(locale, "viewPage.copyFailed"),
+    truncated: t(locale, "viewPage.truncated"),
+    loadFailed: t(locale, "viewPage.loadFailed"),
+  };
+}
+
 /** Client script for copy / lightbox / markdown. Kept as a plain string (no TS template holes except MAX). */
-export function viewPageClientJs(): string {
+export function viewPageClientJs(messages: ViewPageClientMessages = viewPageClientMessages()): string {
+  const copied = JSON.stringify(messages.copied);
+  const copyFailed = JSON.stringify(messages.copyFailed);
+  const truncated = JSON.stringify(messages.truncated);
+  const loadFailed = JSON.stringify(messages.loadFailed);
   return [
     "(function(){",
     "  var cfg = window.__ED_VIEW || {};",
@@ -124,11 +146,17 @@ export function viewPageClientJs(): string {
     "  function copy(text){",
     "    function fallback(){",
     '      var ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select();',
-    '      try{ document.execCommand("copy"); toast("已复制链接"); }catch(e){ toast("复制失败"); }',
+    "      try{ document.execCommand(\"copy\"); toast(" +
+      copied +
+      "); }catch(e){ toast(" +
+      copyFailed +
+      "); }",
     "      ta.remove();",
     "    }",
     "    if(navigator.clipboard && navigator.clipboard.writeText){",
-    '      return navigator.clipboard.writeText(text).then(function(){ toast("已复制链接"); }).catch(fallback);',
+    "      return navigator.clipboard.writeText(text).then(function(){ toast(" +
+      copied +
+      "); }).catch(fallback);",
     "    }",
     "    return fallback();",
     "  }",
@@ -180,7 +208,7 @@ export function viewPageClientJs(): string {
     '    el.innerHTML = \'<div class="md">\'+parsed+"</div>";',
     "    if(sliced){",
     '      var p=document.createElement("p"); p.className="hint";',
-    '      p.textContent="仅预览前 "+Math.round(MAX/1024)+" KB，完整内容请下载。";',
+    "      p.textContent=" + truncated + '.replace("{kb}", String(Math.round(MAX/1024)));',
     "      el.appendChild(p);",
     "    }",
     "    if(window.hljs){ el.querySelectorAll(\"pre code\").forEach(function(node){ window.hljs.highlightElement(node); }); }",
@@ -204,14 +232,17 @@ export function viewPageClientJs(): string {
     "        el.appendChild(pre);",
     "        if(sliced){",
     '          var note=document.createElement("p"); note.className="hint"; note.style.padding="0 18px 16px";',
-    '          note.textContent="仅预览前 "+Math.round(MAX/1024)+" KB，完整内容请下载。";',
+    "          note.textContent=" + truncated + '.replace("{kb}", String(Math.round(MAX/1024)));',
     "          el.appendChild(note);",
     "        }",
     "        return;",
     "      }",
     "      renderMarkdown(el, text, sliced);",
     "    }).catch(function(){",
-    '      el.innerHTML = \'<p class="hint" style="padding:16px">无法载入预览，请下载查看。</p>\';',
+    '      el.innerHTML = "";',
+    '      var p=document.createElement("p"); p.className="hint"; p.style.padding="16px";',
+    "      p.textContent=" + loadFailed + ";",
+    "      el.appendChild(p);",
     "    });",
     "  }",
     "  function boot(){",
@@ -244,15 +275,16 @@ export function extractMermaidBlocks(src: string): { markdown: string; blocks: s
 }
 
 export function renderViewPage(opts: RenderViewPageOpts): string {
+  const locale = parseLocale(opts.locale);
   const origin = opts.origin.replace(/\/$/, "");
   const dl = dlPath(origin, opts.key);
   const inline = `${dl}?inline=1`;
   const kind = previewKind(opts.meta.name, opts.meta.mime);
   const theme = opts.theme;
   const dark = theme?.dark ?? true;
-  const status = fileExpiryLabel(opts.meta.expires);
+  const status = fileExpiryLabel(opts.meta.expires, Date.now(), locale);
   const mimeLabel = opts.meta.mime || kind || "application/octet-stream";
-  const embed = embedHtml(kind, inline, opts.meta.name);
+  const embed = embedHtml(kind, inline, opts.meta.name, locale);
   const needsMd = kind === "md";
   const payload = JSON.stringify({ inline, kind, dark }).replace(/</g, "\\u003c");
 
@@ -267,7 +299,7 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
     : "";
 
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${htmlLang(locale)}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -286,26 +318,26 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
     </div>
     <h1>${escapeHtml(opts.meta.name)}</h1>
     <dl class="info">
-      ${infoRow("文件名", opts.meta.name)}
-      ${infoRow("大小", formatSize(opts.meta.size))}
-      ${infoRow("类型", mimeLabel)}
-      ${infoRow("上传时间", formatTime(opts.meta.created_at))}
-      ${infoRow("有效期", status)}
-      ${opts.meta.path ? infoRow("路径", opts.meta.path) : ""}
+      ${infoRow(t(locale, "viewPage.filename"), opts.meta.name)}
+      ${infoRow(t(locale, "viewPage.size"), formatSize(opts.meta.size))}
+      ${infoRow(t(locale, "viewPage.type"), mimeLabel)}
+      ${infoRow(t(locale, "viewPage.uploaded"), formatTime(opts.meta.created_at))}
+      ${infoRow(t(locale, "viewPage.expires"), status)}
+      ${opts.meta.path ? infoRow(t(locale, "viewPage.path"), opts.meta.path) : ""}
     </dl>
     ${embed}
     <div class="actions">
-      <a class="btn" href="${escapeHtml(dl)}">下载</a>
-      <button type="button" class="btn ghost" data-copy="${escapeHtml(dl)}">复制下载链接</button>
-      <button type="button" class="btn ghost" data-copy="${escapeHtml(`${dl}/view`)}">复制预览链接</button>
+      <a class="btn" href="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.download"))}</a>
+      <button type="button" class="btn ghost" data-copy="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.copyDl"))}</button>
+      <button type="button" class="btn ghost" data-copy="${escapeHtml(`${dl}/view`)}">${escapeHtml(t(locale, "viewPage.copyView"))}</button>
     </div>
     <div class="footer">
-      <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(PRODUCT_TAGLINE)}</span>
+      <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(t(locale, "product.tagline"))}</span>
       <a href="https://github.com/ZUENS2020/EdgeDrive" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
   <script>window.__ED_VIEW=${payload};</script>
-  <script>${viewPageClientJs()}</script>
+  <script>${viewPageClientJs(viewPageClientMessages(locale))}</script>
 </body>
 </html>`;
 }

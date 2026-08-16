@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { resolveBatchPage } from "@/lib/batch";
 import { renderBatchPage } from "@/lib/batch-page";
 import { getDB } from "@/lib/cloudflare";
+import { parseLocale, t } from "@/lib/i18n";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { publicThemeVars } from "@/lib/themes";
 
@@ -52,14 +53,15 @@ async function handle(
   const db = await getDB();
   const resolved = await resolveBatchPage(db, token);
   if (resolved.status === 404) return text("404 Not Found", 404);
-  if (resolved.status === 410) return text("410 Gone（链接已过期）", 410);
-
   let settings = DEFAULTS;
   try {
     settings = await getSettings();
   } catch {
     // ignore
   }
+  const locale = parseLocale(settings.language);
+  if (resolved.status === 410) return text(t(locale, "dl.gone"), 410);
+
   const autoDownload = request.nextUrl.searchParams.get("mode") === "download";
   const html = renderBatchPage({
     origin: request.nextUrl.origin,
@@ -67,6 +69,7 @@ async function handle(
     expiresAt: resolved.batch.expires_at,
     autoDownload,
     theme: publicThemeVars(settings.theme_name),
+    locale,
   });
   return new Response(headOnly ? null : html, {
     status: 200,

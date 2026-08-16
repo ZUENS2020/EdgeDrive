@@ -118,6 +118,17 @@ describe("renderViewPage", () => {
     });
     expect(txt).toContain("id=\"ed-txt\"");
     expect(txt).toContain("正在载入文本");
+
+    const en = renderViewPage({
+      origin: "https://x",
+      key: "notes.txt",
+      meta: file({ id: "1", name: "notes.txt", mime: "text/plain" }),
+      theme: publicThemeVars("light"),
+      locale: "en",
+    });
+    expect(en).toContain("Loading text");
+    expect(en).toContain('lang="en"');
+    expect(en).not.toContain("正在载入文本");
   });
 
   it("escapes HTML in file names and includes audio controls", () => {

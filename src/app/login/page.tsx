@@ -1,19 +1,22 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { getDB } from "@/lib/cloudflare";
+import { parseLocale, t } from "@/lib/i18n";
 import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
-import { getSettings } from "@/lib/settings";
+import { DEFAULTS, getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   let enabled = true;
+  let locale = parseLocale(DEFAULTS.language);
   try {
     const db = await getDB();
     const s = await getSettings(db);
     enabled = s.access_enabled;
+    locale = parseLocale(s.language);
   } catch {
-    // DB 不可用时按已启用处理（fail-closed 保守）
+    // Fail-closed: treat Access as enabled when DB is unavailable.
   }
   return (
     <div className="login-wrap">
@@ -22,21 +25,21 @@ export default async function LoginPage() {
           <div className="logo">{PRODUCT_SHORT}</div>
           <div>
             <div className="brand-name">{PRODUCT_NAME}</div>
-            <div className="brand-sub">受 Cloudflare Access 保护</div>
+            <div className="brand-sub">{t(locale, "login.protectedSub")}</div>
           </div>
         </div>
         {enabled ? (
           <p style={{ color: "var(--text-3)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>
-            此站点由 Cloudflare Access 保护。请访问 <code>/admin</code>，由 Access 完成登录。
+            {t(locale, "login.enabledBody")}
           </p>
         ) : (
           <p style={{ color: "var(--text-3)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>
-            首次部署：请打开 <code>/admin</code> 完成 Access 配置引导（填写 Team 与 AUD 后启用保护）。
+            {t(locale, "login.setupBody")}
           </p>
         )}
         <p style={{ marginTop: 18 }}>
           <Button asChild>
-            <Link href="/admin">前往管理台</Link>
+            <Link href="/admin">{t(locale, "login.goAdmin")}</Link>
           </Button>
         </p>
       </div>

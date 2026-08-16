@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Noto_Sans_SC } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { htmlLang, parseLocale, t } from "@/lib/i18n";
+import { PRODUCT_NAME } from "@/lib/product";
+import { DEFAULTS, getSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
-import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/product";
 import "./globals.css";
 
 const noto = Noto_Sans_SC({
@@ -13,14 +15,26 @@ const noto = Noto_Sans_SC({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: PRODUCT_NAME,
-  description: PRODUCT_TAGLINE,
-};
+async function siteLocale() {
+  try {
+    return parseLocale((await getSettings()).language);
+  } catch {
+    return parseLocale(DEFAULTS.language);
+  }
+}
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await siteLocale();
+  return {
+    title: PRODUCT_NAME,
+    description: t(locale, "product.tagline"),
+  };
+}
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const locale = await siteLocale();
   return (
-    <html lang="zh-CN" className={cn("h-full antialiased", noto.variable)}>
+    <html lang={htmlLang(locale)} className={cn("h-full antialiased", noto.variable)}>
       <body className="min-h-full flex flex-col">
         {children}
         <Toaster />

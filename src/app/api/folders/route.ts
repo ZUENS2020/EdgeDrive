@@ -63,13 +63,13 @@ export async function DELETE(request: Request) {
 function folderError(err: unknown) {
   const message = String((err as Error).message || err);
   if (message === "folder-exists") {
-    return NextResponse.json({ error: "同名文件夹已存在" }, { status: 409 });
+    return NextResponse.json({ error: "folder-exists" }, { status: 409 });
   }
   if (message === "not-found" || message === "parent-not-found") {
-    return NextResponse.json({ error: "文件夹不存在" }, { status: 404 });
+    return NextResponse.json({ error: "folder-not-found" }, { status: 404 });
   }
   if (message === "invalid-name" || message === "empty" || message === "too-long" || message === "control-chars") {
-    return NextResponse.json({ error: "文件夹名称无效" }, { status: 400 });
+    return NextResponse.json({ error: "invalid-name" }, { status: 400 });
   }
-  return NextResponse.json({ error: "文件夹操作失败" }, { status: 400 });
+  return NextResponse.json({ error: "folder-failed" }, { status: 400 });
 }

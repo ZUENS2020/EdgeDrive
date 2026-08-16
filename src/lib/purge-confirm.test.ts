@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { PURGE_CONFIRM_MESSAGE, resolvePurgeConfirm } from "./purge-confirm";
+import { PURGE_CONFIRM_MESSAGE, purgeConfirmMessage, resolvePurgeConfirm } from "./purge-confirm";
 
 describe("purge confirm dialog", () => {
   it("exposes the irreversible warning copy", () => {
     expect(PURGE_CONFIRM_MESSAGE).toBe("确定立即清理所有过期文件？此操作不可撤销");
+    expect(purgeConfirmMessage("en")).toMatch(/cannot be undone/i);
   });
 
   it("runs purge only after confirm", () => {

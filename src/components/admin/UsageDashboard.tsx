@@ -12,43 +12,34 @@ import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
 import { UsageBarChart } from "@/components/UsageChart";
 import { formatSize } from "@/lib/format";
+import { numberLocale, tUsageStatus, type Locale, type MessageKey } from "@/lib/i18n";
 import { topBars } from "@/lib/usage-charts";
 import type { UsagePayload, UsageRange } from "@/lib/usage-types";
+import { useI18n, type Translate } from "./I18nProvider";
 
-const RANGES: { id: UsageRange; label: string }[] = [
-  { id: "24h", label: "24 小时" },
-  { id: "7d", label: "7 天" },
-  { id: "month", label: "本月" },
-];
 const R2_FREE = { bytes: 10 * 1024 * 1024 * 1024, classA: 1_000_000, classB: 10_000_000 };
 const D1_FREE_BYTES = 5 * 1024 * 1024 * 1024;
 
-function n(value: number | null | undefined): string {
+function n(value: number | null | undefined, locale: Locale): string {
   if (value == null || !Number.isFinite(value)) return "—";
-  return new Intl.NumberFormat("zh-CN").format(Math.round(value));
+  return new Intl.NumberFormat(numberLocale(locale)).format(Math.round(value));
 }
 function cpuMs(us: number | null | undefined): string {
   if (us == null || !Number.isFinite(us)) return "—";
   return `${(us / 1000).toFixed(2)} ms`;
 }
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
-    success: "成功",
-    clientDisconnected: "客户端断开",
-    scriptThrewException: "脚本异常",
-    exceededResources: "超出资源",
-    internalError: "内部错误",
-    exceededCpu: "超出 CPU",
-    exceededMemory: "超出内存",
-  };
-  return map[status] || status;
-}
 
 export function UsageDashboard() {
+  const { t, locale } = useI18n();
   const [range, setRange] = useState<UsageRange>("month");
   const [data, setData] = useState<UsagePayload | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const ranges: { id: UsageRange; label: MessageKey }[] = [
+    { id: "24h", label: "usage.range24h" },
+    { id: "7d", label: "usage.range7d" },
+    { id: "month", label: "usage.rangeMonth" },
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +47,7 @@ export function UsageDashboard() {
     setError("");
     fetch(`/api/usage?range=${range}`)
       .then(async (res) => {
-        if (!res.ok) throw new Error(res.status === 401 ? "未登录" : "加载失败");
+        if (!res.ok) throw new Error(res.status === 401 ? t("usage.needLogin") : t("usage.loadFailed"));
         return (await res.json()) as UsagePayload;
       })
       .then((payload) => {
@@ -71,7 +62,7 @@ export function UsageDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [range]);
+  }, [range, t]);
 
   return (
     <Box
@@ -89,54 +80,54 @@ export function UsageDashboard() {
     >
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
         <Typography variant="h1" sx={{ flex: 1 }}>
-          统计
+          {t("usage.title")}
         </Typography>
         <ToggleButtonGroup exclusive size="small" value={range} onChange={(_, v) => v && setRange(v)}>
-          {RANGES.map((item) => (
+          {ranges.map((item) => (
             <ToggleButton key={item.id} value={item.id}>
-              {item.label}
+              {t(item.label)}
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
       </Stack>
       <Typography variant="body2" color="text.secondary">
-        R2 容量与 Class A/B、D1 读写、Worker 调用量来自 Cloudflare GraphQL Analytics。账号 ID 与 Token 在设置 → 账号里选填。
+        {t("usage.intro")}
       </Typography>
       {loading && !data ? <LinearProgress /> : null}
       {error ? <Alert severity="error">{error}</Alert> : null}
-      {data ? <UsageBody data={data} /> : null}
+      {data ? <UsageBody data={data} t={t} locale={locale} /> : null}
     </Box>
   );
 }
 
-function UsageBody({ data }: { data: UsagePayload }) {
+function UsageBody({ data, t, locale }: { data: UsagePayload; t: Translate; locale: Locale }) {
   const a = data.analytics;
   const r2Bytes = a.r2?.payloadBytes ?? data.disk.catalogBytes;
   const d1Bytes = a.d1?.databaseBytes ?? data.disk.sqliteBytes;
   const showQuota = data.range === "month";
+  const chartEmpty = t("usage.chartEmpty");
+  const chartAria = t("usage.chartAria");
   const siteBars = topBars([
-    { label: "文件", value: data.disk.files },
-    { label: "文件夹", value: data.disk.folders },
-    { label: "下载", value: data.disk.downloads },
-    { label: "即将过期", value: data.disk.soon },
-    { label: "已过期", value: data.disk.expired },
+    { label: t("usage.files"), value: data.disk.files },
+    { label: t("usage.folders"), value: data.disk.folders },
+    { label: t("usage.downloads"), value: data.disk.downloads },
+    { label: t("usage.soon"), value: data.disk.soon },
+    { label: t("usage.expired"), value: data.disk.expired },
   ]);
   const r2Bars = topBars((a.r2?.byAction || []).map((row) => ({ label: row.action, value: row.requests })));
   const d1Bars = topBars([
-    { label: "读查询", value: a.d1?.readQueries ?? 0 },
-    { label: "写查询", value: a.d1?.writeQueries ?? 0 },
-    { label: "扫描行", value: a.d1?.rowsRead ?? 0 },
-    { label: "写入行", value: a.d1?.rowsWritten ?? 0 },
+    { label: t("usage.d1Read"), value: a.d1?.readQueries ?? 0 },
+    { label: t("usage.d1Write"), value: a.d1?.writeQueries ?? 0 },
+    { label: t("usage.d1RowsRead"), value: a.d1?.rowsRead ?? 0 },
+    { label: t("usage.d1RowsWritten"), value: a.d1?.rowsWritten ?? 0 },
   ]);
   const workerBars = topBars(
-    (a.worker?.byStatus || []).map((row) => ({ label: statusLabel(row.status), value: row.requests })),
+    (a.worker?.byStatus || []).map((row) => ({ label: tUsageStatus(locale, row.status), value: row.requests })),
   );
 
   return (
     <Stack spacing={2}>
-      {!a.configured ? (
-        <Alert severity="info">账号 ID 与 API Token 在设置 → 账号里选填。不配也能看本站文件数。</Alert>
-      ) : null}
+      {!a.configured ? <Alert severity="info">{t("usage.notConfigured")}</Alert> : null}
       {a.configured && a.error ? <Alert severity="error">{a.error}</Alert> : null}
       <Box
         sx={{
@@ -146,10 +137,10 @@ function UsageBody({ data }: { data: UsagePayload }) {
           width: "100%",
         }}
       >
-        <Hero k="文件" v={n(data.disk.files)} />
-        <Hero k="容量" v={r2Bytes != null ? formatSize(r2Bytes) : "—"} />
-        <Hero k="下载总数" v={n(data.disk.downloads)} />
-        <Hero k="Worker 请求" v={n(a.worker?.requests)} />
+        <Hero k={t("usage.heroFiles")} v={n(data.disk.files, locale)} />
+        <Hero k={t("usage.heroCapacity")} v={r2Bytes != null ? formatSize(r2Bytes) : "—"} />
+        <Hero k={t("usage.heroDownloads")} v={n(data.disk.downloads, locale)} />
+        <Hero k={t("usage.heroWorker")} v={n(a.worker?.requests, locale)} />
       </Box>
       <Box
         sx={{
@@ -161,18 +152,18 @@ function UsageBody({ data }: { data: UsagePayload }) {
       >
         <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
           <CardContent>
-            <Typography variant="h2">本站</Typography>
+            <Typography variant="h2">{t("usage.site")}</Typography>
             <MetricGrid
               items={[
-                ["文件", n(data.disk.files)],
-                ["文件夹", n(data.disk.folders)],
-                ["目录合计", formatSize(data.disk.catalogBytes)],
-                ["下载次数", n(data.disk.downloads)],
-                ["即将过期", n(data.disk.soon)],
-                ["已过期", n(data.disk.expired)],
+                [t("usage.files"), n(data.disk.files, locale)],
+                [t("usage.folders"), n(data.disk.folders, locale)],
+                [t("usage.catalog"), formatSize(data.disk.catalogBytes)],
+                [t("usage.downloadCount"), n(data.disk.downloads, locale)],
+                [t("usage.soon"), n(data.disk.soon, locale)],
+                [t("usage.expired"), n(data.disk.expired, locale)],
               ]}
             />
-            <UsageBarChart items={siteBars} />
+            <UsageBarChart items={siteBars} locale={locale} emptyLabel={chartEmpty} ariaLabel={chartAria} />
           </CardContent>
         </Card>
         <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
@@ -180,16 +171,16 @@ function UsageBody({ data }: { data: UsagePayload }) {
             <Typography variant="h2">R2</Typography>
             <MetricGrid
               items={[
-                ["对象容量", r2Bytes != null ? formatSize(r2Bytes) : "—"],
-                ["对象数", n(a.r2?.objectCount ?? data.disk.files)],
-                ["Class A", n(a.r2?.classA)],
-                ["Class B", n(a.r2?.classB)],
+                [t("usage.r2Bytes"), r2Bytes != null ? formatSize(r2Bytes) : "—"],
+                [t("usage.r2Objects"), n(a.r2?.objectCount ?? data.disk.files, locale)],
+                ["Class A", n(a.r2?.classA, locale)],
+                ["Class B", n(a.r2?.classB, locale)],
               ]}
             />
             {showQuota && a.r2 ? (
-              <Quota label="容量 / 10 GB" used={r2Bytes || 0} max={R2_FREE.bytes} format={formatSize} />
+              <Quota label={t("usage.quotaR2")} used={r2Bytes || 0} max={R2_FREE.bytes} format={formatSize} locale={locale} />
             ) : null}
-            <UsageBarChart items={r2Bars} />
+            <UsageBarChart items={r2Bars} locale={locale} emptyLabel={chartEmpty} ariaLabel={chartAria} />
           </CardContent>
         </Card>
         <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
@@ -197,16 +188,16 @@ function UsageBody({ data }: { data: UsagePayload }) {
             <Typography variant="h2">D1</Typography>
             <MetricGrid
               items={[
-                ["库体积", d1Bytes != null ? formatSize(d1Bytes) : "—"],
-                ["读查询", n(a.d1?.readQueries)],
-                ["写查询", n(a.d1?.writeQueries)],
-                ["扫描行", n(a.d1?.rowsRead)],
+                [t("usage.d1Size"), d1Bytes != null ? formatSize(d1Bytes) : "—"],
+                [t("usage.d1Read"), n(a.d1?.readQueries, locale)],
+                [t("usage.d1Write"), n(a.d1?.writeQueries, locale)],
+                [t("usage.d1RowsRead"), n(a.d1?.rowsRead, locale)],
               ]}
             />
             {showQuota && d1Bytes != null ? (
-              <Quota label="存储 / 5 GB" used={d1Bytes} max={D1_FREE_BYTES} format={formatSize} />
+              <Quota label={t("usage.quotaD1")} used={d1Bytes} max={D1_FREE_BYTES} format={formatSize} locale={locale} />
             ) : null}
-            <UsageBarChart items={d1Bars} />
+            <UsageBarChart items={d1Bars} locale={locale} emptyLabel={chartEmpty} ariaLabel={chartAria} />
           </CardContent>
         </Card>
         <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
@@ -214,13 +205,13 @@ function UsageBody({ data }: { data: UsagePayload }) {
             <Typography variant="h2">Worker</Typography>
             <MetricGrid
               items={[
-                ["请求", n(a.worker?.requests)],
-                ["错误", n(a.worker?.errors)],
-                ["CPU p50", cpuMs(a.worker?.cpuTimeP50Us)],
-                ["CPU p99", cpuMs(a.worker?.cpuTimeP99Us)],
+                [t("usage.workerReq"), n(a.worker?.requests, locale)],
+                [t("usage.workerErr"), n(a.worker?.errors, locale)],
+                [t("usage.cpuP50"), cpuMs(a.worker?.cpuTimeP50Us)],
+                [t("usage.cpuP99"), cpuMs(a.worker?.cpuTimeP99Us)],
               ]}
             />
-            <UsageBarChart items={workerBars} />
+            <UsageBarChart items={workerBars} locale={locale} emptyLabel={chartEmpty} ariaLabel={chartAria} />
           </CardContent>
         </Card>
       </Box>
@@ -269,14 +260,16 @@ function Quota({
   used,
   max,
   format,
+  locale,
 }: {
   label: string;
   used: number;
   max: number;
   format?: (n: number) => string;
+  locale: Locale;
 }) {
   const pct = max > 0 ? Math.min(100, (used / max) * 100) : 0;
-  const show = format || n;
+  const show = format || ((value: number) => n(value, locale));
   return (
     <Box sx={{ my: 1 }}>
       <Stack direction="row" justifyContent="space-between">

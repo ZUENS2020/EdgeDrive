@@ -23,17 +23,14 @@ import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
-import { PURGE_CONFIRM_MESSAGE, PURGE_CONFIRM_TITLE, resolvePurgeConfirm, type PurgeConfirmChoice } from "@/lib/purge-confirm";
-import {
-  TOKEN_CLEAR_CONFIRM_MESSAGE,
-  TOKEN_CLEAR_CONFIRM_TITLE,
-  resolveTokenClearConfirm,
-  type TokenClearConfirmChoice,
-} from "@/lib/token-clear-confirm";
-import { parseRowActions, ROW_ACTION_IDS, ROW_ACTION_LABELS, setRowActionEnabled } from "@/lib/row-actions";
-import type { SiteSettings } from "@/lib/types";
+import { parseLocale, tRowAction } from "@/lib/i18n";
+import { resolvePurgeConfirm, type PurgeConfirmChoice } from "@/lib/purge-confirm";
+import { parseRowActions, ROW_ACTION_IDS, setRowActionEnabled } from "@/lib/row-actions";
 import { THEMES, getTheme } from "@/lib/themes";
+import { resolveTokenClearConfirm, type TokenClearConfirmChoice } from "@/lib/token-clear-confirm";
+import type { SiteSettings } from "@/lib/types";
 import { useAppearance, useSiteSettings } from "./AdminProviders";
+import { useI18n } from "./I18nProvider";
 
 type Section = "look" | "files" | "account";
 
@@ -48,12 +45,14 @@ function Swatch({ colors }: { colors: string[] }) {
 }
 
 export function SettingsView({ initial }: { initial: SiteSettings }) {
+  const { t, locale } = useI18n();
   const { open: notify } = useNotification();
   const { setAppearance } = useAppearance();
   const { setSiteSettings } = useSiteSettings();
   const [section, setSection] = useState<Section>("look");
   const [form, setForm] = useState(() => ({
     ...initial,
+    language: parseLocale(initial.language),
     row_actions: parseRowActions(initial.row_actions),
   }));
   const [pending, setPending] = useState(false);
@@ -68,6 +67,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
       setForm({
         ...initial,
         ...query.result,
+        language: parseLocale(query.result.language ?? initial.language),
         row_actions: parseRowActions(query.result.row_actions ?? initial.row_actions),
       });
     }
@@ -93,7 +93,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
     });
     setPending(false);
     if (!res.ok) {
-      notify?.({ type: "error", message: "保存失败" });
+      notify?.({ type: "error", message: t("settings.saveFailed") });
       return;
     }
     const data = (await res.json()) as { settings: SiteSettings };
@@ -101,7 +101,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
     preview(data.settings);
     setSiteSettings(data.settings);
     setCfApiToken("");
-    notify?.({ type: "success", message: "已保存" });
+    notify?.({ type: "success", message: t("settings.saved") });
   }
 
   async function pickTheme(id: string) {
@@ -111,16 +111,24 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
     await save({ theme_name: next.theme_name }, next);
   }
 
+  async function pickLanguage(id: string) {
+    const language = parseLocale(id);
+    const next = { ...form, language };
+    setForm(next);
+    setSiteSettings({ language });
+    await save({ language }, next);
+  }
+
   async function onPurge() {
     setPurging(true);
     const res = await fetch("/api/cron/purge", { method: "POST" });
     setPurging(false);
     if (!res.ok) {
-      notify?.({ type: "error", message: "清理失败" });
+      notify?.({ type: "error", message: t("settings.purgeFailed") });
       return;
     }
     const data = (await res.json()) as { deleted?: number };
-    notify?.({ type: "success", message: `已删除 ${data.deleted ?? 0} 个过期文件` });
+    notify?.({ type: "success", message: t("settings.purged", { count: data.deleted ?? 0 }) });
   }
 
   function closePurgeConfirm(choice: PurgeConfirmChoice) {
@@ -139,22 +147,40 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 880 }}>
       <Typography variant="h1" sx={{ mb: 2 }}>
-        设置
+        {t("settings.title")}
       </Typography>
       <Tabs value={section} onChange={(_, v) => setSection(v)} sx={{ mb: 3 }}>
-        <Tab value="look" label="外观" />
-        <Tab value="files" label="文件" />
-        <Tab value="account" label="账号" />
+        <Tab value="look" label={t("settings.tabLook")} />
+        <Tab value="files" label={t("settings.tabFiles")} />
+        <Tab value="account" label={t("settings.tabAccount")} />
       </Tabs>
 
       {section === "look" ? (
         <Stack spacing={3}>
           <Box>
             <Typography variant="h2" sx={{ mb: 0.5 }}>
-              主题
+              {t("settings.language")}
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              选择一套内置主题，立即换肤，无需刷新。
+              {t("settings.languageHelp")}
+            </Typography>
+            <TextField
+              select
+              label={t("settings.language")}
+              value={parseLocale(form.language)}
+              onChange={(e) => void pickLanguage(e.target.value)}
+              sx={{ minWidth: 220 }}
+            >
+              <MenuItem value="zh">{t("settings.langZh")}</MenuItem>
+              <MenuItem value="en">{t("settings.langEn")}</MenuItem>
+            </TextField>
+          </Box>
+          <Box>
+            <Typography variant="h2" sx={{ mb: 0.5 }}>
+              {t("settings.theme")}
+            </Typography>
+            <Typography color="text.secondary" sx={{ mb: 2 }}>
+              {t("settings.themeHelp")}
             </Typography>
             <Box
               sx={{
@@ -194,34 +220,34 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
         <Stack spacing={2}>
           <TextField
             type="number"
-            label="每页条数"
+            label={t("settings.pageSize")}
             value={form.page_size}
             onChange={(e) => setForm({ ...form, page_size: Number(e.target.value) })}
           />
           <TextField
             select
-            label="默认有效期"
+            label={t("settings.defaultExpires")}
             value={form.default_expires}
             onChange={(e) => setForm({ ...form, default_expires: e.target.value })}
           >
-            <MenuItem value="permanent">永久</MenuItem>
-            <MenuItem value="24h">24 小时</MenuItem>
-            <MenuItem value="7d">7 天</MenuItem>
-            <MenuItem value="30d">30 天</MenuItem>
+            <MenuItem value="permanent">{t("settings.expiresPermanent")}</MenuItem>
+            <MenuItem value="24h">{t("settings.expires24h")}</MenuItem>
+            <MenuItem value="7d">{t("settings.expires7d")}</MenuItem>
+            <MenuItem value="30d">{t("settings.expires30d")}</MenuItem>
           </TextField>
           <TextField
             type="number"
-            label="过期后保留天数"
+            label={t("settings.purgeAfterDays")}
             value={form.purge_after_days}
             onChange={(e) => setForm({ ...form, purge_after_days: Number(e.target.value) })}
-            helperText="到期后链接先 410。过了保留天数，才允许从 R2 删掉对象。"
+            helperText={t("settings.purgeAfterHelp")}
           />
           <Box>
             <Typography variant="h2" sx={{ mb: 0.5 }}>
-              行操作
+              {t("settings.rowActions")}
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 1.5 }}>
-              行内只显示勾选的操作，其余在右键菜单中；行内始终保留「更多」按钮打开完整菜单
+              {t("settings.rowActionsHelp")}
             </Typography>
             <FormGroup>
               {ROW_ACTION_IDS.map((id) => {
@@ -240,7 +266,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
                         }
                       />
                     }
-                    label={ROW_ACTION_LABELS[id]}
+                    label={tRowAction(locale, id)}
                   />
                 );
               })}
@@ -248,16 +274,16 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
           </Box>
           <Stack direction="row" spacing={1}>
             <Button variant="contained" disabled={pending} onClick={() => void save()}>
-              {pending ? "保存中…" : "保存文件设置"}
+              {pending ? t("common.saving") : t("settings.saveFiles")}
             </Button>
           </Stack>
           <Divider sx={{ mt: 4, mb: 1 }} />
           <Box>
             <Typography variant="h2" color="error" sx={{ mb: 0.5 }}>
-              危险操作
+              {t("settings.dangerZone")}
             </Typography>
             <Typography color="text.secondary" sx={{ mb: 1.5 }}>
-              立即从存储删除已过期且超过保留天数的文件。此操作不可撤销。
+              {t("settings.dangerHelp")}
             </Typography>
             <Button
               variant="outlined"
@@ -265,34 +291,34 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
               disabled={purging}
               onClick={() => setPurgeConfirmOpen(true)}
             >
-              {purging ? "清理中…" : "立即清理过期文件"}
+              {purging ? t("settings.purging") : t("settings.purgeNow")}
             </Button>
           </Box>
         </Stack>
       ) : null}
 
       <Dialog open={purgeConfirmOpen} onClose={() => closePurgeConfirm("cancel")}>
-        <DialogTitle>{PURGE_CONFIRM_TITLE}</DialogTitle>
+        <DialogTitle>{t("settings.purgeConfirmTitle")}</DialogTitle>
         <DialogContent>
-          <DialogContentText>{PURGE_CONFIRM_MESSAGE}</DialogContentText>
+          <DialogContentText>{t("settings.purgeConfirmMessage")}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => closePurgeConfirm("cancel")}>取消</Button>
+          <Button onClick={() => closePurgeConfirm("cancel")}>{t("common.cancel")}</Button>
           <Button color="error" variant="contained" onClick={() => closePurgeConfirm("confirm")}>
-            确定
+            {t("common.confirm")}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={tokenClearConfirmOpen} onClose={() => closeTokenClearConfirm("cancel")}>
-        <DialogTitle>{TOKEN_CLEAR_CONFIRM_TITLE}</DialogTitle>
+        <DialogTitle>{t("settings.tokenClearTitle")}</DialogTitle>
         <DialogContent>
-          <DialogContentText>{TOKEN_CLEAR_CONFIRM_MESSAGE}</DialogContentText>
+          <DialogContentText>{t("settings.tokenClearMessage")}</DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => closeTokenClearConfirm("cancel")}>取消</Button>
+          <Button onClick={() => closeTokenClearConfirm("cancel")}>{t("common.cancel")}</Button>
           <Button color="error" variant="contained" onClick={() => closeTokenClearConfirm("confirm")}>
-            确定
+            {t("common.confirm")}
           </Button>
         </DialogActions>
       </Dialog>
@@ -301,10 +327,10 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
         <Stack spacing={3}>
           <Box>
             <Typography variant="h2" sx={{ mb: 1 }}>
-              Access 配置
+              {t("settings.access")}
             </Typography>
             <Alert severity="success" sx={{ mb: 2 }}>
-              Cloudflare Access 已启用。管理请求一律验证 Access JWT。未认证请求会被拒绝。
+              {t("settings.accessOn")}
             </Alert>
             <Stack spacing={2}>
               <TextField label="Access Team" value={form.cf_access_team} InputProps={{ readOnly: true }} />
@@ -314,10 +340,10 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
           <Divider />
           <Box>
             <Typography variant="h2" sx={{ mb: 1 }}>
-              Cloudflare 用量（可选）
+              {t("settings.cfUsage")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Token 两种模式：① 在此填入，存 D1；② Worker Secret CF_API_TOKEN（优先于 D1）。
+              {t("settings.cfUsageHelp")}
             </Typography>
             <Stack spacing={2}>
               <TextField
@@ -329,31 +355,31 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
                 type="password"
                 label={
                   form.cf_api_token_from_env
-                    ? "API Token（Worker Secret）"
+                    ? t("settings.tokenSecret")
                     : form.cf_api_token_set
-                      ? "API Token（已保存，留空则保持）"
-                      : "API Token"
+                      ? t("settings.tokenSaved")
+                      : t("settings.token")
                 }
                 value={cfApiToken}
                 onChange={(e) => setCfApiToken(e.target.value)}
               />
               {form.cf_api_token_set && !form.cf_api_token_from_env ? (
                 <Button variant="outlined" disabled={pending} onClick={() => setTokenClearConfirmOpen(true)}>
-                  清除 Token
+                  {t("settings.clearToken")}
                 </Button>
               ) : null}
               <TextField
-                label="Worker 名（过滤，可选）"
+                label={t("settings.workerName")}
                 value={form.cf_worker_name}
                 onChange={(e) => setForm({ ...form, cf_worker_name: e.target.value })}
               />
               <TextField
-                label="R2 桶名（过滤，可选）"
+                label={t("settings.r2Bucket")}
                 value={form.cf_r2_bucket}
                 onChange={(e) => setForm({ ...form, cf_r2_bucket: e.target.value })}
               />
               <TextField
-                label="D1 数据库 ID（过滤，可选）"
+                label={t("settings.d1Id")}
                 value={form.cf_d1_database_id}
                 onChange={(e) => setForm({ ...form, cf_d1_database_id: e.target.value })}
               />
@@ -362,21 +388,21 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
           <Divider />
           <Box>
             <Typography variant="h2" sx={{ mb: 1 }}>
-              定时清理
+              {t("settings.cron")}
             </Typography>
             <TextField
-              label="CRON 令牌"
-              value={form.cron_secret_set ? "已设置（可更换）" : "未设置（保存后自动生成）"}
+              label={t("settings.cronToken")}
+              value={form.cron_secret_set ? t("settings.cronSet") : t("settings.cronUnset")}
               InputProps={{ readOnly: true }}
               fullWidth
             />
           </Box>
           <Stack direction="row" spacing={1}>
             <Button variant="contained" disabled={pending} onClick={() => void save()}>
-              {pending ? "保存中…" : "保存账号设置"}
+              {pending ? t("common.saving") : t("settings.saveAccount")}
             </Button>
             <Button variant="outlined" disabled={pending} onClick={() => void save({ rotate_cron_secret: true })}>
-              更换定时令牌
+              {t("settings.rotateCron")}
             </Button>
           </Stack>
         </Stack>

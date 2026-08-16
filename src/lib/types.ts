@@ -1,3 +1,4 @@
+import type { Locale } from "./i18n";
 import type { RowActionId } from "./row-actions";
 
 export type FileRow = {
@@ -37,6 +38,8 @@ export type FolderNode = FolderRow & {
 export type SiteSettings = {
   /** Builtin theme id: default | light | suzuka */
   theme_name: string;
+  /** UI language for admin + public pages. */
+  language: Locale;
   page_size: number;
   /** Inline file-row shortcuts; remaining actions stay in the context menu. */
   row_actions: RowActionId[];

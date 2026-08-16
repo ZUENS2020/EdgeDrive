@@ -17,6 +17,7 @@ import IconButton from "@mui/material/IconButton";
 import type { MouseEvent, ReactNode } from "react";
 import type { RowActionId } from "@/lib/row-actions";
 import type { FileView } from "@/lib/types";
+import { useI18n } from "./I18nProvider";
 
 export type FileRowActionEvent =
   | { type: RowActionId }
@@ -71,89 +72,91 @@ function ActionBtn({
   );
 }
 
-function actionButton(file: FileView, id: RowActionId, onAction: Props["onAction"]) {
-  switch (id) {
-    case "download":
-      return (
-        <ActionBtn key={id} title="下载" href={file.url}>
-          <DownloadIcon fontSize="small" />
-        </ActionBtn>
-      );
-    case "preview":
-      return (
-        <ActionBtn key={id} title="预览" href={`${file.url}/view`}>
-          <PreviewIcon fontSize="small" />
-        </ActionBtn>
-      );
-    case "copy_link":
-      return (
-        <ActionBtn key={id} title="复制链接" onClick={() => onAction(file, { type: "copy_link" })}>
-          <LinkIcon fontSize="small" />
-        </ActionBtn>
-      );
-    case "copy_view_link":
-      return (
-        <ActionBtn key={id} title="复制预览链接" onClick={() => onAction(file, { type: "copy_view_link" })}>
-          <VisibilityIcon fontSize="small" />
-        </ActionBtn>
-      );
-    case "expire":
-      return (
-        <ActionBtn key={id} title="改有效期" onClick={() => onAction(file, { type: "expire" })}>
-          <ScheduleIcon fontSize="small" />
-        </ActionBtn>
-      );
-    case "star":
-      return (
-        <ActionBtn
-          key={id}
-          title={file.starred ? "取消收藏" : "收藏"}
-          color={file.starred ? "warning" : "default"}
-          onClick={() => onAction(file, { type: "star" })}
-        >
-          {file.starred ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
-        </ActionBtn>
-      );
-    case "tags":
-      return (
-        <ActionBtn key={id} title="编辑标签" onClick={() => onAction(file, { type: "tags" })}>
-          <LabelIcon fontSize="small" />
-        </ActionBtn>
-      );
-    case "copy_to":
-      return (
-        <ActionBtn key={id} title="复制到…" onClick={() => onAction(file, { type: "copy_to" })}>
-          <FileCopyIcon fontSize="small" />
-        </ActionBtn>
-      );
-    case "delete":
-      return (
-        <ActionBtn key={id} title="删除" color="error" onClick={() => onAction(file, { type: "delete" })}>
-          <DeleteOutlineIcon fontSize="small" />
-        </ActionBtn>
-      );
-  }
-}
-
 export function FileRowActions({ file, actions, trash, onAction }: Props) {
+  const { t } = useI18n();
+  function actionButton(id: RowActionId) {
+    switch (id) {
+      case "download":
+        return (
+          <ActionBtn key={id} title={t("rowAction.download")} href={file.url}>
+            <DownloadIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "preview":
+        return (
+          <ActionBtn key={id} title={t("rowAction.preview")} href={`${file.url}/view`}>
+            <PreviewIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "copy_link":
+        return (
+          <ActionBtn key={id} title={t("rowAction.copy_link")} onClick={() => onAction(file, { type: "copy_link" })}>
+            <LinkIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "copy_view_link":
+        return (
+          <ActionBtn
+            key={id}
+            title={t("rowAction.copy_view_link")}
+            onClick={() => onAction(file, { type: "copy_view_link" })}
+          >
+            <VisibilityIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "expire":
+        return (
+          <ActionBtn key={id} title={t("rowAction.expire")} onClick={() => onAction(file, { type: "expire" })}>
+            <ScheduleIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "star":
+        return (
+          <ActionBtn
+            key={id}
+            title={file.starred ? t("rowAction.unstar") : t("rowAction.starOn")}
+            color={file.starred ? "warning" : "default"}
+            onClick={() => onAction(file, { type: "star" })}
+          >
+            {file.starred ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+          </ActionBtn>
+        );
+      case "tags":
+        return (
+          <ActionBtn key={id} title={t("rowAction.tags")} onClick={() => onAction(file, { type: "tags" })}>
+            <LabelIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "copy_to":
+        return (
+          <ActionBtn key={id} title={t("rowAction.copy_to")} onClick={() => onAction(file, { type: "copy_to" })}>
+            <FileCopyIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "delete":
+        return (
+          <ActionBtn key={id} title={t("rowAction.delete")} color="error" onClick={() => onAction(file, { type: "delete" })}>
+            <DeleteOutlineIcon fontSize="small" />
+          </ActionBtn>
+        );
+    }
+  }
+
   return (
     <>
       {trash ? (
         <>
-          <ActionBtn title="还原" onClick={() => onAction(file, { type: "restore" })}>
+          <ActionBtn title={t("rowAction.restore")} onClick={() => onAction(file, { type: "restore" })}>
             <RestoreFromTrashIcon fontSize="small" />
           </ActionBtn>
-          <ActionBtn title="彻底删除" color="error" onClick={() => onAction(file, { type: "purge" })}>
+          <ActionBtn title={t("rowAction.purge")} color="error" onClick={() => onAction(file, { type: "purge" })}>
             <DeleteForeverIcon fontSize="small" />
           </ActionBtn>
         </>
       ) : (
-        actions.map((id) => actionButton(file, id, onAction))
+        actions.map((id) => actionButton(id))
       )}
-      <ActionBtn
-        title="更多"
-        onClick={(e) => onAction(file, { type: "more", event: e })}
-      >
+      <ActionBtn title={t("common.more")} onClick={(e) => onAction(file, { type: "more", event: e })}>
         <MoreVertIcon fontSize="small" />
       </ActionBtn>
     </>

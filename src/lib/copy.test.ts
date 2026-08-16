@@ -56,6 +56,7 @@ describe("copyResponseStatus", () => {
 describe("copy messages", () => {
   it("maps file-exists to the Chinese 409 hint", () => {
     expect(copyErrorMessage("file-exists")).toBe("目标文件夹已有同名文件");
+    expect(copyErrorMessage("file-exists", "en")).toMatch(/already exists/i);
     expect(withCopyMessages([{ id: "1", ok: false, error: "file-exists" }])).toEqual([
       { id: "1", ok: false, error: "file-exists", message: "目标文件夹已有同名文件" },
     ]);

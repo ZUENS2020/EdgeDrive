@@ -17,6 +17,7 @@ import ListItemText from "@mui/material/ListItemText";
 import { alpha } from "@mui/material/styles";
 import { useEffect, useState } from "react";
 import type { FolderNode } from "@/lib/types";
+import { useI18n } from "./I18nProvider";
 
 export function PickFolderDialog({
   open,
@@ -34,6 +35,7 @@ export function PickFolderDialog({
   onSubmit: (path: string) => void;
 }) {
   const [path, setPath] = useState("");
+  const { t } = useI18n();
 
   useEffect(() => {
     if (open) setPath("");
@@ -52,7 +54,7 @@ export function PickFolderDialog({
             <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
               <FolderOpenIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText primary="根目录" />
+            <ListItemText primary={t("pickFolder.root")} />
           </ListItemButton>
           {folders.map((node) => (
             <FolderPickNode key={node.id} node={node} path={path} onPick={setPath} />
@@ -60,7 +62,7 @@ export function PickFolderDialog({
         </List>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>取消</Button>
+        <Button onClick={onClose}>{t("common.cancel")}</Button>
         <Button variant="contained" onClick={() => onSubmit(path)}>
           {confirmLabel}
         </Button>

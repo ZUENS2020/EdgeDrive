@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   TOKEN_CLEAR_CONFIRM_MESSAGE,
   resolveTokenClearConfirm,
+  tokenClearConfirmMessage,
 } from "./token-clear-confirm";
 
 describe("token clear confirm dialog", () => {
@@ -9,6 +10,7 @@ describe("token clear confirm dialog", () => {
     expect(TOKEN_CLEAR_CONFIRM_MESSAGE).toBe(
       "确定清除已配置的 Cloudflare API Token？清除后用量统计将不可用。",
     );
+    expect(tokenClearConfirmMessage("en")).toMatch(/Usage stats/i);
   });
 
   it("clears token only after confirm", () => {

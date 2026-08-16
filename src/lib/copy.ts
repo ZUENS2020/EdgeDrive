@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE, tCopyError, type Locale } from "./i18n";
 import { sanitizeKey } from "./sanitize";
 
 export type CopyItemResult = {
@@ -8,19 +9,8 @@ export type CopyItemResult = {
   message?: string;
 };
 
-export const COPY_ERROR_MESSAGE: Record<string, string> = {
-  "file-exists": "目标文件夹已有同名文件",
-  "same-path": "不能复制到自身",
-  "not-found": "文件不存在",
-  miss: "源文件不存在",
-  "folder-not-found": "文件夹不存在",
-  "need ids": "请选择文件",
-  "need target_path": "请选择目标文件夹",
-};
-
-export function copyErrorMessage(code: string | undefined): string {
-  if (!code) return "复制失败";
-  return COPY_ERROR_MESSAGE[code] || code;
+export function copyErrorMessage(code: string | undefined, locale: Locale = DEFAULT_LOCALE): string {
+  return tCopyError(locale, code);
 }
 
 export function parseCopyBody(body: unknown): { ids: string[]; target_path: string } | { error: string } {
@@ -55,6 +45,6 @@ export function copyResponseStatus(copied: number, results: CopyItemResult[]): n
   return 400;
 }
 
-export function withCopyMessages(results: CopyItemResult[]): CopyItemResult[] {
-  return results.map((r) => (r.ok ? r : { ...r, message: copyErrorMessage(r.error) }));
+export function withCopyMessages(results: CopyItemResult[], locale: Locale = DEFAULT_LOCALE): CopyItemResult[] {
+  return results.map((r) => (r.ok ? r : { ...r, message: copyErrorMessage(r.error, locale) }));
 }

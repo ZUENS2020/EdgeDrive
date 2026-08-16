@@ -34,7 +34,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
   if ("access_enabled" in body || "auth_mode" in body) {
-    return NextResponse.json({ error: "access-locked: Access 启用后不能从设置页关闭" }, { status: 400 });
+    return NextResponse.json({ error: "access-locked" }, { status: 400 });
   }
   try {
     const settings = await updateSettings(body);

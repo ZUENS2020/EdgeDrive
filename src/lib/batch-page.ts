@@ -1,21 +1,10 @@
 import { DOWNLOAD_STAGGER_MS, downloadableFiles } from "./batch";
 import { extLabel, fileExpiryLabel, fileKind, formatSize } from "./format";
-import { PRODUCT_NAME, PRODUCT_SHORT, PRODUCT_TAGLINE } from "./product";
+import { DEFAULT_LOCALE, htmlLang, parseLocale, t, tBatchKind, type Locale } from "./i18n";
+import { PRODUCT_NAME, PRODUCT_SHORT } from "./product";
 import { escapeHtml } from "./sanitize";
 import type { PublicThemeVars } from "./themes";
 import { dlUrl, fileKey, type FileRow } from "./types";
-
-const KIND_LABEL: Record<ReturnType<typeof fileKind>, string> = {
-  img: "图",
-  vid: "视",
-  zip: "包",
-  pdf: "PDF",
-  doc: "文",
-  md: "MD",
-  txt: "TXT",
-  audio: "音",
-  "": "文件",
-};
 
 export type RenderBatchPageOpts = {
   origin: string;
@@ -24,6 +13,7 @@ export type RenderBatchPageOpts = {
   autoDownload: boolean;
   theme: PublicThemeVars;
   now?: number;
+  locale?: Locale;
 };
 
 function publicPageCss(theme: PublicThemeVars): string {
@@ -52,54 +42,58 @@ function publicPageCss(theme: PublicThemeVars): string {
     .footer a:hover { color:var(--brand); }`;
 }
 
-function fileKindLabel(name: string, mime: string | null): string {
+function fileKindLabel(name: string, mime: string | null, locale: Locale): string {
   const kind = fileKind(name, mime);
-  return KIND_LABEL[kind] || extLabel(name);
+  return tBatchKind(locale, kind) || extLabel(name);
 }
 
 export function renderBatchPage(opts: RenderBatchPageOpts): string {
+  const locale = parseLocale(opts.locale ?? DEFAULT_LOCALE);
   const now = opts.now ?? Date.now();
   const files = opts.files;
   const payload = JSON.stringify(downloadableFiles(files, opts.origin, now)).replace(/</g, "\\u003c");
-  const batchStatus = fileExpiryLabel(opts.expiresAt, now);
+  const batchStatus = fileExpiryLabel(opts.expiresAt, now, locale);
   const rows = files
     .map((file) => {
       const key = fileKey(file.path, file.name);
       const preview = dlUrl(opts.origin, key, true);
       const download = dlUrl(opts.origin, key);
       return `<div class="row">
-      <div class="kind">${escapeHtml(fileKindLabel(file.name, file.mime))}</div>
+      <div class="kind">${escapeHtml(fileKindLabel(file.name, file.mime, locale))}</div>
       <div class="info">
         <div class="name">${escapeHtml(file.name)}</div>
-        <div class="sub">${escapeHtml(formatSize(file.size))} · ${escapeHtml(fileExpiryLabel(file.expires, now))}${file.path ? ` · ${escapeHtml(file.path)}` : ""}</div>
+        <div class="sub">${escapeHtml(formatSize(file.size))} · ${escapeHtml(fileExpiryLabel(file.expires, now, locale))}${file.path ? ` · ${escapeHtml(file.path)}` : ""}</div>
       </div>
       <div class="row-actions">
-        <a class="btn ghost" href="${escapeHtml(preview)}">预览</a>
-        <a class="btn" href="${escapeHtml(download)}" download="${escapeHtml(file.name)}">下载</a>
+        <a class="btn ghost" href="${escapeHtml(preview)}">${escapeHtml(t(locale, "batchPage.preview"))}</a>
+        <a class="btn" href="${escapeHtml(download)}" download="${escapeHtml(file.name)}">${escapeHtml(t(locale, "batchPage.download"))}</a>
       </div>
     </div>`;
     })
     .join("\n");
 
   const banner = opts.autoDownload
-    ? `<p class="banner">如被拦截请点下方「全部下载」或允许浏览器下载</p>`
+    ? `<p class="banner">${escapeHtml(t(locale, "batchPage.blocker"))}</p>`
     : "";
 
   const list =
     files.length === 0
-      ? `<p class="empty">这些文件已被删除。</p>`
+      ? `<p class="empty">${escapeHtml(t(locale, "batchPage.empty"))}</p>`
       : `<div class="list">${rows}</div>`;
 
   const autoJs = opts.autoDownload
     ? `window.addEventListener("DOMContentLoaded", function () { triggerDownloads(FILES); });`
     : "";
 
+  const title =
+    files.length === 1 ? t(locale, "batchPage.titleOne") : t(locale, "batchPage.title", { count: files.length });
+
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${htmlLang(locale)}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${files.length} 个文件 · ${escapeHtml(PRODUCT_NAME)}</title>
+  <title>${escapeHtml(title)} · ${escapeHtml(PRODUCT_NAME)}</title>
   <style>
     ${publicPageCss(opts.theme)}
   </style>
@@ -110,15 +104,15 @@ export function renderBatchPage(opts: RenderBatchPageOpts): string {
       <div class="logo">${escapeHtml(PRODUCT_SHORT)}</div>
       <div>${escapeHtml(PRODUCT_NAME)}</div>
     </div>
-    <h1>${files.length} 个文件</h1>
+    <h1>${escapeHtml(title)}</h1>
     <p class="meta">${escapeHtml(batchStatus)}</p>
     ${banner}
     <div class="actions">
-      <button type="button" class="btn" id="download-all">全部下载</button>
+      <button type="button" class="btn" id="download-all">${escapeHtml(t(locale, "batchPage.downloadAll"))}</button>
     </div>
     ${list}
     <div class="footer">
-      <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(PRODUCT_TAGLINE)}</span>
+      <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(t(locale, "product.tagline"))}</span>
       <a href="https://github.com/ZUENS2020/EdgeDrive" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>

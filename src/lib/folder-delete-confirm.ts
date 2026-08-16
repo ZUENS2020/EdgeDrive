@@ -1,8 +1,14 @@
-export const FOLDER_DELETE_CONFIRM_TITLE = "删除文件夹";
+import { DEFAULT_LOCALE, t, type Locale } from "./i18n";
 
-export function folderDeleteConfirmMessage(name: string): string {
-  return `确定删除文件夹「${name}」及其中的所有文件？此操作无法撤销。`;
+export function folderDeleteConfirmTitle(locale: Locale = DEFAULT_LOCALE): string {
+  return t(locale, "fileManager.folderDeleteTitle");
 }
+
+export function folderDeleteConfirmMessage(name: string, locale: Locale = DEFAULT_LOCALE): string {
+  return t(locale, "fileManager.folderDeleteBody", { name });
+}
+
+export const FOLDER_DELETE_CONFIRM_TITLE = folderDeleteConfirmTitle();
 
 export type FolderDeleteConfirmChoice = "confirm" | "cancel";
 

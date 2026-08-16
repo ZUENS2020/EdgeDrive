@@ -2,14 +2,8 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  PRODUCT_DESCRIPTION,
-  PRODUCT_DL_HINT,
-  PRODUCT_HOME_CTA,
-  PRODUCT_NAME,
-  PRODUCT_SHORT,
-  PRODUCT_TAGLINE,
-} from "@/lib/product";
+import { parseLocale, t } from "@/lib/i18n";
+import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { publicThemeVars } from "@/lib/themes";
 
@@ -22,14 +16,15 @@ export default async function Home() {
   } catch {
     // D1 may be unavailable during first boot
   }
-  const t = publicThemeVars(settings.theme_name);
+  const locale = parseLocale(settings.language);
+  const vars = publicThemeVars(settings.theme_name);
   const themeVars = {
-    "--brand": t.brand,
-    "--bg": t.bg,
-    "--text": t.text,
-    "--text-3": t.text3,
-    "--surface": t.surface,
-    "--line": t.line,
+    "--brand": vars.brand,
+    "--bg": vars.bg,
+    "--text": vars.text,
+    "--text-3": vars.text3,
+    "--surface": vars.surface,
+    "--line": vars.line,
   } as CSSProperties;
 
   return (
@@ -39,15 +34,15 @@ export default async function Home() {
           <div className="logo">{PRODUCT_SHORT}</div>
           <div>
             <div className="brand-name">{PRODUCT_NAME}</div>
-            <div className="brand-sub">{PRODUCT_TAGLINE}</div>
+            <div className="brand-sub">{t(locale, "product.tagline")}</div>
           </div>
         </div>
         <h1>{PRODUCT_NAME}</h1>
-        <p>{PRODUCT_DESCRIPTION}</p>
-        <p>{PRODUCT_DL_HINT}</p>
+        <p>{t(locale, "product.description")}</p>
+        <p>{t(locale, "product.dlHint")}</p>
         <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground hover:no-underline">
           <Link href="/admin">
-            {PRODUCT_HOME_CTA}
+            {t(locale, "product.homeCta")}
             <ArrowRight />
           </Link>
         </Button>

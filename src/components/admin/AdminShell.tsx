@@ -19,18 +19,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
+import { useI18n } from "./I18nProvider";
 
 const DRAWER = 260;
 
-const NAV = [
-  { href: "/admin", label: "文件", icon: <FolderIcon />, exact: true },
-  { href: "/admin/usage", label: "统计", icon: <BarChartIcon /> },
-  { href: "/admin/settings", label: "设置", icon: <SettingsIcon /> },
-];
-
 export function AdminShell({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const nav = [
+    { href: "/admin", label: t("nav.files"), icon: <FolderIcon />, exact: true },
+    { href: "/admin/usage", label: t("nav.usage"), icon: <BarChartIcon /> },
+    { href: "/admin/settings", label: t("nav.settings"), icon: <SettingsIcon /> },
+  ];
 
   const drawer = (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -60,7 +61,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </Box>
       </Toolbar>
       <List sx={{ px: 1 }}>
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const on = item.exact ? pathname === item.href : pathname.startsWith(item.href);
           return (
             <ListItemButton
@@ -104,7 +105,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar position="fixed" color="inherit" sx={{ display: { md: "none" } }}>
         <Toolbar>
-          <IconButton edge="start" onClick={() => setMobileOpen(true)} aria-label="打开菜单">
+          <IconButton edge="start" onClick={() => setMobileOpen(true)} aria-label={t("nav.openMenu")}>
             <MenuIcon />
           </IconButton>
           <Typography fontWeight={700}>{PRODUCT_NAME}</Typography>

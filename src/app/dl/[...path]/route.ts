@@ -6,6 +6,7 @@ import { DEFAULTS, getSettings } from "@/lib/settings";
 import { getFileByKey } from "@/lib/store";
 import { publicThemeVars } from "@/lib/themes";
 import { isExpired, type FileRow } from "@/lib/types";
+import { parseLocale, t } from "@/lib/i18n";
 import { isInlineSafe, renderViewPage } from "@/lib/view-page";
 
 export const dynamic = "force-dynamic";
@@ -77,19 +78,26 @@ async function handle(
   const resolved = await resolveFile(path || []);
   if (!resolved) return text("404 Not Found", 404);
   const { key, meta, view } = resolved;
+  let settings = DEFAULTS;
+  try {
+    settings = await getSettings();
+  } catch {
+    // ignore
+  }
+  const locale = parseLocale(settings.language);
   if (isExpired(meta.expires)) {
-    return text("410 Gone（链接已过期）", 410);
+    return text(t(locale, "dl.gone"), 410);
   }
 
   if (view) {
-    let settings = DEFAULTS;
-    try {
-      settings = await getSettings();
-    } catch {
-      // ignore
-    }
     const themeVars = publicThemeVars(settings.theme_name);
-    const html = renderViewPage({ origin: request.nextUrl.origin, key, meta, theme: themeVars });
+    const html = renderViewPage({
+      origin: request.nextUrl.origin,
+      key,
+      meta,
+      theme: themeVars,
+      locale,
+    });
     return new Response(headOnly ? null : html, {
       status: 200,
       headers: {

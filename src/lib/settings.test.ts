@@ -146,4 +146,20 @@ describe("access settings in D1", () => {
     expect(settings.row_actions[0]).toBe("download");
     expect(settings.row_actions).toContain("delete");
   });
+
+  it("defaults language to zh and persists en", async () => {
+    const settings = await getSettings(memoryD1());
+    expect(settings.language).toBe("zh");
+    const db = memoryD1();
+    const next = await updateSettings({ language: "en" }, db);
+    expect(next.language).toBe("en");
+    expect((await getSettings(db)).language).toBe("en");
+  });
+
+  it("unknown language falls back to zh", async () => {
+    const db = memoryD1([{ key: "language", value: "fr" }]);
+    expect((await getSettings(db)).language).toBe("zh");
+    const next = await updateSettings({ language: "nope" as never }, db);
+    expect(next.language).toBe("zh");
+  });
 });
