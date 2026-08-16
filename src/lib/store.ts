@@ -1,4 +1,6 @@
 import { getDB, getR2 } from "./cloudflare";
+import { decideCopyItem, type CopyItemResult } from "./copy";
+import { copyObject } from "./r2-copy";
 import {
   buildFileListWhere,
   parseFileListFilter,
@@ -117,30 +119,18 @@ export async function getFileByKey(key: string): Promise<FileRow | null> {
   return row ? normalizeFileRow(row) : null;
 }
 
-export async function upsertFile(row: Omit<FileRow, "download_count" | "deleted_at" | "starred" | "sha256"> & {
+type FileWrite = Omit<FileRow, "download_count" | "deleted_at" | "starred" | "sha256"> & {
   download_count?: number;
   deleted_at?: string | null;
   starred?: number;
   sha256?: string | null;
-}) {
+};
+
+async function insertFileRecord(row: FileWrite) {
   const db = await getDB();
   const tags = serializeTags(row.tags);
   const sha256 = normalizeSha256(row.sha256) || row.sha256 || null;
   const starred = Number(row.starred) ? 1 : 0;
-  const existing = await db
-    .prepare("SELECT id, download_count, starred FROM files WHERE path = ? AND name = ? AND deleted_at IS NULL")
-    .bind(row.path, row.name)
-    .first<{ id: string; download_count: number; starred: number }>();
-  if (existing) {
-    await db
-      .prepare(
-        `UPDATE files SET size = ?, mime = ?, expires = ?, created_at = ?, tags = ?, sha256 = ?
-         WHERE id = ?`,
-      )
-      .bind(row.size, row.mime, row.expires, row.created_at, tags, sha256, existing.id)
-      .run();
-    return;
-  }
   await db
     .prepare(
       `INSERT INTO files (id, name, path, size, mime, expires, download_count, created_at, tags, deleted_at, starred, sha256)
@@ -161,6 +151,27 @@ export async function upsertFile(row: Omit<FileRow, "download_count" | "deleted_
       sha256,
     )
     .run();
+}
+
+export async function upsertFile(row: FileWrite) {
+  const db = await getDB();
+  const tags = serializeTags(row.tags);
+  const sha256 = normalizeSha256(row.sha256) || row.sha256 || null;
+  const existing = await db
+    .prepare("SELECT id, download_count, starred FROM files WHERE path = ? AND name = ? AND deleted_at IS NULL")
+    .bind(row.path, row.name)
+    .first<{ id: string; download_count: number; starred: number }>();
+  if (existing) {
+    await db
+      .prepare(
+        `UPDATE files SET size = ?, mime = ?, expires = ?, created_at = ?, tags = ?, sha256 = ?
+         WHERE id = ?`,
+      )
+      .bind(row.size, row.mime, row.expires, row.created_at, tags, sha256, existing.id)
+      .run();
+    return;
+  }
+  await insertFileRecord(row);
 }
 
 export async function setFileTags(ids: string[], tags: string) {
@@ -374,19 +385,9 @@ async function rewriteFilePaths(oldPath: string, newPath: string) {
     const fromKey = fileKey(file.path, file.name);
     const toKey = fileKey(nextPath, file.name);
     if (fromKey !== toKey) {
-      const obj = await r2.get(fromKey);
-      if (obj) {
-        // 流式搬运（不 arrayBuffer 进内存——大文件零内存开销）
-        await r2.put(toKey, obj.body, {
-          httpMetadata: obj.httpMetadata,
-          customMetadata: obj.customMetadata,
-        });
-        // 先提交 DB 元数据（权威），成功后再删旧对象——避免 DB 失败导致文件失联
-        await db.prepare("UPDATE files SET path = ? WHERE id = ?").bind(nextPath, file.id).run();
-        await r2.delete(fromKey).catch(() => {});
-      } else {
-        await db.prepare("UPDATE files SET path = ? WHERE id = ?").bind(nextPath, file.id).run();
-      }
+      const copied = await copyObject(fromKey, toKey);
+      await db.prepare("UPDATE files SET path = ? WHERE id = ?").bind(nextPath, file.id).run();
+      if (copied.ok && !copied.skipped) await r2.delete(fromKey).catch(() => {});
     }
   }
 }
@@ -581,21 +582,86 @@ export async function moveFiles(
       .first<{ id: string }>();
     if (clash) throw new Error("file-exists");
 
-    const obj = await r2.get(fromKey);
-    if (obj) {
-      await r2.put(toKey, obj.body, {
-        httpMetadata: obj.httpMetadata,
-        customMetadata: obj.customMetadata,
-      });
-    }
+    const copied = await copyObject(fromKey, toKey);
     await db
       .prepare("UPDATE files SET path = ?, name = ? WHERE id = ?")
       .bind(nextPath, nextName, file.id)
       .run();
-    if (obj) await r2.delete(fromKey);
+    if (copied.ok && !copied.skipped) await r2.delete(fromKey);
     moved += 1;
   }
   return { moved };
+}
+
+export async function copyFiles(
+  ids: string[],
+  destPath: string,
+): Promise<{ copied: number; results: CopyItemResult[] }> {
+  if (!ids.length) return { copied: 0, results: [] };
+  let dest = destPath;
+  if (dest) {
+    const keyRes = sanitizeKey(dest);
+    if (keyRes.error || !keyRes.value) throw new Error(keyRes.error || "bad-path");
+    dest = keyRes.value;
+  }
+  if (!(await folderPathExists(dest))) throw new Error("folder-not-found");
+
+  const db = await getDB();
+  const results: CopyItemResult[] = [];
+  let copied = 0;
+
+  for (const id of ids) {
+    const file = await getFileById(id);
+    const clash = file
+      ? await db
+          .prepare("SELECT id FROM files WHERE path = ? AND name = ? AND deleted_at IS NULL")
+          .bind(dest, file.name)
+          .first<{ id: string }>()
+      : null;
+    const decision = decideCopyItem(file, dest, Boolean(clash));
+    if (decision !== "copy" || !file) {
+      results.push({ id, ok: false, error: decision === "copy" ? "not-found" : decision });
+      continue;
+    }
+
+    const fromKey = fileKey(file.path, file.name);
+    const toKey = fileKey(dest, file.name);
+    const objectCopy = await copyObject(fromKey, toKey);
+    if (!objectCopy.ok) {
+      results.push({ id, ok: false, error: objectCopy.error });
+      continue;
+    }
+
+    const newId = crypto.randomUUID();
+    try {
+      await insertFileRecord({
+        id: newId,
+        name: file.name,
+        path: dest,
+        size: file.size,
+        mime: file.mime,
+        expires: file.expires,
+        created_at: new Date().toISOString(),
+        tags: file.tags,
+        download_count: 0,
+        starred: 0,
+        sha256: file.sha256,
+      });
+    } catch (err) {
+      if (objectCopy.ok && !objectCopy.skipped) {
+        const r2 = await getR2();
+        await r2.delete(toKey).catch(() => {});
+      }
+      if (/UNIQUE/i.test(String((err as Error).message || err))) {
+        results.push({ id, ok: false, error: "file-exists" });
+        continue;
+      }
+      throw err;
+    }
+    copied += 1;
+    results.push({ id, ok: true, newId });
+  }
+  return { copied, results };
 }
 
 export async function findAliveBySha256(sha256: string): Promise<FileRow | null> {
@@ -632,14 +698,13 @@ export async function instantCopy(opts: {
     }
     return { error: "file-exists" };
   }
-  const r2 = await getR2();
   if (srcKey !== destKey) {
-    const obj = await r2.get(srcKey);
-    if (!obj) return { error: "miss" };
-    await r2.put(destKey, obj.body, {
-      httpMetadata: obj.httpMetadata,
-      customMetadata: opts.expires ? { expires: opts.expires } : obj.customMetadata,
-    });
+    const copied = await copyObject(
+      srcKey,
+      destKey,
+      opts.expires ? { customMetadata: { expires: opts.expires } } : undefined,
+    );
+    if (!copied.ok) return { error: "miss" };
   }
   const id = crypto.randomUUID();
   const mime = opts.mime || src.mime;

@@ -4,6 +4,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DriveFileMoveIcon from "@mui/icons-material/DriveFileMove";
+import FileCopyIcon from "@mui/icons-material/FileCopy";
 import DownloadIcon from "@mui/icons-material/Download";
 import EditIcon from "@mui/icons-material/Edit";
 import GridViewIcon from "@mui/icons-material/GridView";
@@ -60,9 +61,11 @@ import { formatSize, formatTime } from "@/lib/format";
 import { parseTags } from "@/lib/tags";
 import { MAX_BATCH_IDS, type FileView, type FolderNode, type SiteSettings } from "@/lib/types";
 import { uploadFilesQueued } from "@/lib/upload-client";
+import { copyErrorMessage } from "@/lib/copy";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FolderTree } from "./FolderTree";
 import { MoveDialog } from "./MoveDialog";
+import { PickFolderDialog } from "./PickFolderDialog";
 
 type Filter = FileListFilter;
 
@@ -99,6 +102,8 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
   const [expireIds, setExpireIds] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveIds, setMoveIds] = useState<string[]>([]);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyIds, setCopyIds] = useState<string[]>([]);
   const [confirm, setConfirm] = useState<{ title: string; body: string; run: () => void } | null>(null);
   const [prompt, setPrompt] = useState<{ title: string; label: string; value: string; run: (v: string) => void } | null>(
     null,
@@ -223,6 +228,41 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
     else if (payload.action === "expireNow") await batch({ ids, action: "expireNow" });
     else await batch({ ids, action: "expire", hours: payload.hours, days: payload.days, expires: payload.expires });
     setExpireOpen(false);
+  }
+
+  async function copyTo(ids: string[], dest: string) {
+    try {
+      const res = await fetch("/api/files/copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, target_path: dest }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        copied?: number;
+        failed?: number;
+        error?: string;
+        message?: string;
+        results?: { ok?: boolean; message?: string; error?: string }[];
+      };
+      const copied = data.copied ?? 0;
+      const failed = data.failed ?? (data.results || []).filter((r) => !r.ok).length;
+      const firstFail = (data.results || []).find((r) => !r.ok);
+      const failText = firstFail?.message || copyErrorMessage(firstFail?.error || data.error) || data.message;
+      if (copied && failed) {
+        toast(`已复制 ${copied} 个，${failed} 个失败：${failText}`);
+        await reload();
+        return;
+      }
+      if (copied) {
+        setSelected(new Set());
+        toast(`已复制 ${copied} 个`);
+        await reload();
+        return;
+      }
+      toast(data.message || failText || "复制失败", "error");
+    } catch {
+      toast("复制失败", "error");
+    }
   }
 
   async function patchFiles(body: Record<string, unknown>) {
@@ -537,6 +577,16 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                   }}
                 >
                   移动
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<FileCopyIcon />}
+                  onClick={() => {
+                    setCopyIds([...selected]);
+                    setCopyOpen(true);
+                  }}
+                >
+                  复制到…
                 </Button>
                 <Button
                   size="small"
@@ -917,6 +967,17 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
         <MenuItem
           onClick={() => {
             if (!ctxFile) return;
+            setCopyIds([ctxFile.id]);
+            setCopyOpen(true);
+            setCtx(null);
+          }}
+        >
+          <FileCopyIcon fontSize="small" sx={{ mr: 1 }} />
+          复制到…
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (!ctxFile) return;
             setExpireIds([ctxFile.id]);
             setExpireOpen(true);
             setCtx(null);
@@ -1010,6 +1071,18 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
             setSelected(new Set());
             toast("已移动");
           }
+        }}
+      />
+      <PickFolderDialog
+        open={copyOpen}
+        title={`复制到文件夹${copyIds.length > 1 ? `（${copyIds.length} 个）` : ""}`}
+        confirmLabel="复制"
+        folders={folders}
+        onClose={() => setCopyOpen(false)}
+        onSubmit={(dest) => {
+          const ids = copyIds;
+          setCopyOpen(false);
+          void copyTo(ids, dest);
         }}
       />
       <Dialog open={!!confirm} onClose={() => setConfirm(null)}>
