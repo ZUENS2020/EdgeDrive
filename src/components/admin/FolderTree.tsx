@@ -103,14 +103,20 @@ function TreeNode({
         onDoubleClick={() => onRename(node.id, node.name)}
         sx={{ pl: 2 }}
       >
-        <ListItemIcon sx={{ minWidth: 28, color: "inherit" }} onClick={(e) => e.stopPropagation()}>
+        <ListItemIcon sx={{ minWidth: 28, color: "inherit", display: "flex", alignItems: "center" }}>
+          <FolderIcon fontSize="small" />
           {hasKids ? (
-            <IconButton size="small" onClick={() => setOpen((v) => !v)}>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen((v) => !v);
+              }}
+              sx={{ p: 0.25 }}
+            >
               {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
             </IconButton>
-          ) : (
-            <FolderIcon fontSize="small" />
-          )}
+          ) : null}
         </ListItemIcon>
         <ListItemText primary={node.name} primaryTypographyProps={{ noWrap: true }} />
         <IconButton

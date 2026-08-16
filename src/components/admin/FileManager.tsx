@@ -221,7 +221,18 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
         if (file) setCtx({ x: e.clientX, y: e.clientY, file });
       }}
     >
-      <Box sx={{ width: { md: 240 }, flexShrink: 0, borderRight: { md: "1px solid" }, borderColor: "divider", p: 1, display: { xs: "none", lg: "block" } }}>
+      <Box
+        sx={{
+          width: { md: 240 },
+          flexShrink: 0,
+          borderRight: { md: "1px solid" },
+          borderColor: "divider",
+          p: 1,
+          display: "block",
+          maxHeight: { xs: 220, md: "none" },
+          overflowY: { xs: "auto", md: "visible" },
+        }}
+      >
         <FolderTree
           folders={folders}
           currentPath={path}
@@ -505,7 +516,10 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                       <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
                         <Chip size="small" label={st.label} color={st.color} />
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                        <IconButton size="small" href={`${file.url}/view`} target="_blank" title="预览" aria-label="预览">
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
                         <IconButton size="small" href={file.url} target="_blank" aria-label="下载">
                           <DownloadIcon fontSize="small" />
                         </IconButton>
@@ -517,17 +531,6 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                           }}
                         >
                           <ContentCopyIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          title="复制预览链接"
-                          aria-label="复制预览链接"
-                          onClick={async () => {
-                            const ok = await copyToClipboard(`${file.url}/view`);
-                            toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
-                          }}
-                        >
-                          <VisibilityIcon fontSize="small" />
                         </IconButton>
                         <IconButton
                           size="small"
