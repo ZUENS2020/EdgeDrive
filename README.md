@@ -190,4 +190,4 @@ GitHub Actions 会在每次 push 时自动跑测试 + 类型检查。
 
 ## License
 
-[MIT](LICENSE)
+[GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）—— 网络服务同样适用 copyleft：修改后对外提供网络服务，须以同样许可证开源完整源码。
