@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { UsageBarChart } from "@/components/UsageChart";
 import { formatSize } from "@/lib/format";
+import { topBars } from "@/lib/usage-charts";
 import type { UsagePayload, UsageRange } from "@/lib/usage-types";
 import { cn } from "@/lib/utils";
 
@@ -71,11 +73,11 @@ export function UsageView() {
   }, [range]);
 
   return (
-    <>
-      <div className="header" style={{ padding: "0 0 16px" }}>
+    <div className="usage-fit">
+      <div className="header usage-head">
         <h1>统计</h1>
         <div className="header-sp" />
-        <div className="filters" style={{ border: 0, padding: 0 }}>
+        <div className="filters usage-filters">
           {RANGES.map((item) => (
             <button
               key={item.id}
@@ -95,7 +97,7 @@ export function UsageView() {
       {loading && !data ? <p className="load-hint">正在加载用量…</p> : null}
       {error ? <p className="err">{error}</p> : null}
       {data ? <UsageBody data={data} /> : null}
-    </>
+    </div>
   );
 }
 
@@ -105,6 +107,32 @@ function UsageBody({ data }: { data: UsagePayload }) {
   const d1Bytes = a.d1?.databaseBytes ?? data.disk.sqliteBytes;
   const showQuota = data.range === "month";
 
+  const siteBars = topBars([
+    { label: "文件", value: data.disk.files },
+    { label: "文件夹", value: data.disk.folders },
+    { label: "下载", value: data.disk.downloads },
+    { label: "即将过期", value: data.disk.soon },
+    { label: "已过期", value: data.disk.expired },
+  ]);
+  const r2Bars = topBars(
+    (a.r2?.byAction || []).map((row) => ({
+      label: row.action,
+      value: row.requests,
+    })),
+  );
+  const d1Bars = topBars([
+    { label: "读查询", value: a.d1?.readQueries ?? 0 },
+    { label: "写查询", value: a.d1?.writeQueries ?? 0 },
+    { label: "扫描行", value: a.d1?.rowsRead ?? 0 },
+    { label: "写入行", value: a.d1?.rowsWritten ?? 0 },
+  ]);
+  const workerBars = topBars(
+    (a.worker?.byStatus || []).map((row) => ({
+      label: statusLabel(row.status),
+      value: row.requests,
+    })),
+  );
+
   return (
     <div className="usage-page">
       {!a.configured ? (
@@ -113,130 +141,111 @@ function UsageBody({ data }: { data: UsagePayload }) {
         </p>
       ) : null}
       {a.configured && a.error ? <p className="err">{a.error}</p> : null}
-      <div className="usage-grid">
-      <section className="usage-card">
-        <h2>本站</h2>
-        <p className="hint">D1 里登记的文件与文件夹，不等于账单存储（以 R2 实测为准）。</p>
-        <div className="usage-metrics">
-          <Metric k="文件" v={n(data.disk.files)} />
-          <Metric k="文件夹" v={n(data.disk.folders)} />
-          <Metric k="目录合计" v={formatSize(data.disk.catalogBytes)} />
-          <Metric k="下载次数" v={n(data.disk.downloads)} />
-          <Metric k="即将过期" v={n(data.disk.soon)} warn={data.disk.soon > 0} />
-          <Metric k="已过期" v={n(data.disk.expired)} bad={data.disk.expired > 0} />
-        </div>
-        {data.disk.tables.length > 0 ? (
-          <table className="usage-table">
-            <thead>
-              <tr>
-                <th>D1 表</th>
-                <th>行数</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.disk.tables.map((t) => (
-                <tr key={t.name}>
-                  <td>{t.name}</td>
-                  <td>{n(t.rows)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
 
-      <section className="usage-card">
-        <h2>R2</h2>
-        <p className="hint">对象容量、Class A（写/列举）与 Class B（读/Head）。删除类操作为免费。</p>
-        <div className="usage-metrics">
-          <Metric k="对象容量" v={r2Bytes != null ? formatSize(r2Bytes) : "—"} />
-          <Metric k="对象数" v={n(a.r2?.objectCount ?? data.disk.files)} />
-          <Metric k="元数据" v={a.r2?.metadataBytes != null ? formatSize(a.r2.metadataBytes) : "—"} />
-          <Metric k="未完成分片" v={n(a.r2?.uploadCount)} />
-          <Metric k="Class A" v={n(a.r2?.classA)} />
-          <Metric k="Class B" v={n(a.r2?.classB)} />
-          <Metric k="免费操作" v={n(a.r2?.freeOps)} />
-          <Metric k="其它" v={n(a.r2?.otherOps)} />
-        </div>
-        {showQuota && a.r2 ? (
-          <div className="usage-quotas">
-            <Quota label="容量 / 10 GB 免费档" used={r2Bytes || 0} max={R2_FREE.bytes} format={formatSize} />
-            <Quota label="Class A / 100 万" used={a.r2.classA} max={R2_FREE.classA} />
-            <Quota label="Class B / 1000 万" used={a.r2.classB} max={R2_FREE.classB} />
-          </div>
-        ) : null}
-        {a.r2 && a.r2.byAction.length > 0 ? (
-          <table className="usage-table">
-            <thead>
-              <tr>
-                <th>操作</th>
-                <th>类别</th>
-                <th>次数</th>
-              </tr>
-            </thead>
-            <tbody>
-              {a.r2.byAction.slice(0, 12).map((row) => (
-                <tr key={row.action}>
-                  <td>{row.action}</td>
-                  <td>{row.klass === "A" ? "A" : row.klass === "B" ? "B" : row.klass === "free" ? "免费" : "其它"}</td>
-                  <td>{n(row.requests)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
-
-      <section className="usage-card">
-        <h2>D1</h2>
-        <p className="hint">查询次数、扫描/写入行数、库体积。行数是计费口径，不是结果行数。</p>
-        <div className="usage-metrics">
-          <Metric k="库体积" v={d1Bytes != null ? formatSize(d1Bytes) : "—"} />
-          <Metric k="读查询" v={n(a.d1?.readQueries)} />
-          <Metric k="写查询" v={n(a.d1?.writeQueries)} />
-          <Metric k="扫描行" v={n(a.d1?.rowsRead)} />
-          <Metric k="写入行" v={n(a.d1?.rowsWritten)} />
-          <Metric k="查询平均耗时" v={a.d1 ? `${a.d1.queryTimeMs.toFixed(2)} ms` : "—"} />
-        </div>
-        {showQuota && d1Bytes != null ? (
-          <div className="usage-quotas">
-            <Quota label="存储 / 5 GB 免费档" used={d1Bytes} max={D1_FREE_BYTES} format={formatSize} />
-          </div>
-        ) : null}
-      </section>
-
-      <section className="usage-card">
-        <h2>Worker</h2>
-        <p className="hint">调用次数、错误、子请求，以及 CPU 分位（微秒换算为毫秒）。</p>
-        <div className="usage-metrics">
-          <Metric k="请求" v={n(a.worker?.requests)} />
-          <Metric k="错误" v={n(a.worker?.errors)} bad={(a.worker?.errors || 0) > 0} />
-          <Metric k="子请求" v={n(a.worker?.subrequests)} />
-          <Metric k="CPU p50" v={cpuMs(a.worker?.cpuTimeP50Us)} />
-          <Metric k="CPU p99" v={cpuMs(a.worker?.cpuTimeP99Us)} />
-        </div>
-        {a.worker && a.worker.byStatus.length > 0 ? (
-          <table className="usage-table">
-            <thead>
-              <tr>
-                <th>调用状态</th>
-                <th>请求</th>
-                <th>错误</th>
-              </tr>
-            </thead>
-            <tbody>
-              {a.worker.byStatus.map((row) => (
-                <tr key={row.status}>
-                  <td>{statusLabel(row.status)}</td>
-                  <td>{n(row.requests)}</td>
-                  <td>{n(row.errors)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
+      <div className="usage-hero">
+        <Hero k="文件" v={n(data.disk.files)} />
+        <Hero k="容量" v={r2Bytes != null ? formatSize(r2Bytes) : "—"} />
+        <Hero k="下载总数" v={n(data.disk.downloads)} />
+        <Hero k="Worker 请求" v={n(a.worker?.requests)} />
       </div>
+
+      <div className="usage-grid">
+        <section className="usage-card">
+          <h2>本站</h2>
+          <p className="hint">D1 里登记的文件与文件夹，不等于账单存储（以 R2 实测为准）。</p>
+          <div className="usage-metrics">
+            <Metric k="文件" v={n(data.disk.files)} />
+            <Metric k="文件夹" v={n(data.disk.folders)} />
+            <Metric k="目录合计" v={formatSize(data.disk.catalogBytes)} />
+            <Metric k="下载次数" v={n(data.disk.downloads)} />
+            <Metric k="即将过期" v={n(data.disk.soon)} warn={data.disk.soon > 0} />
+            <Metric k="已过期" v={n(data.disk.expired)} bad={data.disk.expired > 0} />
+          </div>
+          <UsageBarChart items={siteBars} />
+          {data.disk.tables.length > 0 ? (
+            <table className="usage-table">
+              <thead>
+                <tr>
+                  <th>D1 表</th>
+                  <th>行数</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.disk.tables.slice(0, 6).map((t) => (
+                  <tr key={t.name}>
+                    <td>{t.name}</td>
+                    <td>{n(t.rows)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </section>
+
+        <section className="usage-card">
+          <h2>R2</h2>
+          <p className="hint">对象容量、Class A（写/列举）与 Class B（读/Head）。删除类操作为免费。</p>
+          <div className="usage-metrics">
+            <Metric k="对象容量" v={r2Bytes != null ? formatSize(r2Bytes) : "—"} />
+            <Metric k="对象数" v={n(a.r2?.objectCount ?? data.disk.files)} />
+            <Metric k="元数据" v={a.r2?.metadataBytes != null ? formatSize(a.r2.metadataBytes) : "—"} />
+            <Metric k="未完成分片" v={n(a.r2?.uploadCount)} />
+            <Metric k="Class A" v={n(a.r2?.classA)} />
+            <Metric k="Class B" v={n(a.r2?.classB)} />
+            <Metric k="免费操作" v={n(a.r2?.freeOps)} />
+            <Metric k="其它" v={n(a.r2?.otherOps)} />
+          </div>
+          {showQuota && a.r2 ? (
+            <div className="usage-quotas">
+              <Quota label="容量 / 10 GB 免费档" used={r2Bytes || 0} max={R2_FREE.bytes} format={formatSize} />
+              <Quota label="Class A / 100 万" used={a.r2.classA} max={R2_FREE.classA} />
+              <Quota label="Class B / 1000 万" used={a.r2.classB} max={R2_FREE.classB} />
+            </div>
+          ) : null}
+          <UsageBarChart items={r2Bars} />
+        </section>
+
+        <section className="usage-card">
+          <h2>D1</h2>
+          <p className="hint">查询次数、扫描/写入行数、库体积。行数是计费口径，不是结果行数。</p>
+          <div className="usage-metrics">
+            <Metric k="库体积" v={d1Bytes != null ? formatSize(d1Bytes) : "—"} />
+            <Metric k="读查询" v={n(a.d1?.readQueries)} />
+            <Metric k="写查询" v={n(a.d1?.writeQueries)} />
+            <Metric k="扫描行" v={n(a.d1?.rowsRead)} />
+            <Metric k="写入行" v={n(a.d1?.rowsWritten)} />
+            <Metric k="查询平均耗时" v={a.d1 ? `${a.d1.queryTimeMs.toFixed(2)} ms` : "—"} />
+          </div>
+          {showQuota && d1Bytes != null ? (
+            <div className="usage-quotas">
+              <Quota label="存储 / 5 GB 免费档" used={d1Bytes} max={D1_FREE_BYTES} format={formatSize} />
+            </div>
+          ) : null}
+          <UsageBarChart items={d1Bars} />
+        </section>
+
+        <section className="usage-card">
+          <h2>Worker</h2>
+          <p className="hint">调用次数、错误、子请求，以及 CPU 分位（微秒换算为毫秒）。</p>
+          <div className="usage-metrics">
+            <Metric k="请求" v={n(a.worker?.requests)} />
+            <Metric k="错误" v={n(a.worker?.errors)} bad={(a.worker?.errors || 0) > 0} />
+            <Metric k="子请求" v={n(a.worker?.subrequests)} />
+            <Metric k="CPU p50" v={cpuMs(a.worker?.cpuTimeP50Us)} />
+            <Metric k="CPU p99" v={cpuMs(a.worker?.cpuTimeP99Us)} />
+          </div>
+          <UsageBarChart items={workerBars} />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Hero({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="usage-hero-card">
+      <span className="k">{k}</span>
+      <span className="v">{v}</span>
     </div>
   );
 }

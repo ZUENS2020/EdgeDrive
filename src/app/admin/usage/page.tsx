@@ -8,7 +8,7 @@ export default async function UsagePage() {
   const authMode = await getAuthMode();
   return (
     <SettingsShell showLogout={authMode !== "access"}>
-      <div className="main" style={{ padding: "22px 28px 40px" }}>
+      <div className="main usage-main">
         <UsageView />
       </div>
     </SettingsShell>
