@@ -428,10 +428,10 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                     />
                   </TableCell>
                   <TableCell>文件</TableCell>
-                  <TableCell>大小</TableCell>
-                  <TableCell>下载</TableCell>
-                  <TableCell>上传时间</TableCell>
-                  <TableCell>状态</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>大小</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>下载</TableCell>
+                  <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>上传时间</TableCell>
+                  <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>状态</TableCell>
                   <TableCell align="right">操作</TableCell>
                 </TableRow>
               </TableHead>
@@ -477,10 +477,10 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                           {file.path || "/"}
                         </Typography>
                       </TableCell>
-                      <TableCell>{formatSize(file.size)}</TableCell>
-                      <TableCell>{file.download_count}</TableCell>
-                      <TableCell>{formatTime(file.created_at)}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{formatSize(file.size)}</TableCell>
+                      <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>{file.download_count}</TableCell>
+                      <TableCell sx={{ display: { xs: "none", md: "table-cell" } }}>{formatTime(file.created_at)}</TableCell>
+                      <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
                         <Chip size="small" label={st.label} color={st.color} />
                       </TableCell>
                       <TableCell align="right">
