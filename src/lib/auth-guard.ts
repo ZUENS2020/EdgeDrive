@@ -15,6 +15,30 @@ async function accessJwtFromSettings() {
   };
 }
 
+function parseCookies(cookieHeader: string | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!cookieHeader) return out;
+  for (const part of cookieHeader.split(";")) {
+    const idx = part.indexOf("=");
+    if (idx === -1) continue;
+    const k = part.slice(0, idx).trim();
+    const v = part.slice(idx + 1).trim();
+    if (k) out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * 获取 Access JWT：优先请求头 cf-access-jwt-assertion；头缺失时
+ * 兼容 CF_Authorization cookie（部分 Access 配置只传 cookie 不注入头）。
+ */
+export function getAccessJwt(hdrs: Headers): string | null {
+  const fromHeader = hdrs.get("cf-access-jwt-assertion");
+  if (fromHeader) return fromHeader;
+  const cookies = parseCookies(hdrs.get("cookie"));
+  return cookies["CF_Authorization"] || null;
+}
+
 async function accessVerified(hdrs: Headers, team: string, aud: string): Promise<boolean> {
   const jwt = hdrs.get("cf-access-jwt-assertion");
   if (!jwt) return false;
@@ -24,18 +48,14 @@ async function accessVerified(hdrs: Headers, team: string, aud: string): Promise
 export async function requireAdmin(request?: Request) {
   const settings = await accessJwtFromSettings();
   const hdrs = request ? request.headers : await headers();
-  const jwt = hdrs.get("cf-access-jwt-assertion");
+  const jwt = getAccessJwt(hdrs);
   console.warn(
-    "[auth-debug] requireAdmin: jwt header=",
+    "[auth-debug] requireAdmin: jwt=",
     jwt ? `present(${jwt.length} chars)` : "MISSING",
     "| enabled=",
     settings.enabled,
-    "| team=",
-    settings.team,
     "| aud=",
     settings.aud.slice(0, 8),
-    "| all-access-headers=",
-    [...hdrs.keys()].filter((k) => k.toLowerCase().includes("access") || k.toLowerCase().includes("authorization") || k.toLowerCase().includes("cookie")),
   );
   const verified = jwt ? await verifyAccessJwt(jwt, { team: settings.team, aud: settings.aud }) : false;
   const gate = evaluateAdminGate({
@@ -59,7 +79,7 @@ export async function requireAdmin(request?: Request) {
 export async function requireAdminPage() {
   const settings = await accessJwtFromSettings();
   const hdrs = await headers();
-  const jwt = hdrs.get("cf-access-jwt-assertion");
+  const jwt = getAccessJwt(hdrs);
   const verified = jwt ? await accessVerified(hdrs, settings.team, settings.aud) : false;
   const gate = evaluateAdminPageGate({
     accessEnabled: settings.enabled,
