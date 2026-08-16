@@ -20,14 +20,6 @@
 
 ---
 
-## 截图（桌面端）
-
-| 管理台 · 文件 | 用量统计 | Access 引导 |
-|---|---|---|
-| ![desktop-admin](docs/screenshots/desktop-admin.png) | ![desktop-usage](docs/screenshots/desktop-usage.png) | ![desktop-login](docs/screenshots/desktop-login.png) |
-
----
-
 ## 快速部署（约 5 分钟）
 
 ### 前置
