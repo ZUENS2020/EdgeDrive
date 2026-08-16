@@ -1131,14 +1131,15 @@ th .check {
     --usage-gap: 3px;
     --usage-pad: 4px 8px 6px;
   }
-  .usage-card {
+  .usage-main .usage-card {
     padding: 6px 10px 8px;
-    overflow-y: auto; /* 卡内内容超限可滚动——不裁切 */
+    overflow-y: auto; /* 卡内内容超限可滚动——不裁切（高特异性覆盖基础 overflow:hidden） */
+    overflow-x: hidden;
   }
-  .usage-card .hint {
+  .usage-main .usage-card .hint {
     display: none; /* 矮屏隐藏说明文字——省出高度 */
   }
-  .usage-card h2 {
+  .usage-main .usage-card h2 {
     margin-bottom: 0;
   }
 }
