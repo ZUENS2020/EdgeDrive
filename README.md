@@ -26,6 +26,12 @@
 
 ---
 
+## ⚡ 一键部署
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ZUENS2020/EdgeDrive)
+
+点击上方按钮 → 连接 GitHub + Cloudflare 账号 → 填写 Worker/资源名 → **自动 fork + 构建 + 部署**（D1/R2 自动创建并绑定）。部署完成后打开 Worker 域名，按「首次引导」配置 Access 即可。
+
 ## 快速部署（约 5 分钟）
 
 ### 前置
