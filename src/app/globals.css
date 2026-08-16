@@ -1084,7 +1084,9 @@ th .check {
 .admin-root:has(.usage-main) {
   height: 100dvh;
   max-height: 100dvh;
-  overflow: hidden;
+  /* 矮屏（高度 <660px 左右）内容放不下时允许滚动——不裁不遮挡 */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .app:has(.usage-main) {
   flex: 1;
@@ -1107,6 +1109,21 @@ th .check {
   padding: var(--usage-pad);
   display: flex;
   flex-direction: column;
+}
+/* 矮屏：压缩间距/图表高度——尽量一屏放下（放不下时外层 overflow-y 兜底滚动） */
+@media (max-height: 660px) {
+  .usage-main {
+    --usage-chart-h: 48px;
+    --usage-gap: 5px;
+    --usage-pad: 6px 10px 8px;
+  }
+}
+@media (max-height: 580px) {
+  .usage-main {
+    --usage-chart-h: 36px;
+    --usage-gap: 4px;
+    --usage-pad: 4px 8px 6px;
+  }
 }
 .usage-fit {
   flex: 1;
