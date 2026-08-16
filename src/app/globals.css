@@ -1111,18 +1111,41 @@ th .check {
   flex-direction: column;
 }
 /* 矮屏：压缩间距/图表高度——尽量一屏放下（放不下时外层 overflow-y 兜底滚动） */
+@media (max-height: 700px) {
+  .usage-main {
+    --usage-chart-h: 56px;
+    --usage-gap: 6px;
+    --usage-pad: 8px 10px 10px;
+  }
+}
 @media (max-height: 660px) {
   .usage-main {
-    --usage-chart-h: 48px;
+    --usage-chart-h: 44px;
     --usage-gap: 5px;
     --usage-pad: 6px 10px 8px;
   }
 }
+@media (max-height: 620px) {
+  .usage-main {
+    --usage-chart-h: 32px;
+    --usage-gap: 3px;
+    --usage-pad: 4px 8px 6px;
+  }
+  .usage-card {
+    padding: 6px 10px 8px;
+  }
+  .usage-card .hint {
+    display: none; /* 矮屏隐藏说明文字——省出高度 */
+  }
+  .usage-card h2 {
+    margin-bottom: 0;
+  }
+}
 @media (max-height: 580px) {
   .usage-main {
-    --usage-chart-h: 36px;
-    --usage-gap: 4px;
-    --usage-pad: 4px 8px 6px;
+    --usage-chart-h: 28px;
+    --usage-gap: 2px;
+    --usage-pad: 3px 6px 4px;
   }
 }
 .usage-fit {
