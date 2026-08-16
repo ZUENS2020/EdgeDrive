@@ -1,6 +1,5 @@
 "use client";
 
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DriveFileMoveIcon from "@mui/icons-material/DriveFileMove";
@@ -8,8 +7,8 @@ import FileCopyIcon from "@mui/icons-material/FileCopy";
 import DownloadIcon from "@mui/icons-material/Download";
 import EditIcon from "@mui/icons-material/Edit";
 import GridViewIcon from "@mui/icons-material/GridView";
+import LabelIcon from "@mui/icons-material/Label";
 import LinkIcon from "@mui/icons-material/Link";
-import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import RestoreFromTrashIcon from "@mui/icons-material/RestoreFromTrash";
 import SearchIcon from "@mui/icons-material/Search";
 import PreviewIcon from "@mui/icons-material/Preview";
@@ -31,7 +30,6 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import FormControl from "@mui/material/FormControl";
-import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import InputLabel from "@mui/material/InputLabel";
 import LinearProgress from "@mui/material/LinearProgress";
@@ -59,10 +57,13 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { isGlobalFileFilter, type FileListFilter } from "@/lib/files-query";
 import { formatSize, formatTime } from "@/lib/format";
 import { parseTags } from "@/lib/tags";
-import { MAX_BATCH_IDS, type FileView, type FolderNode, type SiteSettings } from "@/lib/types";
+import { MAX_BATCH_IDS, type FileView, type FolderNode } from "@/lib/types";
+import { parseRowActions } from "@/lib/row-actions";
 import { uploadFilesQueued } from "@/lib/upload-client";
 import { copyErrorMessage } from "@/lib/copy";
+import { useSiteSettings } from "./AdminProviders";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
+import { FileRowActions, type FileRowActionEvent } from "./FileRowActions";
 import { FolderTree } from "./FolderTree";
 import { MoveDialog } from "./MoveDialog";
 import { PickFolderDialog } from "./PickFolderDialog";
@@ -87,8 +88,9 @@ function statusOf(file: FileView) {
   return { kind: "ok" as const, label: "正常", color: "success" as const };
 }
 
-export function FileManager({ initialSettings }: { initialSettings: SiteSettings }) {
+export function FileManager() {
   const { open: notify } = useNotification();
+  const { siteSettings } = useSiteSettings();
   const [path, setPath] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -114,7 +116,8 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
   const [pageDrop, setPageDrop] = useState(false);
   const [ctx, setCtx] = useState<{ x: number; y: number; file: FileView | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const pageSize = initialSettings.page_size || 50;
+  const pageSize = siteSettings.page_size || 50;
+  const rowActions = parseRowActions(siteSettings.row_actions);
 
   const filesQuery = useList<FileView>({
     resource: "files",
@@ -280,6 +283,57 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
       const msg = err instanceof Error ? err.message : "操作失败";
       toast(map[msg] || msg, "error");
       return false;
+    }
+  }
+
+  function handleRowAction(file: FileView, event: FileRowActionEvent) {
+    switch (event.type) {
+      case "more":
+        setCtx({ x: event.event.clientX, y: event.event.clientY, file });
+        return;
+      case "copy_link":
+        void copyToClipboard(file.url).then((ok) =>
+          toast(ok ? "已复制下载链接" : "复制失败", ok ? "success" : "error"),
+        );
+        return;
+      case "copy_view_link":
+        void copyToClipboard(`${file.url}/view`).then((ok) =>
+          toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error"),
+        );
+        return;
+      case "expire":
+        setExpireIds([file.id]);
+        setExpireOpen(true);
+        return;
+      case "star":
+        void patchFiles({ id: file.id, starred: file.starred ? 0 : 1 });
+        return;
+      case "tags":
+        setTagEdit({ ids: [file.id], value: file.tags || "" });
+        return;
+      case "copy_to":
+        setCopyIds([file.id]);
+        setCopyOpen(true);
+        return;
+      case "delete":
+        setConfirm({
+          title: "移入回收站",
+          body: `确定把「${file.name}」移入回收站？可在 30 天内还原。`,
+          run: () => batch({ ids: [file.id], action: "delete" }),
+        });
+        return;
+      case "restore":
+        void batch({ ids: [file.id], action: "restore" }).then(() => toast("已还原"));
+        return;
+      case "purge":
+        setConfirm({
+          title: "彻底删除",
+          body: `确定彻底删除「${file.name}」？此操作无法撤销。`,
+          run: () => batch({ ids: [file.id], action: "purge" }),
+        });
+        return;
+      default:
+        return;
     }
   }
 
@@ -600,7 +654,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                 </Button>
                 <Button
                   size="small"
-                  startIcon={<LocalOfferIcon />}
+                  startIcon={<LabelIcon />}
                   onClick={() => setTagEdit({ ids: [...selected], value: "" })}
                 >
                   标签
@@ -721,101 +775,12 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                         <Chip size="small" label={st.label} color={st.color} />
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                        {filter === "trash" ? (
-                          <>
-                            <IconButton
-                              size="small"
-                              title="还原"
-                              aria-label="还原"
-                              onClick={() => void batch({ ids: [file.id], action: "restore" }).then(() => toast("已还原"))}
-                            >
-                              <RestoreFromTrashIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              title="彻底删除"
-                              aria-label="彻底删除"
-                              onClick={() =>
-                                setConfirm({
-                                  title: "彻底删除",
-                                  body: `确定彻底删除「${file.name}」？此操作无法撤销。`,
-                                  run: () => batch({ ids: [file.id], action: "purge" }),
-                                })
-                              }
-                            >
-                              <DeleteForeverIcon fontSize="small" />
-                            </IconButton>
-                          </>
-                        ) : (
-                          <>
-                            <IconButton
-                              size="small"
-                              color={file.starred ? "warning" : "default"}
-                              title={file.starred ? "取消收藏" : "收藏"}
-                              aria-label={file.starred ? "取消收藏" : "收藏"}
-                              onClick={() => void patchFiles({ id: file.id, starred: file.starred ? 0 : 1 })}
-                            >
-                              {file.starred ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
-                            </IconButton>
-                            <IconButton size="small" href={file.url} target="_blank" aria-label="下载">
-                              <DownloadIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton size="small" href={`${file.url}/view`} target="_blank" title="预览" aria-label="预览">
-                              <PreviewIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={async () => {
-                                const ok = await copyToClipboard(file.url);
-                                toast(ok ? "已复制下载链接" : "复制失败", ok ? "success" : "error");
-                              }}
-                            >
-                              <ContentCopyIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              title="复制预览链接"
-                              aria-label="复制预览链接"
-                              onClick={async () => {
-                                const ok = await copyToClipboard(`${file.url}/view`);
-                                toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
-                              }}
-                            >
-                              <VisibilityIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              title="标签"
-                              aria-label="标签"
-                              onClick={() => setTagEdit({ ids: [file.id], value: file.tags || "" })}
-                            >
-                              <LocalOfferIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                setExpireIds([file.id]);
-                                setExpireOpen(true);
-                              }}
-                            >
-                              <ScheduleIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() =>
-                                setConfirm({
-                                  title: "移入回收站",
-                                  body: `确定把「${file.name}」移入回收站？可在 30 天内还原。`,
-                                  run: () => batch({ ids: [file.id], action: "delete" }),
-                                })
-                              }
-                            >
-                              <DeleteOutlineIcon fontSize="small" />
-                            </IconButton>
-                          </>
-                        )}
+                        <FileRowActions
+                          file={file}
+                          actions={rowActions}
+                          trash={filter === "trash"}
+                          onAction={handleRowAction}
+                        />
                       </TableCell>
                     </TableRow>
                   );
@@ -858,6 +823,14 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                     {parseTags(file.tags).map((t) => (
                       <Chip key={t} size="small" label={t} />
                     ))}
+                  </Stack>
+                  <Stack direction="row" gap={0} flexWrap="wrap" sx={{ mt: 0.5 }} onClick={(e) => e.stopPropagation()}>
+                    <FileRowActions
+                      file={file}
+                      actions={rowActions}
+                      trash={filter === "trash"}
+                      onAction={handleRowAction}
+                    />
                   </Stack>
                 </Paper>
               );
@@ -1003,7 +976,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
             setCtx(null);
           }}
         >
-          <LocalOfferIcon fontSize="small" sx={{ mr: 1 }} />
+          <LabelIcon fontSize="small" sx={{ mr: 1 }} />
           标签
         </MenuItem>
         {filter === "trash" ? (

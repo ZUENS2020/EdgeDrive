@@ -1,3 +1,5 @@
+import type { RowActionId } from "./row-actions";
+
 export type FileRow = {
   id: string;
   name: string;
@@ -36,6 +38,8 @@ export type SiteSettings = {
   /** Builtin theme id: default | light | suzuka */
   theme_name: string;
   page_size: number;
+  /** Inline file-row shortcuts; remaining actions stay in the context menu. */
+  row_actions: RowActionId[];
   default_expires: string;
   purge_after_days: number;
   /** Cloudflare Access 已启用——此后管理请求一律验 JWT。 */

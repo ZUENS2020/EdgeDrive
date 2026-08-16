@@ -38,14 +38,20 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   let appearance = {
     theme_name: DEFAULTS.theme_name,
   };
+  let siteSettings = DEFAULTS;
   try {
     const settings = await getSettings();
     appearance = {
       theme_name: settings.theme_name,
     };
+    siteSettings = settings;
   } catch {
     // ignore
   }
 
-  return <AdminProviders initial={appearance}>{children}</AdminProviders>;
+  return (
+    <AdminProviders initial={appearance} initialSettings={siteSettings}>
+      {children}
+    </AdminProviders>
+  );
 }

@@ -12,11 +12,17 @@ import { authProvider } from "@/lib/refine/auth-provider";
 import { dataProvider } from "@/lib/refine/data-provider";
 import { appearanceCssVars, createAdminTheme } from "@/lib/refine/theme";
 import type { Appearance } from "@/lib/themes";
+import type { SiteSettings } from "@/lib/types";
 import { AdminShell } from "./AdminShell";
 
 const AppearanceContext = createContext<{
   appearance: Appearance;
   setAppearance: (patch: Partial<Appearance>) => void;
+} | null>(null);
+
+const SiteSettingsContext = createContext<{
+  siteSettings: SiteSettings;
+  setSiteSettings: (patch: Partial<SiteSettings>) => void;
 } | null>(null);
 
 export function useAppearance() {
@@ -25,16 +31,28 @@ export function useAppearance() {
   return ctx;
 }
 
+export function useSiteSettings() {
+  const ctx = useContext(SiteSettingsContext);
+  if (!ctx) throw new Error("useSiteSettings must be used within AdminProviders");
+  return ctx;
+}
+
 export function AdminProviders({
   children,
   initial,
+  initialSettings,
 }: {
   children: ReactNode;
   initial: Appearance;
+  initialSettings: SiteSettings;
 }) {
   const [appearance, setAppearanceState] = useState<Appearance>(initial);
+  const [siteSettings, setSiteSettingsState] = useState<SiteSettings>(initialSettings);
   const setAppearance = useCallback((patch: Partial<Appearance>) => {
     setAppearanceState((prev) => ({ ...prev, ...patch }));
+  }, []);
+  const setSiteSettings = useCallback((patch: Partial<SiteSettings>) => {
+    setSiteSettingsState((prev) => ({ ...prev, ...patch }));
   }, []);
   const theme = useMemo(() => createAdminTheme(appearance), [appearance]);
   const cssVars = useMemo(() => appearanceCssVars(appearance), [appearance]);
@@ -51,23 +69,25 @@ export function AdminProviders({
 
   return (
     <AppearanceContext.Provider value={{ appearance, setAppearance }}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <GlobalStyles
-          styles={{
-            "html:root": { ...cssVars, colorScheme: theme.palette.mode },
-            body: { color: theme.palette.text.primary, backgroundColor: theme.palette.background.default },
-          }}
-        />
-        <Box
-          style={cssVars as CSSProperties}
-          sx={{ minHeight: "100vh", color: "text.primary", bgcolor: "background.default" }}
-        >
-          <RefineSnackbarProvider>
-            <RefineApp>{children}</RefineApp>
-          </RefineSnackbarProvider>
-        </Box>
-      </ThemeProvider>
+      <SiteSettingsContext.Provider value={{ siteSettings, setSiteSettings }}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <GlobalStyles
+            styles={{
+              "html:root": { ...cssVars, colorScheme: theme.palette.mode },
+              body: { color: theme.palette.text.primary, backgroundColor: theme.palette.background.default },
+            }}
+          />
+          <Box
+            style={cssVars as CSSProperties}
+            sx={{ minHeight: "100vh", color: "text.primary", bgcolor: "background.default" }}
+          >
+            <RefineSnackbarProvider>
+              <RefineApp>{children}</RefineApp>
+            </RefineSnackbarProvider>
+          </Box>
+        </ThemeProvider>
+      </SiteSettingsContext.Provider>
     </AppearanceContext.Provider>
   );
 }

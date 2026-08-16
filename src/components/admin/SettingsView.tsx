@@ -7,7 +7,10 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
+import Checkbox from "@mui/material/Checkbox";
 import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import FormGroup from "@mui/material/FormGroup";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
@@ -15,9 +18,10 @@ import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
+import { parseRowActions, ROW_ACTION_IDS, ROW_ACTION_LABELS, setRowActionEnabled } from "@/lib/row-actions";
 import type { SiteSettings } from "@/lib/types";
 import { THEMES, getTheme } from "@/lib/themes";
-import { useAppearance } from "./AdminProviders";
+import { useAppearance, useSiteSettings } from "./AdminProviders";
 
 type Section = "look" | "files" | "account";
 
@@ -34,15 +38,25 @@ function Swatch({ colors }: { colors: string[] }) {
 export function SettingsView({ initial }: { initial: SiteSettings }) {
   const { open: notify } = useNotification();
   const { setAppearance } = useAppearance();
+  const { setSiteSettings } = useSiteSettings();
   const [section, setSection] = useState<Section>("look");
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState(() => ({
+    ...initial,
+    row_actions: parseRowActions(initial.row_actions),
+  }));
   const [pending, setPending] = useState(false);
   const [purging, setPurging] = useState(false);
   const [cfApiToken, setCfApiToken] = useState("");
   const query = useOne<SiteSettings>({ resource: "settings", id: "site", queryOptions: { retry: false } });
 
   useEffect(() => {
-    if (query.result) setForm({ ...initial, ...query.result });
+    if (query.result) {
+      setForm({
+        ...initial,
+        ...query.result,
+        row_actions: parseRowActions(query.result.row_actions ?? initial.row_actions),
+      });
+    }
   }, [query.result, initial]);
 
   function preview(next: Pick<SiteSettings, "theme_name">) {
@@ -71,6 +85,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
     const data = (await res.json()) as { settings: SiteSettings };
     setForm(data.settings);
     preview(data.settings);
+    setSiteSettings(data.settings);
     setCfApiToken("");
     notify?.({ type: "success", message: "已保存" });
   }
@@ -177,6 +192,36 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
             onChange={(e) => setForm({ ...form, purge_after_days: Number(e.target.value) })}
             helperText="到期后链接先 410。过了保留天数，才允许从 R2 删掉对象。"
           />
+          <Box>
+            <Typography variant="h2" sx={{ mb: 0.5 }}>
+              行操作
+            </Typography>
+            <Typography color="text.secondary" sx={{ mb: 1.5 }}>
+              行内只显示勾选的操作，其余在右键菜单中；行内始终保留「更多」按钮打开完整菜单
+            </Typography>
+            <FormGroup>
+              {ROW_ACTION_IDS.map((id) => {
+                const enabled = parseRowActions(form.row_actions).includes(id);
+                return (
+                  <FormControlLabel
+                    key={id}
+                    control={
+                      <Checkbox
+                        checked={enabled}
+                        onChange={(_, checked) =>
+                          setForm({
+                            ...form,
+                            row_actions: setRowActionEnabled(parseRowActions(form.row_actions), id, checked),
+                          })
+                        }
+                      />
+                    }
+                    label={ROW_ACTION_LABELS[id]}
+                  />
+                );
+              })}
+            </FormGroup>
+          </Box>
           <Stack direction="row" spacing={1}>
             <Button variant="contained" disabled={pending} onClick={() => void save()}>
               {pending ? "保存中…" : "保存文件设置"}

@@ -108,4 +108,42 @@ describe("access settings in D1", () => {
     const next = await updateSettings({ theme_name: "not-a-theme" }, db);
     expect(next.theme_name).toBe("default");
   });
+
+  it("defaults row_actions when unset", async () => {
+    const settings = await getSettings(memoryD1());
+    expect(settings.row_actions).toEqual([
+      "download",
+      "preview",
+      "copy_link",
+      "copy_view_link",
+      "expire",
+      "delete",
+    ]);
+  });
+
+  it("parses and persists row_actions JSON", async () => {
+    const db = memoryD1([{ key: "row_actions", value: '["preview","star"]' }]);
+    const settings = await getSettings(db);
+    expect(settings.row_actions).toEqual(["preview", "star"]);
+    const next = await updateSettings({ row_actions: ["download", "delete"] }, db);
+    expect(next.row_actions).toEqual(["download", "delete"]);
+    const again = await getSettings(db);
+    expect(again.row_actions).toEqual(["download", "delete"]);
+    const fromString = await updateSettings({ row_actions: '["star","tags"]' }, db);
+    expect(fromString.row_actions).toEqual(["star", "tags"]);
+  });
+
+  it("persists an empty row_actions list", async () => {
+    const db = memoryD1();
+    const next = await updateSettings({ row_actions: [] }, db);
+    expect(next.row_actions).toEqual([]);
+    expect((await getSettings(db)).row_actions).toEqual([]);
+  });
+
+  it("falls back to default for invalid stored row_actions", async () => {
+    const db = memoryD1([{ key: "row_actions", value: "not-json" }]);
+    const settings = await getSettings(db);
+    expect(settings.row_actions[0]).toBe("download");
+    expect(settings.row_actions).toContain("delete");
+  });
 });

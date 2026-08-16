@@ -13,12 +13,12 @@ describe("d1 schema helpers", () => {
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(EXPECTED_SCHEMA_VERSION).toBe(11);
-    expect(evaluateSchemaVersion(undefined, 11)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 11)).toBe("untracked");
-    expect(evaluateSchemaVersion("10", 11)).toBe("stale");
-    expect(evaluateSchemaVersion("11", 11)).toBe("ok");
-    expect(evaluateSchemaVersion("12", 11)).toBe("ok");
+    expect(EXPECTED_SCHEMA_VERSION).toBe(12);
+    expect(evaluateSchemaVersion(undefined, 12)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 12)).toBe("untracked");
+    expect(evaluateSchemaVersion("11", 12)).toBe("stale");
+    expect(evaluateSchemaVersion("12", 12)).toBe("ok");
+    expect(evaluateSchemaVersion("13", 12)).toBe("ok");
   });
 
   it("bootstrap SQL includes drive enhancements (migration 0011)", () => {
@@ -29,6 +29,14 @@ describe("d1 schema helpers", () => {
     expect(D1_BOOTSTRAP_SQL).toContain("starred");
     expect(D1_BOOTSTRAP_SQL).toContain("sha256");
     expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '11'/);
+  });
+
+  it("bootstrap SQL includes configurable row_actions (migration 0012)", () => {
+    expect(D1_BOOTSTRAP_SQL).toContain("row_actions");
+    expect(D1_BOOTSTRAP_SQL).toContain(
+      '["download","preview","copy_link","copy_view_link","expire","delete"]',
+    );
+    expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '12'/);
   });
 });
 

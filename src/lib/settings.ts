@@ -1,12 +1,14 @@
 import { ensureCronSecret, getKv, KV, parseFlag, setKv } from "./app-config";
 import { cfApiTokenConfigured, readEnvSecret } from "./cf-credentials";
 import { getDB } from "./cloudflare";
+import { DEFAULT_ROW_ACTIONS, parseRowActions, serializeRowActions } from "./row-actions";
 import { getTheme } from "./themes";
 import type { SiteSettings } from "./types";
 
 export const DEFAULTS: SiteSettings = {
   theme_name: "default",
   page_size: 50,
+  row_actions: [...DEFAULT_ROW_ACTIONS],
   default_expires: "24h",
   purge_after_days: 7,
   access_enabled: false,
@@ -20,9 +22,10 @@ export const DEFAULTS: SiteSettings = {
   cron_secret: "",
 };
 
-export type SettingsPatch = Partial<Omit<SiteSettings, "access_enabled">> & {
+export type SettingsPatch = Partial<Omit<SiteSettings, "access_enabled" | "row_actions">> & {
   cf_api_token?: string;
   rotate_cron_secret?: boolean;
+  row_actions?: unknown;
 };
 
 function clampDays(raw: string | undefined, fallback: number): number {
@@ -48,6 +51,7 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
   return {
     theme_name: getTheme(map.get("theme_name")).id,
     page_size: Number.isFinite(pageSize) && pageSize > 0 ? Math.min(200, Math.floor(pageSize)) : 50,
+    row_actions: parseRowActions(map.get("row_actions")),
     default_expires: map.get("default_expires") || DEFAULTS.default_expires,
     purge_after_days: clampDays(map.get("purge_after_days"), DEFAULTS.purge_after_days),
     access_enabled: parseFlag(map.get(KV.accessEnabled)),
@@ -67,12 +71,14 @@ export async function getSettings(db?: D1Database): Promise<SiteSettings> {
 export async function updateSettings(patch: SettingsPatch, db?: D1Database): Promise<SiteSettings> {
   const conn = db ?? (await getDB());
   const current = await getSettings(conn);
+  const { row_actions: patchRowActions, ...restPatch } = patch;
   const next: SiteSettings = {
     ...current,
-    ...patch,
+    ...restPatch,
     access_enabled: current.access_enabled,
     cf_api_token_set: current.cf_api_token_set,
     cf_api_token_from_env: current.cf_api_token_from_env,
+    row_actions: patchRowActions != null ? parseRowActions(patchRowActions) : current.row_actions,
   };
 
   if (patch.page_size != null) {
@@ -91,6 +97,7 @@ export async function updateSettings(patch: SettingsPatch, db?: D1Database): Pro
   const entries: [string, string][] = [
     ["theme_name", next.theme_name],
     ["page_size", String(next.page_size)],
+    ["row_actions", serializeRowActions(next.row_actions)],
     ["default_expires", next.default_expires],
     ["purge_after_days", String(next.purge_after_days)],
     [KV.cfAccountId, unset(next.cf_account_id)],
