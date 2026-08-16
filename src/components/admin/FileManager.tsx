@@ -518,11 +518,11 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                         <Chip size="small" label={st.label} color={st.color} />
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                        <IconButton size="small" href={`${file.url}/view`} target="_blank" title="预览" aria-label="预览">
-                          <PreviewIcon fontSize="small" />
-                        </IconButton>
                         <IconButton size="small" href={file.url} target="_blank" aria-label="下载">
                           <DownloadIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" href={`${file.url}/view`} target="_blank" title="预览" aria-label="预览">
+                          <PreviewIcon fontSize="small" />
                         </IconButton>
                         <IconButton
                           size="small"
@@ -641,21 +641,21 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
       >
         <MenuItem
           onClick={() => {
-            if (ctxFile) window.open(`${ctxFile.url}/view`, "_blank");
-            setCtx(null);
-          }}
-        >
-          <PreviewIcon fontSize="small" sx={{ mr: 1 }} />
-          预览
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
             if (ctxFile) window.open(ctxFile.url, "_blank");
             setCtx(null);
           }}
         >
           <DownloadIcon fontSize="small" sx={{ mr: 1 }} />
           下载
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (ctxFile) window.open(`${ctxFile.url}/view`, "_blank");
+            setCtx(null);
+          }}
+        >
+          <PreviewIcon fontSize="small" sx={{ mr: 1 }} />
+          预览
         </MenuItem>
         <MenuItem
           onClick={async () => {
