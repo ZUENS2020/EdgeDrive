@@ -19,16 +19,24 @@ function run(bin, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+function leadingMigrationNumber(name) {
+  const match = name.match(/^(\d+)/);
+  return match ? Number(match[1]) : 0;
+}
+
 function writeBootstrapSql() {
   const dir = path.join(process.cwd(), "migrations");
   const files = readdirSync(dir)
     .filter((name) => /^\d+.*\.sql$/.test(name))
-    .sort();
+    .sort((a, b) => leadingMigrationNumber(a) - leadingMigrationNumber(b) || (a < b ? -1 : 1));
   const sql = files.map((name) => readFileSync(path.join(dir, name), "utf8")).join("\n");
+  // Version is the highest migration number (0008 → 8), not file count.
+  // Deleting already-applied 0002–0005 must not drop expected from 8 to 4.
+  const expected = files.reduce((max, name) => Math.max(max, leadingMigrationNumber(name)), 0);
   const out = path.join(process.cwd(), "src/lib/d1-bootstrap-sql.ts");
   writeFileSync(
     out,
-    `/** Generated from migrations/*.sql by scripts/cf-build.mjs. Do not edit by hand. */\nexport const EXPECTED_SCHEMA_VERSION = ${files.length};\nexport const D1_BOOTSTRAP_SQL = ${JSON.stringify(sql)};\n`,
+    `/** Generated from migrations/*.sql by scripts/cf-build.mjs. Do not edit by hand. */\nexport const EXPECTED_SCHEMA_VERSION = ${expected};\nexport const D1_BOOTSTRAP_SQL = ${JSON.stringify(sql)};\n`,
   );
 }
 
