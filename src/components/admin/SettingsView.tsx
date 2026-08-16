@@ -8,6 +8,11 @@ import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import Checkbox from "@mui/material/Checkbox";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormGroup from "@mui/material/FormGroup";
@@ -18,6 +23,7 @@ import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
+import { PURGE_CONFIRM_MESSAGE, PURGE_CONFIRM_TITLE, resolvePurgeConfirm, type PurgeConfirmChoice } from "@/lib/purge-confirm";
 import { parseRowActions, ROW_ACTION_IDS, ROW_ACTION_LABELS, setRowActionEnabled } from "@/lib/row-actions";
 import type { SiteSettings } from "@/lib/types";
 import { THEMES, getTheme } from "@/lib/themes";
@@ -46,6 +52,7 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
   }));
   const [pending, setPending] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
   const [cfApiToken, setCfApiToken] = useState("");
   const query = useOne<SiteSettings>({ resource: "settings", id: "site", queryOptions: { retry: false } });
 
@@ -107,6 +114,11 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
     }
     const data = (await res.json()) as { deleted?: number };
     notify?.({ type: "success", message: `已删除 ${data.deleted ?? 0} 个过期文件` });
+  }
+
+  function closePurgeConfirm(choice: PurgeConfirmChoice) {
+    setPurgeConfirmOpen(false);
+    if (resolvePurgeConfirm(choice).run) void onPurge();
   }
 
   const activeTheme = getTheme(form.theme_name);
@@ -226,12 +238,39 @@ export function SettingsView({ initial }: { initial: SiteSettings }) {
             <Button variant="contained" disabled={pending} onClick={() => void save()}>
               {pending ? "保存中…" : "保存文件设置"}
             </Button>
-            <Button variant="outlined" disabled={purging} onClick={() => void onPurge()}>
+          </Stack>
+          <Divider sx={{ mt: 4, mb: 1 }} />
+          <Box>
+            <Typography variant="h2" color="error" sx={{ mb: 0.5 }}>
+              危险操作
+            </Typography>
+            <Typography color="text.secondary" sx={{ mb: 1.5 }}>
+              立即从存储删除已过期且超过保留天数的文件。此操作不可撤销。
+            </Typography>
+            <Button
+              variant="outlined"
+              color="error"
+              disabled={purging}
+              onClick={() => setPurgeConfirmOpen(true)}
+            >
               {purging ? "清理中…" : "立即清理过期文件"}
             </Button>
-          </Stack>
+          </Box>
         </Stack>
       ) : null}
+
+      <Dialog open={purgeConfirmOpen} onClose={() => closePurgeConfirm("cancel")}>
+        <DialogTitle>{PURGE_CONFIRM_TITLE}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{PURGE_CONFIRM_MESSAGE}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => closePurgeConfirm("cancel")}>取消</Button>
+          <Button color="error" variant="contained" onClick={() => closePurgeConfirm("confirm")}>
+            确定
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {section === "account" ? (
         <Stack spacing={3}>
