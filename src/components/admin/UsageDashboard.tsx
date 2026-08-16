@@ -4,7 +4,6 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import Grid from "@mui/material/Grid";
 import LinearProgress from "@mui/material/LinearProgress";
 import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
@@ -75,7 +74,19 @@ export function UsageDashboard() {
   }, [range]);
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, display: "flex", flexDirection: "column", gap: 2, minHeight: 0 }}>
+    <Box
+      sx={{
+        p: { xs: 2, md: 3 },
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        minHeight: 0,
+        width: "100%",
+        maxWidth: "100%",
+        overflowX: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
         <Typography variant="h1" sx={{ flex: 1 }}>
           统计
@@ -127,117 +138,129 @@ function UsageBody({ data }: { data: UsagePayload }) {
         <Alert severity="info">账号 ID 与 API Token 在设置 → 账号里选填。不配也能看本站文件数。</Alert>
       ) : null}
       {a.configured && a.error ? <Alert severity="error">{a.error}</Alert> : null}
-      <Grid container spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
+          gap: 2,
+          width: "100%",
+        }}
+      >
         <Hero k="文件" v={n(data.disk.files)} />
         <Hero k="容量" v={r2Bytes != null ? formatSize(r2Bytes) : "—"} />
         <Hero k="下载总数" v={n(data.disk.downloads)} />
         <Hero k="Worker 请求" v={n(a.worker?.requests)} />
-      </Grid>
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={6} sx={{ minWidth: 0 }}>
-          <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
-            <CardContent>
-              <Typography variant="h2">本站</Typography>
-              <MetricGrid
-                items={[
-                  ["文件", n(data.disk.files)],
-                  ["文件夹", n(data.disk.folders)],
-                  ["目录合计", formatSize(data.disk.catalogBytes)],
-                  ["下载次数", n(data.disk.downloads)],
-                  ["即将过期", n(data.disk.soon)],
-                  ["已过期", n(data.disk.expired)],
-                ]}
-              />
-              <UsageBarChart items={siteBars} />
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6} sx={{ minWidth: 0 }}>
-          <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
-            <CardContent>
-              <Typography variant="h2">R2</Typography>
-              <MetricGrid
-                items={[
-                  ["对象容量", r2Bytes != null ? formatSize(r2Bytes) : "—"],
-                  ["对象数", n(a.r2?.objectCount ?? data.disk.files)],
-                  ["Class A", n(a.r2?.classA)],
-                  ["Class B", n(a.r2?.classB)],
-                ]}
-              />
-              {showQuota && a.r2 ? (
-                <Quota label="容量 / 10 GB" used={r2Bytes || 0} max={R2_FREE.bytes} format={formatSize} />
-              ) : null}
-              <UsageBarChart items={r2Bars} />
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6} sx={{ minWidth: 0 }}>
-          <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
-            <CardContent>
-              <Typography variant="h2">D1</Typography>
-              <MetricGrid
-                items={[
-                  ["库体积", d1Bytes != null ? formatSize(d1Bytes) : "—"],
-                  ["读查询", n(a.d1?.readQueries)],
-                  ["写查询", n(a.d1?.writeQueries)],
-                  ["扫描行", n(a.d1?.rowsRead)],
-                ]}
-              />
-              {showQuota && d1Bytes != null ? (
-                <Quota label="存储 / 5 GB" used={d1Bytes} max={D1_FREE_BYTES} format={formatSize} />
-              ) : null}
-              <UsageBarChart items={d1Bars} />
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6} sx={{ minWidth: 0 }}>
-          <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
-            <CardContent>
-              <Typography variant="h2">Worker</Typography>
-              <MetricGrid
-                items={[
-                  ["请求", n(a.worker?.requests)],
-                  ["错误", n(a.worker?.errors)],
-                  ["CPU p50", cpuMs(a.worker?.cpuTimeP50Us)],
-                  ["CPU p99", cpuMs(a.worker?.cpuTimeP99Us)],
-                ]}
-              />
-              <UsageBarChart items={workerBars} />
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      </Box>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "repeat(2, minmax(0, 1fr))" },
+          gap: 2,
+          width: "100%",
+        }}
+      >
+        <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
+          <CardContent>
+            <Typography variant="h2">本站</Typography>
+            <MetricGrid
+              items={[
+                ["文件", n(data.disk.files)],
+                ["文件夹", n(data.disk.folders)],
+                ["目录合计", formatSize(data.disk.catalogBytes)],
+                ["下载次数", n(data.disk.downloads)],
+                ["即将过期", n(data.disk.soon)],
+                ["已过期", n(data.disk.expired)],
+              ]}
+            />
+            <UsageBarChart items={siteBars} />
+          </CardContent>
+        </Card>
+        <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
+          <CardContent>
+            <Typography variant="h2">R2</Typography>
+            <MetricGrid
+              items={[
+                ["对象容量", r2Bytes != null ? formatSize(r2Bytes) : "—"],
+                ["对象数", n(a.r2?.objectCount ?? data.disk.files)],
+                ["Class A", n(a.r2?.classA)],
+                ["Class B", n(a.r2?.classB)],
+              ]}
+            />
+            {showQuota && a.r2 ? (
+              <Quota label="容量 / 10 GB" used={r2Bytes || 0} max={R2_FREE.bytes} format={formatSize} />
+            ) : null}
+            <UsageBarChart items={r2Bars} />
+          </CardContent>
+        </Card>
+        <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
+          <CardContent>
+            <Typography variant="h2">D1</Typography>
+            <MetricGrid
+              items={[
+                ["库体积", d1Bytes != null ? formatSize(d1Bytes) : "—"],
+                ["读查询", n(a.d1?.readQueries)],
+                ["写查询", n(a.d1?.writeQueries)],
+                ["扫描行", n(a.d1?.rowsRead)],
+              ]}
+            />
+            {showQuota && d1Bytes != null ? (
+              <Quota label="存储 / 5 GB" used={d1Bytes} max={D1_FREE_BYTES} format={formatSize} />
+            ) : null}
+            <UsageBarChart items={d1Bars} />
+          </CardContent>
+        </Card>
+        <Card variant="outlined" sx={{ minWidth: 0, overflow: "hidden" }}>
+          <CardContent>
+            <Typography variant="h2">Worker</Typography>
+            <MetricGrid
+              items={[
+                ["请求", n(a.worker?.requests)],
+                ["错误", n(a.worker?.errors)],
+                ["CPU p50", cpuMs(a.worker?.cpuTimeP50Us)],
+                ["CPU p99", cpuMs(a.worker?.cpuTimeP99Us)],
+              ]}
+            />
+            <UsageBarChart items={workerBars} />
+          </CardContent>
+        </Card>
+      </Box>
     </Stack>
   );
 }
 
 function Hero({ k, v }: { k: string; v: string }) {
   return (
-    <Grid item xs={6} md={3}>
-      <Card variant="outlined">
-        <CardContent>
-          <Typography variant="caption" color="text.secondary">
-            {k}
-          </Typography>
-          <Typography variant="h2">{v}</Typography>
-        </CardContent>
-      </Card>
-    </Grid>
+    <Card variant="outlined" sx={{ minWidth: 0, width: "100%" }}>
+      <CardContent>
+        <Typography variant="caption" color="text.secondary">
+          {k}
+        </Typography>
+        <Typography variant="h2">{v}</Typography>
+      </CardContent>
+    </Card>
   );
 }
 
 function MetricGrid({ items }: { items: [string, string][] }) {
   return (
-    <Grid container spacing={1} sx={{ my: 1 }}>
+    <Box
+      sx={{
+        my: 1,
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: 1,
+        width: "100%",
+      }}
+    >
       {items.map(([k, v]) => (
-        <Grid item xs={6} key={k} sx={{ minWidth: 0 }}>
+        <Box key={k} sx={{ minWidth: 0 }}>
           <Typography variant="caption" color="text.secondary">
             {k}
           </Typography>
           <Typography fontWeight={600}>{v}</Typography>
-        </Grid>
+        </Box>
       ))}
-    </Grid>
+    </Box>
   );
 }
 

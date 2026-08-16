@@ -6,7 +6,8 @@ import { ThemeProvider } from "@mui/material/styles";
 import { Refine } from "@refinedev/core";
 import { RefineSnackbarProvider, useNotificationProvider } from "@refinedev/mui";
 import routerProvider from "@refinedev/nextjs-router";
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import Box from "@mui/material/Box";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { authProvider } from "@/lib/refine/auth-provider";
 import { dataProvider } from "@/lib/refine/data-provider";
 import { appearanceCssVars, createAdminTheme } from "@/lib/refine/theme";
@@ -38,14 +39,34 @@ export function AdminProviders({
   const theme = useMemo(() => createAdminTheme(appearance), [appearance]);
   const cssVars = useMemo(() => appearanceCssVars(appearance), [appearance]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const dark = theme.palette.mode === "dark";
+    root.classList.toggle("dark", dark);
+    root.style.colorScheme = theme.palette.mode;
+    for (const [name, value] of Object.entries(cssVars)) {
+      root.style.setProperty(name, value);
+    }
+  }, [cssVars, theme.palette.mode]);
+
   return (
     <AppearanceContext.Provider value={{ appearance, setAppearance }}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <GlobalStyles styles={{ ":root": cssVars, html: { colorScheme: theme.palette.mode } }} />
-        <RefineSnackbarProvider>
-          <RefineApp>{children}</RefineApp>
-        </RefineSnackbarProvider>
+        <GlobalStyles
+          styles={{
+            "html:root": { ...cssVars, colorScheme: theme.palette.mode },
+            body: { color: theme.palette.text.primary, backgroundColor: theme.palette.background.default },
+          }}
+        />
+        <Box
+          style={cssVars as CSSProperties}
+          sx={{ minHeight: "100vh", color: "text.primary", bgcolor: "background.default" }}
+        >
+          <RefineSnackbarProvider>
+            <RefineApp>{children}</RefineApp>
+          </RefineSnackbarProvider>
+        </Box>
       </ThemeProvider>
     </AppearanceContext.Provider>
   );

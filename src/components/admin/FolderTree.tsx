@@ -49,13 +49,13 @@ export function FolderTree({
       </Box>
       <List dense disablePadding>
         <ListItemButton selected={currentPath === null} onClick={() => onSelect(null)}>
-          <ListItemIcon sx={{ minWidth: 32 }}>
+          <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
             <FolderOpenIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText primary="全部" />
         </ListItemButton>
         <ListItemButton selected={currentPath === ""} onClick={() => onSelect("")}>
-          <ListItemIcon sx={{ minWidth: 32 }}>
+          <ListItemIcon sx={{ minWidth: 32, color: "inherit" }}>
             <FolderIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText primary="根目录" />
@@ -103,7 +103,7 @@ function TreeNode({
         onDoubleClick={() => onRename(node.id, node.name)}
         sx={{ pl: 2 }}
       >
-        <ListItemIcon sx={{ minWidth: 28 }} onClick={(e) => e.stopPropagation()}>
+        <ListItemIcon sx={{ minWidth: 28, color: "inherit" }} onClick={(e) => e.stopPropagation()}>
           {hasKids ? (
             <IconButton size="small" onClick={() => setOpen((v) => !v)}>
               {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}

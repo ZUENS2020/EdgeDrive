@@ -1,5 +1,4 @@
 import { createTheme } from "@mui/material/styles";
-import { RefineThemes } from "@refinedev/mui";
 import {
   getTheme,
   resolveThemePalette,
@@ -44,9 +43,7 @@ export function createAdminTheme(appearance: Partial<Appearance> = {}) {
   const brandBar = palette.brandBar ?? palette.primary.main;
 
   return createTheme({
-    ...RefineThemes.Blue,
     palette: {
-      ...RefineThemes.Blue.palette,
       mode: palette.mode,
       primary: palette.primary,
       secondary: { main: palette.secondary.main },
@@ -78,12 +75,24 @@ export function createAdminTheme(appearance: Partial<Appearance> = {}) {
           html: { colorScheme: palette.mode },
           body: {
             backgroundColor: palette.background.default,
+            color: palette.text.primary,
             backgroundImage: sky,
             backgroundAttachment: "fixed",
           },
         },
       },
       MuiButton: { defaultProps: { disableElevation: true } },
+      MuiListItemIcon: {
+        styleOverrides: {
+          root: { color: "inherit" },
+        },
+      },
+      MuiIconButton: {
+        styleOverrides: {
+          root: ({ ownerState }) =>
+            ownerState.color === "default" ? { color: "inherit" } : {},
+        },
+      },
       MuiPaper: {
         styleOverrides: {
           root: { backgroundImage: "none", backgroundColor: cardBg },

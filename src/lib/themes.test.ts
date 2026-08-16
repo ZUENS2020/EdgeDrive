@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME_ID, getTheme, resolveThemePalette } from "./themes";
+import { DEFAULT_THEME_ID, getTheme, resolveThemePalette, themeCssVars } from "./themes";
 
 describe("getTheme", () => {
   it("returns default for unknown / empty ids", () => {
@@ -25,6 +25,28 @@ describe("getTheme", () => {
   it("returns Meadow-less theme list (3 built-ins)", () => {
     const ids = getThemeList();
     expect(ids).toEqual(["default", "light", "suzuka"]);
+  });
+});
+
+describe("themeCssVars", () => {
+  it("overrides globals.css tokens for Nocturne (not the light --text/#171717)", () => {
+    const vars = themeCssVars(resolveThemePalette("suzuka"));
+    expect(vars["--text"]).toBe("#E9E6E0");
+    expect(vars["--text-3"]).toBe("#8B8F98");
+    expect(vars["--bg"]).toBe("#08090A");
+    expect(vars["--surface"]).toBe("#0E1013");
+    expect(vars["--line"]).toBe("#1F2125");
+    expect(vars["--brand"]).toBe("#D96C4A");
+    expect(vars["--text"]).not.toBe("#171717");
+    expect(vars["--foreground"]).toBe("#E9E6E0");
+  });
+
+  it("keeps Porcelain on the light globals palette", () => {
+    const vars = themeCssVars(resolveThemePalette("light"));
+    expect(vars["--text"]).toBe("#171717");
+    expect(vars["--bg"]).toBe("#F6F5F2");
+    expect(vars["--surface"]).toBe("#FFFFFF");
+    expect(vars["--brand"]).toBe("#171717");
   });
 });
 

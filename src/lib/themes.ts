@@ -153,6 +153,9 @@ export function themeCssVars(palette: ThemePalette): Record<string, string> {
   const hoverBg = palette.hoverBg ?? palette.background.default;
   const codeBg = palette.codeBg ?? palette.background.default;
   const brandBar = palette.brandBar ?? palette.primary.main;
+  const contrast = palette.primary.contrastText ?? hexContrast(palette.primary.main);
+  const lineSubtle = palette.mode === "dark" ? "rgba(255,255,255,0.06)" : "rgba(23,23,23,0.06)";
+  const textMuted = palette.mode === "dark" ? "#6B6F76" : "#a3a3a3";
   return {
     "--ed-sidebar-bg": sidebarBg,
     "--ed-sidebar-text": sidebarText,
@@ -173,12 +176,22 @@ export function themeCssVars(palette: ThemePalette): Record<string, string> {
     "--text": palette.text.primary,
     "--text-2": palette.text.primary,
     "--text-3": palette.text.secondary,
-    "--brand": brandBar,
+    "--text-4": textMuted,
+    "--brand": palette.primary.main,
     "--line": palette.divider,
+    "--line-s": lineSubtle,
     "--background": palette.background.default,
     "--foreground": palette.text.primary,
     "--card": cardBg,
+    "--card-foreground": palette.text.primary,
     "--primary": palette.primary.main,
+    "--primary-foreground": contrast,
+    "--muted-foreground": palette.text.secondary,
+    "--border": palette.divider,
+    "--sidebar": sidebarBg,
+    "--sidebar-foreground": sidebarText,
+    "--sidebar-primary": palette.primary.main,
+    "--sidebar-primary-foreground": contrast,
   };
 }
 
