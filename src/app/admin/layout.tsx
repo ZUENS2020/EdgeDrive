@@ -13,7 +13,27 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (gate.setup) {
     return <SetupProviders tokenRequired={Boolean(await getSetupToken())} />;
   }
-  if (!gate.ok) redirect("/login");
+  if (!gate.ok) {
+    // 已启用 Access 但未带有效 JWT：显示 401 页（不跳 /login——避免死循环）
+    return (
+      <div className="login-wrap">
+        <div className="login-card">
+          <div className="brand" style={{ padding: "0 0 18px" }}>
+            <div className="logo">ED</div>
+            <div>
+              <div className="brand-name">EdgeDrive</div>
+              <div className="brand-sub">未认证</div>
+            </div>
+          </div>
+          <p style={{ color: "var(--text-3)", fontSize: 14, lineHeight: 1.7, margin: 0 }}>
+            此站点由 Cloudflare Access 保护，但当前请求未携带有效的 Access 凭证（401）。
+            <br />
+            请确认 Cloudflare Access 已正确保护此路径（<code>/admin*</code>），并通过 Access 完成登录。
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   let brand = DEFAULTS.brand_color;
   try {
