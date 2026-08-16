@@ -35,12 +35,15 @@ export async function PUT(request: Request) {
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
+  // 认证模式只能通过部署变量 AUTH_MODE 指定——API 一律拒绝（防误切锁死）
+  if (body.auth_mode) {
+    return NextResponse.json({ error: "auth-mode-locked: 认证模式由部署变量 AUTH_MODE 指定" }, { status: 400 });
+  }
   try {
     const settings = await updateSettings(body);
     return NextResponse.json({ ok: true, settings: toSafeSettings(settings) });
   } catch (err) {
     const message = err instanceof Error ? err.message : "update-failed";
-    const status = message.startsWith("access-mode-needs-env") ? 400 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -265,26 +265,15 @@ export function SettingsForm({
             </section>
             <section className="settings-block">
               <h3>登录方式</h3>
-              <p className="hint">账密存在本站数据库。Access 模式下后台由 Cloudflare Access 保护，不再显示登录页。</p>
-              <div className="grid gap-2">
-                <Label>模式</Label>
-                <Select
-                  value={form.auth_mode}
-                  disabled={authModeLocked}
-                  onValueChange={(value) => setForm({ ...form, auth_mode: value as AuthMode })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="password">账密</SelectItem>
-                    <SelectItem value="access">Cloudflare Access</SelectItem>
-                  </SelectContent>
-                </Select>
-                {authModeLocked ? (
-                  <p className="hint">认证模式由部署变量 <code>AUTH_MODE</code> 指定（当前：{authMode === "access" ? "Cloudflare Access" : "账密"}）——如需修改请在 Worker 配置里改。</p>
-                ) : null}
-              </div>
+              <p className="hint">
+                当前：{authMode === "access" ? "Cloudflare Access" : "账密（用户名密码）"}
+                {authMode === "access"
+                  ? " —— 后台由 Cloudflare Access 保护，不显示登录页。"
+                  : " —— 账密存在本站数据库。"}
+              </p>
+              <p className="hint">
+                认证模式由部署变量 <code>AUTH_MODE</code> 指定（<code>password</code> / <code>access</code>）—— 修改请在 Worker → 设置 → 变量里改后重新部署。
+              </p>
             </section>
             {authMode === "password" || form.auth_mode === "password" ? (
               <form className="settings-block" onSubmit={onPassword}>
