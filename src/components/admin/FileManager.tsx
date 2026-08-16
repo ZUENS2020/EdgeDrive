@@ -381,7 +381,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
               startIcon={<VisibilityIcon />}
               onClick={async () => {
                 const list = files.filter((f) => selected.has(f.id));
-                const ok = await copyToClipboard(list.map((f) => `${f.url}?inline=1`).join("\n"));
+                const ok = await copyToClipboard(list.map((f) => `${f.url}/view`).join("\n"));
                 toast(ok ? `已复制 ${list.length} 条预览链接` : "复制失败", ok ? "success" : "error");
               }}
             >
@@ -513,7 +513,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                           title="复制预览链接"
                           aria-label="复制预览链接"
                           onClick={async () => {
-                            const ok = await copyToClipboard(`${file.url}?inline=1`);
+                            const ok = await copyToClipboard(`${file.url}/view`);
                             toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
                           }}
                         >
@@ -632,7 +632,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
         <MenuItem
           onClick={async () => {
             if (ctxFile) {
-              const ok = await copyToClipboard(`${ctxFile.url}?inline=1`);
+              const ok = await copyToClipboard(`${ctxFile.url}/view`);
               toast(ok ? "已复制预览链接" : "复制失败", ok ? "success" : "error");
             }
             setCtx(null);
