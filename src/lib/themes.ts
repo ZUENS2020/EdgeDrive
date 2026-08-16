@@ -102,7 +102,7 @@ const SUZUKA_THEME: ThemeDefinition = {
   description: "夜空下的先头景色——红橙发色的逃亡者。风、心跳、只有自己的世界。",
   palette: {
     mode: "dark",
-    primary: { main: "#D96C4A", light: "#E48A6C", dark: "#B35136", contrastText: "#1A0E0A" },
+    primary: { main: "#D96C4A", light: "#E48A6C", dark: "#B35136", contrastText: "#FFF6EF" },
     secondary: { main: "#4FA3B8" },
     background: { default: "#08090A", paper: "#0E1013" },
     text: { primary: "#E9E6E0", secondary: "#8B8F98" },
