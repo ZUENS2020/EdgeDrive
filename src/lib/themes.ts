@@ -1,5 +1,4 @@
 export const DEFAULT_THEME_ID = "default";
-export const HEX6 = /^#[0-9a-fA-F]{6}$/;
 
 export type Appearance = {
   theme_name: string;
@@ -30,10 +29,6 @@ export type ThemeDefinition = {
 };
 
 export type ThemePalette = ThemeDefinition["palette"];
-
-export function isHex(value: unknown): value is string {
-  return typeof value === "string" && HEX6.test(value);
-}
 
 export function hexContrast(hex: string): string {
   const n = hex.replace("#", "");

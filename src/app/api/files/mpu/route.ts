@@ -8,6 +8,9 @@ import { upsertFile } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
+/** 单片上限：客户端 8MB；略放大防边界，拒绝把整文件当一片灌进内存。 */
+const MAX_MPU_PART_SIZE = 10 * 1024 * 1024;
+
 export async function POST(request: Request) {
   const gate = await requireAdmin(request);
   if (!gate.ok) return gate.response;
@@ -97,12 +100,20 @@ export async function PUT(request: Request) {
   if (!uploadId || !Number.isInteger(partNumber) || partNumber < 1) {
     return NextResponse.json({ error: "need uploadId and partNumber>=1" }, { status: 400 });
   }
+  const cl = Number(request.headers.get("content-length") || "0");
+  if (cl > MAX_MPU_PART_SIZE) {
+    return NextResponse.json({ error: "part-too-large", max: MAX_MPU_PART_SIZE }, { status: 413 });
+  }
   if (!request.body) return NextResponse.json({ error: "empty body" }, { status: 400 });
   const r2 = await getR2();
   const mpu = r2.resumeMultipartUpload(keyRes.value, uploadId);
   try {
-    // OpenNext 下 request.body 流可能无 known length——分片 ≤8MB，arrayBuffer 内存可控
-    const uploaded = await mpu.uploadPart(partNumber, await request.arrayBuffer());
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength === 0) return NextResponse.json({ error: "empty body" }, { status: 400 });
+    if (buf.byteLength > MAX_MPU_PART_SIZE) {
+      return NextResponse.json({ error: "part-too-large", max: MAX_MPU_PART_SIZE }, { status: 413 });
+    }
+    const uploaded = await mpu.uploadPart(partNumber, buf);
     return NextResponse.json(uploaded);
   } catch (err) {
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 400 });

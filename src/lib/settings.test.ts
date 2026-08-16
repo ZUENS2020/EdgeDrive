@@ -90,22 +90,17 @@ describe("access settings in D1", () => {
 
   it("updateSettings cannot turn access_enabled off", async () => {
     const db = memoryD1([{ key: "access_enabled", value: "1" }]);
-    const next = await updateSettings({ brand_color: "#112233" }, db);
+    const next = await updateSettings({ page_size: 25 }, db);
     expect(next.access_enabled).toBe(true);
-    expect(next.brand_color).toBe("#112233");
+    expect(next.page_size).toBe(25);
   });
 
-  it("persists theme_name and custom_colors", async () => {
+  it("persists theme_name", async () => {
     const db = memoryD1();
-    const next = await updateSettings(
-      { theme_name: "suzuka", custom_colors: JSON.stringify({ primary: "#00AA88", background: "#010203" }) },
-      db,
-    );
+    const next = await updateSettings({ theme_name: "suzuka" }, db);
     expect(next.theme_name).toBe("suzuka");
-    expect(next.custom_colors).toBe(JSON.stringify({ primary: "#00AA88", background: "#010203" }));
     const again = await getSettings(db);
     expect(again.theme_name).toBe("suzuka");
-    expect(again.custom_colors).toContain("#00AA88");
   });
 
   it("unknown theme_name falls back to default", async () => {

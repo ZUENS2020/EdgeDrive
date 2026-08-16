@@ -89,7 +89,7 @@
 | 阶段 | 行为 |
 |---|---|
 | **未启用 Access** | `/admin` 免认证，只显示引导页（填 Team / AUD → 启用 Access） |
-| **已启用 Access** | `requireAdmin` 只验 Access JWT；未认证 401 / 跳转 `/login` 提示页 |
+| **已启用 Access** | `requireAdmin` 只验 Access JWT；未认证返回 401 页（不跳 `/login`） |
 
 公开下载 `/dl/*` 始终匿名可访问。
 
@@ -126,14 +126,14 @@ EdgeDrive 从**两个地方**取 Access JWT：
 1. 请求头 `cf-access-jwt-assertion`（**Worker 级保护**会注入——**hostname 级应用可能不注入**）
 2. `CF_Authorization` **cookie**（hostname 级应用通常只传这个——cookie 本身就是 JWT，验签方式相同）
 
-> **不要**因为「登录后踢回 /login」就去改 Access 配置——先确认是不是这个问题（hostname 级应用只传 cookie 是正常行为——EdgeDrive 已兼容）。
+> **不要**因为「登录后仍看到 401 页」就去改 Access 配置——先确认是不是 JWT 通道问题（hostname 级应用只传 cookie 是正常行为——EdgeDrive 已兼容）。
 
 ### 🩺 排障速查
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
 | `/admin` 直接 401 页（没弹 Access 登录）| Access 没保护该 URL | 检查 Target 路径（应为 `admin*`）|
-| Access 登录后踢回 /login | ① D1 的 AUD 是旧值 ② JWT 读不到 | ① 同步 D1（`UPDATE settings SET value='<新AUD>' WHERE key='cf_access_aud'`）② 确认 EdgeDrive ≥ 双通道版本 |
+| Access 登录后仍 401 | ① D1 的 AUD 是旧值 ② JWT 读不到 | ① 同步 D1（`UPDATE settings SET value='<新AUD>' WHERE key='cf_access_aud'`）② 确认 EdgeDrive ≥ 双通道版本 |
 | 403 Forbidden（Access 页）| Policy 拒绝 | Policy 加 Allow 规则（你的邮箱 / Everyone）|
 | Bypass 策略 | 不注入 JWT 且等于没保护 | 改用 **Allow** |
 

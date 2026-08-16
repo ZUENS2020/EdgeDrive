@@ -39,17 +39,16 @@ export function getAccessJwt(hdrs: Headers): string | null {
   return cookies["CF_Authorization"] || null;
 }
 
-async function accessVerified(hdrs: Headers, team: string, aud: string): Promise<boolean> {
-  const jwt = hdrs.get("cf-access-jwt-assertion");
-  if (!jwt) return false;
-  return verifyAccessJwt(jwt, { team, aud });
+async function jwtVerified(hdrs: Headers, team: string, aud: string): Promise<{ jwt: string | null; verified: boolean }> {
+  const jwt = getAccessJwt(hdrs);
+  if (!jwt) return { jwt: null, verified: false };
+  return { jwt, verified: await verifyAccessJwt(jwt, { team, aud }) };
 }
 
 export async function requireAdmin(request?: Request) {
   const settings = await accessJwtFromSettings();
   const hdrs = request ? request.headers : await headers();
-  const jwt = getAccessJwt(hdrs);
-  const verified = jwt ? await verifyAccessJwt(jwt, { team: settings.team, aud: settings.aud }) : false;
+  const { jwt, verified } = await jwtVerified(hdrs, settings.team, settings.aud);
   const gate = evaluateAdminGate({
     accessEnabled: settings.enabled,
     hasAccessJwt: Boolean(jwt),
@@ -71,8 +70,7 @@ export async function requireAdmin(request?: Request) {
 export async function requireAdminPage() {
   const settings = await accessJwtFromSettings();
   const hdrs = await headers();
-  const jwt = getAccessJwt(hdrs);
-  const verified = jwt ? await accessVerified(hdrs, settings.team, settings.aud) : false;
+  const { jwt, verified } = await jwtVerified(hdrs, settings.team, settings.aud);
   const gate = evaluateAdminPageGate({
     accessEnabled: settings.enabled,
     hasAccessJwt: Boolean(jwt),

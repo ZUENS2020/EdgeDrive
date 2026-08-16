@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "./timing-safe";
+
 export type AdminGateInput = {
   accessEnabled: boolean;
   hasAccessJwt: boolean;
@@ -16,15 +18,11 @@ export function evaluateAdminGate(input: AdminGateInput): AdminGateResult {
   return { ok: false, kind: "unauthorized" };
 }
 
-/** 页面守卫：未启用允许进入引导页；已启用必须 JWT。 */
-export function evaluateAdminPageGate(input: AdminGateInput): AdminGateResult {
-  if (!input.accessEnabled) return { ok: false, kind: "setup" };
-  if (input.hasAccessJwt && input.accessVerified) return { ok: true, kind: "admin" };
-  return { ok: false, kind: "unauthorized" };
-}
+/** 页面守卫与 API 守卫同一规则（未启用 → setup；已启用 → 验 JWT）。 */
+export const evaluateAdminPageGate = evaluateAdminGate;
 
 export function setupTokenMatches(expected: string | undefined, provided: string | undefined): boolean {
   const want = (expected || "").trim();
   if (!want) return true;
-  return want === (provided || "").trim();
+  return timingSafeEqual(want, (provided || "").trim());
 }

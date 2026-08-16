@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME_ID, getTheme, resolveThemePalette, themeCssVars } from "./themes";
+import { DEFAULT_THEME_ID, THEMES, getTheme, resolveThemePalette, themeCssVars } from "./themes";
 
 describe("getTheme", () => {
   it("returns default for unknown / empty ids", () => {
@@ -23,8 +23,7 @@ describe("getTheme", () => {
   });
 
   it("returns Meadow-less theme list (3 built-ins)", () => {
-    const ids = getThemeList();
-    expect(ids).toEqual(["default", "light", "suzuka"]);
+    expect(THEMES.map((t) => t.id)).toEqual(["default", "light", "suzuka"]);
   });
 });
 
@@ -63,8 +62,3 @@ describe("resolveThemePalette", () => {
     expect(palette.primary.main).toBe(getTheme("default").palette.primary.main);
   });
 });
-
-function getThemeList(): string[] {
-  // 直接从模块内部取——避免重复导出
-  return ["default", "light", "suzuka"];
-}

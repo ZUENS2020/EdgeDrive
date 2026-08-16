@@ -84,4 +84,26 @@ describe("verifyAccessJwt", () => {
     expect(await verifyAccessJwt(token, { team: "", aud: AUD })).toBe(false);
     expect(await verifyAccessJwt(token, { team: TEAM, aud: "" })).toBe(false);
   });
+
+  it("refetches JWKS when kid is missing from cache", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = jwt({ iss: ISS, aud: AUD, exp: now + 3600 }, { kid: "kid-2" });
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ keys: [{ kid: "kid-1", kty: "RSA", n: jwk.n, e: jwk.e }] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          keys: [
+            { kid: "kid-1", kty: "RSA", n: jwk.n, e: jwk.e },
+            { kid: "kid-2", kty: "RSA", n: jwk.n, e: jwk.e },
+          ],
+        }),
+      });
+    expect(await verifyAccessJwt(token, CFG)).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

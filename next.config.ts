@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
     "@refinedev/core",
     "@refinedev/mui",
     "@refinedev/nextjs-router",
-    "@refinedev/simple-rest",
   ],
 };
 

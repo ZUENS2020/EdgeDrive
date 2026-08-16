@@ -15,15 +15,6 @@ export function parseFlag(raw: string | undefined | null): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
-export function originFromHeaders(hdrs: Headers): string | undefined {
-  const host = (hdrs.get("x-forwarded-host") || hdrs.get("host") || "").split(",")[0].trim();
-  if (!host) return undefined;
-  const forwarded = (hdrs.get("x-forwarded-proto") || "").split(",")[0].trim();
-  const proto =
-    forwarded || (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
-  return `${proto}://${host}`;
-}
-
 export async function getKv(db: D1Database, key: string): Promise<string | undefined> {
   const row = await db.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first<{
     value: string;
@@ -42,10 +33,6 @@ export async function setKv(db: D1Database, key: string, value: string): Promise
     .run();
 }
 
-export async function deleteKv(db: D1Database, key: string): Promise<void> {
-  await db.prepare("DELETE FROM settings WHERE key = ?").bind(key).run();
-}
-
 export function randomSecret(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -58,8 +45,4 @@ export async function ensureCronSecret(db: D1Database): Promise<string> {
   const next = randomSecret();
   await setKv(db, KV.cronSecret, next);
   return next;
-}
-
-export async function readAccessEnabledFromDb(db: D1Database): Promise<boolean> {
-  return parseFlag(await getKv(db, KV.accessEnabled));
 }

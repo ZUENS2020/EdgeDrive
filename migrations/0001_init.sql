@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 INSERT OR IGNORE INTO settings (key, value) VALUES
-  ('brand_color', '#171717'),
   ('page_size', '50'),
   ('default_expires', '24h'),
   ('purge_after_days', '7');

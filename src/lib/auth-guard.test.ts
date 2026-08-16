@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateAdminGate, evaluateAdminPageGate, setupTokenMatches } from "./auth-gate";
+import { getAccessJwt } from "./auth-guard";
 
 describe("evaluateAdminGate", () => {
   it("setup mode rejects API access until Access is enabled", () => {
@@ -85,5 +86,24 @@ describe("setupTokenMatches", () => {
     expect(setupTokenMatches("secret", "secret")).toBe(true);
     expect(setupTokenMatches("secret", "nope")).toBe(false);
     expect(setupTokenMatches("secret", undefined)).toBe(false);
+  });
+});
+
+describe("getAccessJwt", () => {
+  it("prefers the Access assertion header", () => {
+    const hdrs = new Headers({
+      "cf-access-jwt-assertion": "header-jwt",
+      cookie: "CF_Authorization=cookie-jwt",
+    });
+    expect(getAccessJwt(hdrs)).toBe("header-jwt");
+  });
+
+  it("falls back to CF_Authorization cookie", () => {
+    const hdrs = new Headers({ cookie: "other=1; CF_Authorization=cookie-jwt" });
+    expect(getAccessJwt(hdrs)).toBe("cookie-jwt");
+  });
+
+  it("returns null when neither channel is present", () => {
+    expect(getAccessJwt(new Headers())).toBeNull();
   });
 });

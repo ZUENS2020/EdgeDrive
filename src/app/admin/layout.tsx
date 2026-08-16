@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { PRODUCT_NAME, PRODUCT_SHORT } from "@/lib/product";
 import type { ReactNode } from "react";
 import { AdminProviders } from "@/components/admin/AdminProviders";
 import { SetupProviders } from "@/components/admin/SetupProviders";
@@ -19,9 +19,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       <div className="login-wrap">
         <div className="login-card">
           <div className="brand" style={{ padding: "0 0 18px" }}>
-            <div className="logo">ED</div>
+            <div className="logo">{PRODUCT_SHORT}</div>
             <div>
-              <div className="brand-name">EdgeDrive</div>
+              <div className="brand-name">{PRODUCT_NAME}</div>
               <div className="brand-sub">未认证</div>
             </div>
           </div>
@@ -37,15 +37,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   let appearance = {
     theme_name: DEFAULTS.theme_name,
-    brand_color: DEFAULTS.brand_color,
-    custom_colors: DEFAULTS.custom_colors,
   };
   try {
     const settings = await getSettings();
     appearance = {
       theme_name: settings.theme_name,
-      brand_color: settings.brand_color,
-      custom_colors: settings.custom_colors,
     };
   } catch {
     // ignore

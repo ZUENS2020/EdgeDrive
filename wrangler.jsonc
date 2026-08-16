@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   // Cloudflare 创建页往往只让填构建命令：npm run build。
   // 部署走默认 npx wrangler deploy；postinstall 包装 wrangler，接着跑 D1 迁移。
-  // 登录和管理员配置在 D1，不写进 Variables and Secrets。
+  // Access 配置在 D1，不写进 Variables and Secrets。
   //
   // 只声明绑定名。不要填 database_id / bucket_name，否则会写死某一套资源。
   // 新 Worker 第一次部署会自动建 D1（DB）和 R2（FILES）。

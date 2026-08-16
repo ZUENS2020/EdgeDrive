@@ -91,7 +91,8 @@ async function localDisk(): Promise<UsagePayload["disk"]> {
   const tables: { name: string; rows: number }[] = [];
   for (const row of names.results || []) {
     try {
-      const count = await db.prepare(`SELECT COUNT(*) as n FROM "${row.name.replace(/"/g, '""')}"`).first<{ n: number }>();
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(row.name)) continue;
+      const count = await db.prepare(`SELECT COUNT(*) as n FROM "${row.name}"`).first<{ n: number }>();
       tables.push({ name: row.name, rows: count?.n || 0 });
     } catch {
       tables.push({ name: row.name, rows: 0 });

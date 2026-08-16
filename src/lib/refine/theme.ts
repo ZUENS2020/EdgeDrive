@@ -156,7 +156,3 @@ export function createAdminTheme(appearance: Partial<Appearance> = {}) {
 export function appearanceCssVars(appearance: Partial<Appearance>): Record<string, string> {
   return themeCssVars(resolveThemePalette(appearance.theme_name));
 }
-
-export function paletteOf(appearance: Partial<Appearance>): ThemePalette {
-  return resolveThemePalette(appearance.theme_name);
-}

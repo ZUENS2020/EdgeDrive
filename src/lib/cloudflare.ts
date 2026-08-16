@@ -1,5 +1,4 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { readAccessEnabledFromDb } from "./app-config";
 import { ensureD1Schema } from "./d1-bootstrap";
 
 export async function getCfEnv(): Promise<CloudflareEnv> {
@@ -26,15 +25,6 @@ export async function getR2(): Promise<R2Bucket> {
     );
   }
   return env.FILES;
-}
-
-export async function isAccessEnabled(): Promise<boolean> {
-  try {
-    const db = await getDB();
-    return await readAccessEnabledFromDb(db);
-  } catch {
-    return false;
-  }
 }
 
 /** Optional one-time setup token. Unset = first boot is open. */

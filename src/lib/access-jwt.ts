@@ -20,9 +20,9 @@ export function accessIssuer(team: string): string | null {
   return t ? `https://${t}.cloudflareaccess.com` : null;
 }
 
-async function fetchJwks(issuer: string): Promise<Record<string, CryptoKey>> {
+async function fetchJwks(issuer: string, force = false): Promise<Record<string, CryptoKey>> {
   const now = Date.now();
-  if (jwksCache && now - jwksCache.fetchedAt < JWK_CACHE_TTL_MS) return jwksCache.keys;
+  if (!force && jwksCache && now - jwksCache.fetchedAt < JWK_CACHE_TTL_MS) return jwksCache.keys;
   const res = await fetch(`${issuer}/cdn-cgi/access/certs`, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) throw new Error(`access certs ${res.status}`);
   const body = (await res.json()) as { keys?: { kid?: string; kty?: string; n?: string; e?: string }[] };
@@ -70,7 +70,7 @@ export async function verifyAccessJwt(jwt: string, config: AccessJwtConfig): Pro
   try {
     header = JSON.parse(new TextDecoder().decode(b64urlDecode(parts[0])));
     payload = JSON.parse(new TextDecoder().decode(b64urlDecode(parts[1])));
-  } catch (e) {
+  } catch {
     return false;
   }
   if (header.alg !== "RS256" || !header.kid) {
@@ -94,10 +94,18 @@ export async function verifyAccessJwt(jwt: string, config: AccessJwtConfig): Pro
   let keys: Record<string, CryptoKey>;
   try {
     keys = await fetchJwks(issuer);
-  } catch (e) {
+  } catch {
     return false;
   }
-  const key = keys[header.kid];
+  let key = keys[header.kid];
+  if (!key) {
+    try {
+      keys = await fetchJwks(issuer, true);
+    } catch {
+      return false;
+    }
+    key = keys[header.kid];
+  }
   if (!key) {
     return false;
   }

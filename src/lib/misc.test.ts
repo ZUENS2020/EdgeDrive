@@ -12,12 +12,12 @@ describe("d1 schema helpers", () => {
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(EXPECTED_SCHEMA_VERSION).toBe(8);
-    expect(evaluateSchemaVersion(undefined, 8)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 8)).toBe("untracked");
-    expect(evaluateSchemaVersion("7", 8)).toBe("stale");
-    expect(evaluateSchemaVersion("8", 8)).toBe("ok");
-    expect(evaluateSchemaVersion("9", 8)).toBe("ok");
+    expect(EXPECTED_SCHEMA_VERSION).toBe(9);
+    expect(evaluateSchemaVersion(undefined, 9)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 9)).toBe("untracked");
+    expect(evaluateSchemaVersion("8", 9)).toBe("stale");
+    expect(evaluateSchemaVersion("9", 9)).toBe("ok");
+    expect(evaluateSchemaVersion("10", 9)).toBe("ok");
   });
 });
 

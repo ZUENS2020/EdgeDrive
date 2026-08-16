@@ -7,7 +7,7 @@ import { fileKind, formatSize, formatTime } from "@/lib/format";
 import { guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
 import { scheduleDownloadIncrement, shouldCountDownload } from "@/lib/download-count";
 import { getFileByKey } from "@/lib/store";
-import { isExpired, type FileRow, type SiteSettings } from "@/lib/types";
+import { isExpired, type FileRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -119,7 +119,7 @@ async function handle(
       surface: p.background.paper,
       line: p.divider,
     };
-    const html = renderViewPage(request.nextUrl.origin, key, meta, settings, themeVars);
+    const html = renderViewPage(request.nextUrl.origin, key, meta, themeVars);
     return new Response(headOnly ? null : html, {
       status: 200,
       headers: {
@@ -191,7 +191,6 @@ function renderViewPage(
   origin: string,
   key: string,
   meta: FileRow,
-  settings: SiteSettings,
   themeVars?: { brand: string; bg: string; text: string; text3: string; surface: string; line: string },
 ) {
   const dl = `${origin}/dl/${key.split("/").map(encodeURIComponent).join("/")}`;
@@ -221,7 +220,7 @@ function renderViewPage(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(meta.name)} · ${esc(PRODUCT_NAME)}</title>
   <style>
-    :root { --brand:${esc(themeVars?.brand ?? settings.brand_color)}; --bg:${esc(themeVars?.bg ?? "#f6f5f2")}; --text:${esc(themeVars?.text ?? "#171717")}; --text-3:${esc(themeVars?.text3 ?? "#737373")}; --surface:${esc(themeVars?.surface ?? "#fff")}; --line:${esc(themeVars?.line ?? "rgba(23,23,23,.1)")}; }
+    :root { --brand:${esc(themeVars?.brand ?? "#171717")}; --bg:${esc(themeVars?.bg ?? "#f6f5f2")}; --text:${esc(themeVars?.text ?? "#171717")}; --text-3:${esc(themeVars?.text3 ?? "#737373")}; --surface:${esc(themeVars?.surface ?? "#fff")}; --line:${esc(themeVars?.line ?? "rgba(23,23,23,.1)")}; }
     * { box-sizing: border-box; }
     body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font:16px/1.5 "Noto Sans SC","PingFang SC","Hiragino Sans GB",sans-serif; }
     .wrap { max-width:720px; margin:0 auto; padding:48px 20px 64px; }
