@@ -5,7 +5,6 @@ import {
   SUZUKA_SKY,
   themeCssVars,
   type Appearance,
-  type ThemePalette,
 } from "@/lib/themes";
 
 declare module "@mui/material/styles" {

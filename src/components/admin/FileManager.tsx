@@ -45,10 +45,10 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { formatSize, formatTime } from "@/lib/format";
-import type { FileView, FolderNode, SiteSettings } from "@/lib/types";
+import { MAX_BATCH_IDS, type FileView, type FolderNode, type SiteSettings } from "@/lib/types";
 import { uploadFilesQueued } from "@/lib/upload-client";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FolderTree } from "./FolderTree";
@@ -72,6 +72,7 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
   const [page, setPage] = useState(0);
   const [view, setView] = useState<"list" | "grid">("list");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [shareBusy, setShareBusy] = useState(false);
   const [expireOpen, setExpireOpen] = useState(false);
   const [expireIds, setExpireIds] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -122,6 +123,50 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
 
   async function reload() {
     await Promise.all([filesQuery.query.refetch(), foldersQuery.query.refetch()]);
+  }
+
+  async function copyBatchShare(kind: "download" | "preview") {
+    if (shareBusy) return;
+    const ids = [...selected];
+    if (!ids.length) return;
+    if (ids.length > MAX_BATCH_IDS) {
+      toast(`一次最多分享 ${MAX_BATCH_IDS} 个文件`, "error");
+      return;
+    }
+    setShareBusy(true);
+    try {
+      const res = await fetch("/api/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        previewUrl?: string;
+        downloadUrl?: string;
+      };
+      if (!res.ok || !data.previewUrl || !data.downloadUrl) {
+        const map: Record<string, string> = {
+          "need ids": "请选择文件",
+          "too many ids": `一次最多分享 ${MAX_BATCH_IDS} 个文件`,
+          "files not found": "部分文件已不存在，请刷新后重试",
+          unauthorized: "未认证",
+          "setup-required": "请先完成 Access 配置",
+        };
+        toast(map[data.error || ""] || data.error || "创建批量链接失败", "error");
+        return;
+      }
+      const path = kind === "download" ? data.downloadUrl : data.previewUrl;
+      const ok = await copyToClipboard(`${window.location.origin}${path}`);
+      toast(
+        ok ? (kind === "download" ? "已复制批量下载链接" : "已复制批量预览链接") : "复制失败",
+        ok ? "success" : "error",
+      );
+    } catch {
+      toast("创建批量链接失败", "error");
+    } finally {
+      setShareBusy(false);
+    }
   }
 
   async function batch(body: Record<string, unknown>) {
@@ -381,22 +426,16 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
             <Button
               size="small"
               startIcon={<LinkIcon />}
-              onClick={async () => {
-                const list = files.filter((f) => selected.has(f.id));
-                const ok = await copyToClipboard(list.map((f) => f.url).join("\n"));
-                toast(ok ? `已复制 ${list.length} 条下载链接` : "复制失败", ok ? "success" : "error");
-              }}
+              disabled={shareBusy}
+              onClick={() => void copyBatchShare("download")}
             >
               复制链接
             </Button>
             <Button
               size="small"
               startIcon={<VisibilityIcon />}
-              onClick={async () => {
-                const list = files.filter((f) => selected.has(f.id));
-                const ok = await copyToClipboard(list.map((f) => `${f.url}/view`).join("\n"));
-                toast(ok ? `已复制 ${list.length} 条预览链接` : "复制失败", ok ? "success" : "error");
-              }}
+              disabled={shareBusy}
+              onClick={() => void copyBatchShare("preview")}
             >
               复制预览链接
             </Button>

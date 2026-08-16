@@ -137,6 +137,28 @@ export function resolveThemePalette(themeId?: string | null): ThemePalette {
   return clonePalette(getTheme(themeId).palette);
 }
 
+export type PublicThemeVars = {
+  brand: string;
+  bg: string;
+  text: string;
+  text3: string;
+  surface: string;
+  line: string;
+};
+
+/** Public /dl pages (view + batch) — same CSS variables as the view landing page. */
+export function publicThemeVars(themeId?: string | null): PublicThemeVars {
+  const palette = resolveThemePalette(themeId);
+  return {
+    brand: palette.primary.main,
+    bg: palette.background.default,
+    text: palette.text.primary,
+    text3: palette.text.secondary,
+    surface: palette.background.paper,
+    line: palette.divider,
+  };
+}
+
 export function themeCssVars(palette: ThemePalette): Record<string, string> {
   const sidebarBg = palette.sidebarBg ?? palette.background.paper;
   const sidebarText = palette.sidebarText ?? palette.text.primary;

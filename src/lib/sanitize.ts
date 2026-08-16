@@ -128,6 +128,18 @@ export function parseRange(
   return { start, end, length: end - start + 1 };
 }
 
+const HTML_ESC: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+export function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => HTML_ESC[c] || c);
+}
+
 export function splitKey(key: string): { path: string; name: string } {
   const i = key.lastIndexOf("/");
   if (i < 0) return { path: "", name: key };

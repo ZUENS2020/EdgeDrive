@@ -14,6 +14,13 @@ export function formatTime(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+export function fileExpiryLabel(expires: string | null, now = Date.now()): string {
+  if (!expires) return "永久";
+  const t = new Date(expires).getTime();
+  if (Number.isFinite(t) && t < now) return "已过期";
+  return `有效期至 ${formatTime(expires)}`;
+}
+
 export function extLabel(name: string): string {
   const ext = (name.split(".").pop() || "").toLowerCase();
   return (ext || "file").slice(0, 4);

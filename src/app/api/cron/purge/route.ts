@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { bearerMatches } from "@/lib/cron-auth";
-import { requireAdmin } from "@/lib/auth-guard";
 import { getKv, KV } from "@/lib/app-config";
+import { requireAdmin } from "@/lib/auth-guard";
+import { deleteExpiredBatches } from "@/lib/batch";
 import { getDB } from "@/lib/cloudflare";
+import { bearerMatches } from "@/lib/cron-auth";
 import { getSettings } from "@/lib/settings";
 import { purgeExpired } from "@/lib/store";
 
@@ -22,7 +23,8 @@ async function runPurge(request: Request) {
   }
   const settings = await getSettings();
   const result = await purgeExpired(settings.purge_after_days);
-  return NextResponse.json({ ok: true, ...result, graceDays: settings.purge_after_days });
+  const expiredBatchLinks = await deleteExpiredBatches(await getDB());
+  return NextResponse.json({ ok: true, ...result, expiredBatchLinks, graceDays: settings.purge_after_days });
 }
 
 export async function GET(request: Request) {

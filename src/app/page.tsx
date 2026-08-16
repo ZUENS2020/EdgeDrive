@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import {
   PRODUCT_TAGLINE,
 } from "@/lib/product";
 import { DEFAULTS, getSettings } from "@/lib/settings";
-import { resolveThemePalette } from "@/lib/themes";
+import { publicThemeVars } from "@/lib/themes";
 
 export const dynamic = "force-dynamic";
 
@@ -21,24 +22,18 @@ export default async function Home() {
   } catch {
     // D1 may be unavailable during first boot
   }
-  const palette = resolveThemePalette(settings.theme_name);
-  const p = palette as unknown as {
-    primary: { main: string };
-    background: { default: string; paper: string };
-    text: { primary: string; secondary: string };
-    divider: string;
-  };
+  const t = publicThemeVars(settings.theme_name);
   const themeVars = {
-    "--brand": p.primary.main,
-    "--bg": p.background.default,
-    "--text": p.text.primary,
-    "--text-3": p.text.secondary,
-    "--surface": p.background.paper,
-    "--line": p.divider,
-  };
+    "--brand": t.brand,
+    "--bg": t.bg,
+    "--text": t.text,
+    "--text-3": t.text3,
+    "--surface": t.surface,
+    "--line": t.line,
+  } as CSSProperties;
 
   return (
-    <div className="home-wrap" style={themeVars as React.CSSProperties}>
+    <div className="home-wrap" style={themeVars}>
       <div className="home-card">
         <div className="brand" style={{ padding: "0 0 24px" }}>
           <div className="logo">{PRODUCT_SHORT}</div>

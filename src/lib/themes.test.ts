@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME_ID, THEMES, getTheme, resolveThemePalette, themeCssVars } from "./themes";
+import { DEFAULT_THEME_ID, THEMES, getTheme, publicThemeVars, resolveThemePalette, themeCssVars } from "./themes";
 
 describe("getTheme", () => {
   it("returns default for unknown / empty ids", () => {
@@ -60,5 +60,17 @@ describe("resolveThemePalette", () => {
   it("falls back to default for unknown ids", () => {
     const palette = resolveThemePalette("nope");
     expect(palette.primary.main).toBe(getTheme("default").palette.primary.main);
+  });
+});
+
+describe("publicThemeVars", () => {
+  it("maps palette fields used by public /dl pages", () => {
+    const vars = publicThemeVars("suzuka");
+    expect(vars.brand).toBe("#D96C4A");
+    expect(vars.bg).toBe("#08090A");
+    expect(vars.surface).toBe("#0E1013");
+    expect(vars.text).toBe("#E9E6E0");
+    expect(vars.text3).toBe("#8B8F98");
+    expect(vars.line).toBe("#1F2125");
   });
 });

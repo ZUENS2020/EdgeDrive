@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { evaluateSchemaVersion, missingCoreTables } from "./d1-bootstrap";
-import { EXPECTED_SCHEMA_VERSION } from "./d1-bootstrap-sql";
+import { D1_BOOTSTRAP_SQL, EXPECTED_SCHEMA_VERSION } from "./d1-bootstrap-sql";
 import { shouldCountDownload } from "./download-policy";
 import { cfApiTokenConfigured, readEnvSecret } from "./cf-credentials";
 import { bearerMatches } from "./cron-auth";
+import { fileExpiryLabel } from "./format";
 
 describe("d1 schema helpers", () => {
   it("lists missing core tables", () => {
@@ -12,12 +13,18 @@ describe("d1 schema helpers", () => {
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(EXPECTED_SCHEMA_VERSION).toBe(9);
-    expect(evaluateSchemaVersion(undefined, 9)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 9)).toBe("untracked");
-    expect(evaluateSchemaVersion("8", 9)).toBe("stale");
-    expect(evaluateSchemaVersion("9", 9)).toBe("ok");
-    expect(evaluateSchemaVersion("10", 9)).toBe("ok");
+    expect(EXPECTED_SCHEMA_VERSION).toBe(10);
+    expect(evaluateSchemaVersion(undefined, 10)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 10)).toBe("untracked");
+    expect(evaluateSchemaVersion("9", 10)).toBe("stale");
+    expect(evaluateSchemaVersion("10", 10)).toBe("ok");
+    expect(evaluateSchemaVersion("11", 10)).toBe("ok");
+  });
+
+  it("bootstrap SQL includes batch_links (migration 0010)", () => {
+    expect(D1_BOOTSTRAP_SQL).toContain("CREATE TABLE IF NOT EXISTS batch_links");
+    expect(D1_BOOTSTRAP_SQL).toContain("idx_batch_expires");
+    expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '10'/);
   });
 });
 
@@ -54,5 +61,14 @@ describe("purge bearer", () => {
     expect(bearerMatches("Bearer abc", "xyz")).toBe(false);
     expect(bearerMatches(null, "abc")).toBe(false);
     expect(bearerMatches("Bearer abc", undefined)).toBe(false);
+  });
+});
+
+describe("fileExpiryLabel", () => {
+  it("labels permanent, expired, and dated files", () => {
+    const now = Date.parse("2026-08-16T00:00:00.000Z");
+    expect(fileExpiryLabel(null, now)).toBe("永久");
+    expect(fileExpiryLabel("2026-08-15T00:00:00.000Z", now)).toBe("已过期");
+    expect(fileExpiryLabel("2026-09-01T08:30:00.000Z", now)).toMatch(/^有效期至 /);
   });
 });

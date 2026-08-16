@@ -10,9 +10,13 @@
 
 - **Serverless**：无服务器、免运维、全球边缘节点就近响应
 - **后台上传**：拖拽 / 批量 / 分片（>8MB 自动分片，大文件无上限）
-- **文件夹**：树形目录、新建 / 重命名 / 删除 / 批量移动
+- **文件夹**：树形目录（图标 + 箭头、移动端可滚动）、新建 / 重命名 / 删除 / **树状移动对话框**
 - **有效期**：行内三档（小时 / 天数 / 永久）+ 批量设置 + 过期自动 410
-- **预览落地页**：`/dl/<路径>/view` —— 图片 / 音视频 / PDF 在线预览
+- **行内预览**：文件行 / 右键直接打开 `/dl/.../view`（图片 / 音视频 / PDF）
+- **复制预览链接**：单文件复制 `/view` 落地页；多选则生成**一条**批量预览链接
+- **批量分享**：多选后批量栏「复制链接 / 复制预览链接」各生成一个 `/dl/batch/{token}` 网盘页（全部下载 + 逐文件预览/下载）
+- **选中高亮**：列表主色底、网格 3px 描边——深色 / 浅色 / Nocturne 下都明显
+- **主题系统**：Onyx（默认暗色）/ Porcelain（浅色）/ Nocturne（铃鹿夜空）——设置页卡片切换，D1 持久、公开页跟随
 - **Range 下载**：支持断点续传 / 视频拖动播放
 - **统计仪表盘**：R2 容量与 Class A/B、D1 读写、Worker 调用量（GraphQL Analytics）—— 响应式一屏展示
 - **安全**：路径穿越多层防护、XSS 内容类型硬化、SQL 全参数化、Cloudflare Access JWT 真实验证（fail-closed）
@@ -73,6 +77,32 @@
 - 下载：`/dl/<路径>/<文件名>`（强制 attachment 下载）
 - 预览：`/dl/<路径>/<文件名>/view`（图片 / 音视频 / PDF）
 - 支持 `Range` 头（断点续传、视频拖动）
+
+### 批量分享
+
+多选文件后，批量栏直接两个按钮（无二级弹窗）：
+
+| 按钮 | 复制的链接 | 打开后 |
+|---|---|---|
+| **复制链接** | `/dl/batch/{token}?mode=download` | 网盘列表 + **自动逐个触发下载** |
+| **复制预览链接** | `/dl/batch/{token}` | 网盘列表，逐文件预览 / 下载 + 「全部下载」 |
+
+- 每次点击都会新建一条 batch（高熵 token，32 字节 base64url）
+- 一次最多 100 个文件；有效期取所选文件的**最短过期时间**，全部永久则 batch 也永久
+- 页面列出类型图标 / 名称 / 大小 / 过期状态；已删除的文件会被跳过
+- **不做服务端 ZIP**（Workers CPU 限制）——「全部下载」= 浏览器里每隔 300ms 点一次 `<a download>`
+- 浏览器可能拦截无手势的多文件下载：页面会提示「如被拦截请点下方「全部下载」或允许浏览器下载」
+- 过期 batch 返回 **410**；无效 token 返回 **404**
+- 单文件行内 / 右键操作不变（仍是 `/dl/xx` 与 `/dl/xx/view`）
+
+### 管理台界面
+
+- **批量栏**（勾选 ≥1 个文件后出现在工具栏下方）：已选数量、复制链接、复制预览链接、移动、有效期、删除、取消
+- **移动**：树状文件夹选择（根目录 + 可展开子目录），不是下拉框
+- **选中**：列表行主色半透明底；网格卡片 3px 主色描边
+- **主题**：设置页三张卡片（Onyx / Porcelain / Nocturne），保存后管理台与公开 `/dl` 页一起换肤
+
+> 截图需要登录管理台才能拍。本机未接 Access 时无法自动截取线上 UI；部署后可在管理台多选文件对照上面两张表验证。
 
 ### 统计
 
@@ -171,20 +201,46 @@ npm run dev
 ## 测试
 
 ```bash
-npm test        # Vitest：sanitize / JWT 验证 / 有效期 / Access 引导守卫 / LIKE 转义
+npm test        # Vitest：sanitize / JWT / 有效期 / Access 守卫 / 批量分享 / 主题 / LIKE
 npm run typecheck
+npm run build   # 生成 D1 bootstrap SQL（含 batch_links）+ OpenNext Worker
 ```
 
 GitHub Actions 会在每次 push 时自动跑测试 + 类型检查。
 
 ---
 
+## 项目结构
+
+```
+migrations/                 D1 迁移（0010_batch_links.sql → schema_version 10）
+src/
+  app/
+    admin/                  管理台（文件 / 统计 / 设置）
+    api/
+      batch/                POST 创建批量分享（Access 保护）
+      files/                列表、上传、MPU、批量过期/删除
+      cron/purge/           过期文件 + 过期 batch 清理
+    dl/
+      [...path]/            单文件下载 / /view 预览页
+      batch/[token]/        批量分享页（公开）
+  components/admin/         FileManager、FolderTree、MoveDialog、主题设置、统计
+  lib/
+    batch.ts                token / 最短过期 / CRUD
+    batch-page.ts           批量页 HTML
+    themes.ts               Onyx / Porcelain / Nocturne
+    store.ts                files / folders / D1
+scripts/                    cf-build / cf-deploy / wrangler shim
+```
+
+---
+
 ## 技术栈
 
 - [Next.js 16](https://nextjs.org)（App Router）+ [OpenNext](https://opennext.js.org) → Cloudflare Workers
-- [Cloudflare D1](https://developers.cloudflare.com/d1/)（SQLite 元数据 + 配置）
+- [Cloudflare D1](https://developers.cloudflare.com/d1/)（SQLite 元数据 + 配置 + `batch_links`）
 - [Cloudflare R2](https://developers.cloudflare.com/r2/)（对象存储，免费 10GB + 零出口流量费）
-- [Refine](https://refine.dev) + [MUI](https://mui.com)（管理台）
+- [Refine](https://refine.dev) + [MUI](https://mui.com)（管理台 hooks / 表格 / 对话框）
 - Cloudflare Access（JWT 认证）
 - Vitest（测试）
 

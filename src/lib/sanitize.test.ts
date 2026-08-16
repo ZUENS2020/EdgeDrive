@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { looksLikeTraversal, parseRange, sanitizeKey } from "./sanitize";
+import { looksLikeTraversal, parseRange, sanitizeKey, escapeHtml } from "./sanitize";
 
 describe("sanitizeKey", () => {
   it("1 accepts a normal nested key", () => {
@@ -75,5 +75,11 @@ describe("parseRange", () => {
     expect(parseRange("bytes=0-99", 10)).toEqual({ start: 0, end: 9, length: 10 });
     expect(parseRange("bytes=0-0", 10)).toEqual({ start: 0, end: 0, length: 1 });
     expect(parseRange("bytes=2-", 10)).toEqual({ start: 2, end: 9, length: 8 });
+  });
+});
+
+describe("escapeHtml", () => {
+  it("escapes markup characters", () => {
+    expect(escapeHtml(`<a href="x"> & 'y'`)).toBe("&lt;a href=&quot;x&quot;&gt; &amp; &#39;y&#39;");
   });
 });

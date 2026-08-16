@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
 import { getR2 } from "@/lib/cloudflare";
-import { PRODUCT_NAME, PRODUCT_SHORT, PRODUCT_TAGLINE } from "@/lib/product";
-import { DEFAULTS, getSettings } from "@/lib/settings";
-import { resolveThemePalette } from "@/lib/themes";
-import { fileKind, formatSize, formatTime } from "@/lib/format";
-import { guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
 import { scheduleDownloadIncrement, shouldCountDownload } from "@/lib/download-count";
+import { fileKind, fileExpiryLabel, formatSize } from "@/lib/format";
+import { PRODUCT_NAME, PRODUCT_SHORT, PRODUCT_TAGLINE } from "@/lib/product";
+import { escapeHtml, guessMime, looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
+import { DEFAULTS, getSettings } from "@/lib/settings";
 import { getFileByKey } from "@/lib/store";
+import { publicThemeVars, type PublicThemeVars } from "@/lib/themes";
 import { isExpired, type FileRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -30,10 +30,6 @@ function text(body: string, status: number, extra?: Record<string, string>) {
       ...extra,
     },
   });
-}
-
-function esc(s: string) {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] || c);
 }
 
 export async function OPTIONS() {
@@ -104,21 +100,7 @@ async function handle(
     } catch {
       // ignore
     }
-    const palette = resolveThemePalette(settings.theme_name);
-    const p = palette as unknown as {
-      primary: { main: string };
-      background: { default: string; paper: string };
-      text: { primary: string; secondary: string };
-      divider: string;
-    };
-    const themeVars = {
-      brand: p.primary.main,
-      bg: p.background.default,
-      text: p.text.primary,
-      text3: p.text.secondary,
-      surface: p.background.paper,
-      line: p.divider,
-    };
+    const themeVars = publicThemeVars(settings.theme_name);
     const html = renderViewPage(request.nextUrl.origin, key, meta, themeVars);
     return new Response(headOnly ? null : html, {
       status: 200,
@@ -191,26 +173,22 @@ function renderViewPage(
   origin: string,
   key: string,
   meta: FileRow,
-  themeVars?: { brand: string; bg: string; text: string; text3: string; surface: string; line: string },
+  themeVars?: PublicThemeVars,
 ) {
   const dl = `${origin}/dl/${key.split("/").map(encodeURIComponent).join("/")}`;
   const inline = `${dl}?inline=1`;
   const kind = fileKind(meta.name, meta.mime);
   const safeInline = isInlineSafe(meta.name, meta.mime);
-  const status = meta.expires
-    ? isExpired(meta.expires)
-      ? "已过期"
-      : `有效期至 ${formatTime(meta.expires)}`
-    : "永久";
+  const status = fileExpiryLabel(meta.expires);
   let embed = "";
   if (safeInline && kind === "img") {
-    embed = `<img class="preview" src="${esc(inline)}" alt="${esc(meta.name)}">`;
+    embed = `<img class="preview" src="${escapeHtml(inline)}" alt="${escapeHtml(meta.name)}">`;
   } else if (safeInline && kind === "vid") {
-    embed = `<video class="preview" controls src="${esc(inline)}"></video>`;
+    embed = `<video class="preview" controls src="${escapeHtml(inline)}"></video>`;
   } else if (safeInline && (meta.mime || "").startsWith("audio/")) {
-    embed = `<audio controls src="${esc(inline)}"></audio>`;
+    embed = `<audio controls src="${escapeHtml(inline)}"></audio>`;
   } else if (safeInline && kind === "pdf") {
-    embed = `<iframe class="preview pdf" src="${esc(inline)}" title="${esc(meta.name)}"></iframe>`;
+    embed = `<iframe class="preview pdf" src="${escapeHtml(inline)}" title="${escapeHtml(meta.name)}"></iframe>`;
   }
 
   return `<!doctype html>
@@ -218,9 +196,9 @@ function renderViewPage(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${esc(meta.name)} · ${esc(PRODUCT_NAME)}</title>
+  <title>${escapeHtml(meta.name)} · ${escapeHtml(PRODUCT_NAME)}</title>
   <style>
-    :root { --brand:${esc(themeVars?.brand ?? "#171717")}; --bg:${esc(themeVars?.bg ?? "#f6f5f2")}; --text:${esc(themeVars?.text ?? "#171717")}; --text-3:${esc(themeVars?.text3 ?? "#737373")}; --surface:${esc(themeVars?.surface ?? "#fff")}; --line:${esc(themeVars?.line ?? "rgba(23,23,23,.1)")}; }
+    :root { --brand:${escapeHtml(themeVars?.brand ?? "#171717")}; --bg:${escapeHtml(themeVars?.bg ?? "#f6f5f2")}; --text:${escapeHtml(themeVars?.text ?? "#171717")}; --text-3:${escapeHtml(themeVars?.text3 ?? "#737373")}; --surface:${escapeHtml(themeVars?.surface ?? "#fff")}; --line:${escapeHtml(themeVars?.line ?? "rgba(23,23,23,.1)")}; }
     * { box-sizing: border-box; }
     body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font:16px/1.5 "Noto Sans SC","PingFang SC","Hiragino Sans GB",sans-serif; }
     .wrap { max-width:720px; margin:0 auto; padding:48px 20px 64px; }
@@ -240,15 +218,15 @@ function renderViewPage(
 <body>
   <div class="wrap">
     <div class="brand">
-      <div class="logo">${esc(PRODUCT_SHORT)}</div>
-      <div>${esc(PRODUCT_NAME)}</div>
+      <div class="logo">${escapeHtml(PRODUCT_SHORT)}</div>
+      <div>${escapeHtml(PRODUCT_NAME)}</div>
     </div>
-    <h1>${esc(meta.name)}</h1>
-    <p class="meta">${esc(formatSize(meta.size))} · ${esc(status)}${meta.path ? ` · ${esc(meta.path)}` : ""}</p>
+    <h1>${escapeHtml(meta.name)}</h1>
+    <p class="meta">${escapeHtml(formatSize(meta.size))} · ${escapeHtml(status)}${meta.path ? ` · ${escapeHtml(meta.path)}` : ""}</p>
     ${embed}
-    <p><a class="btn" href="${esc(dl)}">下载</a></p>
+    <p><a class="btn" href="${escapeHtml(dl)}">下载</a></p>
     <div class="footer">
-      <span style="color:var(--text-3);font-size:13px">${esc(PRODUCT_NAME)} · ${esc(PRODUCT_TAGLINE)}</span>
+      <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(PRODUCT_TAGLINE)}</span>
       <a href="https://github.com/ZUENS2020/edgedrive" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>

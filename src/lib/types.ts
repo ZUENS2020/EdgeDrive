@@ -74,6 +74,9 @@ export function dlUrl(origin: string, key: string, view = false): string {
   return `${origin.replace(/\/$/, "")}/dl/${encodeDlPath(key)}${view ? "/view" : ""}`;
 }
 
+/** Max files in one batch share link. */
+export const MAX_BATCH_IDS = 100;
+
 export function flattenFolderPaths(nodes: FolderNode[]): { path: string; label: string }[] {
   const out: { path: string; label: string }[] = [];
   const walk = (list: FolderNode[]) => {
