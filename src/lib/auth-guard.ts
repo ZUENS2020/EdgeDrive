@@ -25,6 +25,18 @@ export async function requireAdmin(request?: Request) {
   const settings = await accessJwtFromSettings();
   const hdrs = request ? request.headers : await headers();
   const jwt = hdrs.get("cf-access-jwt-assertion");
+  console.warn(
+    "[auth-debug] requireAdmin: jwt header=",
+    jwt ? `present(${jwt.length} chars)` : "MISSING",
+    "| enabled=",
+    settings.enabled,
+    "| team=",
+    settings.team,
+    "| aud=",
+    settings.aud.slice(0, 8),
+    "| all-access-headers=",
+    [...hdrs.keys()].filter((k) => k.toLowerCase().includes("access") || k.toLowerCase().includes("authorization") || k.toLowerCase().includes("cookie")),
+  );
   const verified = jwt ? await verifyAccessJwt(jwt, { team: settings.team, aud: settings.aud }) : false;
   const gate = evaluateAdminGate({
     accessEnabled: settings.enabled,
