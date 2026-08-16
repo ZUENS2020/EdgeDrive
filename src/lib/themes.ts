@@ -57,7 +57,7 @@ export function hexContrast(hex: string): string {
 
 const DEFAULT_THEME: ThemeDefinition = {
   id: "default",
-  name: "Default",
+  name: "Onyx",
   description: "EdgeDrive 暗色：近黑底、#171717 品牌条，从现有 Linear 配色提取。",
   palette: {
     mode: "dark",
@@ -82,7 +82,7 @@ const DEFAULT_THEME: ThemeDefinition = {
 
 const LIGHT_THEME: ThemeDefinition = {
   id: "light",
-  name: "Light",
+  name: "Porcelain",
   description: "亮色主题：白底黑字，主色沿用标记色风格。",
   palette: {
     mode: "light",
@@ -107,7 +107,7 @@ const LIGHT_THEME: ThemeDefinition = {
 
 const SUZUKA_THEME: ThemeDefinition = {
   id: "suzuka",
-  name: "铃鹿",
+  name: "Nocturne",
   description: "夜空下的先头景色——红橙发色的逃亡者。风、心跳、只有自己的世界。",
   palette: {
     mode: "dark",
@@ -132,7 +132,7 @@ const SUZUKA_THEME: ThemeDefinition = {
 
 const SUZUKA_LIVE_THEME: ThemeDefinition = {
   id: "suzuka-live",
-  name: "决胜服",
+  name: "Meadow",
   description: "胜者舞台的决胜服——白底绿金，聚光灯下的荣光。",
   palette: {
     mode: "light",
