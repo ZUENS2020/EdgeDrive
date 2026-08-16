@@ -1492,8 +1492,24 @@ th .check {
 }
 @media (max-height: 660px) {
   .usage-main {
+    --usage-chart-h: 0px; /* 矮屏不展示操作明细条——一屏优先 */
     --usage-gap: 4px;
     --usage-pad: 6px 10px 8px;
+  }
+  .usage-main .usage-lead {
+    display: none; /* 矮屏隐藏说明文字 */
+  }
+  .usage-main .usage-hero-card {
+    padding: 4px 10px;
+  }
+  .usage-main .usage-hero-card .v {
+    font-size: 15px;
+  }
+  .usage-main .usage-hero-card .k {
+    font-size: 10px;
+  }
+  .usage-main .usage-card .hint {
+    display: none;
   }
   .usage-main .usage-metric .k {
     font-size: 10px;
@@ -1515,8 +1531,8 @@ th .check {
     gap: 4px;
     margin-top: 4px;
   }
-  .usage-main .usage-card h2 {
-    margin-bottom: 0;
+  .usage-main .usage-chart {
+    display: none;
   }
 }
 @media (max-height: 620px) {
