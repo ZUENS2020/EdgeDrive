@@ -1,333 +1,308 @@
 # EdgeDrive
 
-跑在 **Cloudflare Workers 边缘网络**上的 **Serverless 文件服务**：没有常驻服务器，按请求在就近节点执行。后台上传、设有效期、按文件夹整理；过期后下载返回 410。
+> **[中文](README.zh-CN.md) · English**
 
-**EdgeDrive = 一套完整的私人文件托管 + 临时直链服务**：R2 存文件、D1 管元数据、Cloudflare Access 管身份——全部跑在 Cloudflare 免费层上。
+![License](https://img.shields.io/github/license/ZUENS2020/EdgeDrive)
+![GitHub stars](https://img.shields.io/github/stars/ZUENS2020/EdgeDrive)
+![Tests](https://img.shields.io/badge/tests-178%20passing-brightgreen)
+![Stack](https://img.shields.io/badge/stack-Next.js%2016%20%2B%20OpenNext%20%2B%20Cloudflare-blue)
 
----
+**A Serverless file-sharing service running on the Cloudflare Workers edge network** — no server to rent, no Docker to run, no ops to babysit. Upload with a background queue, set expiry dates, organize into folders — expired downloads return `410`.
 
-## 特性
-
-- **Serverless**：无服务器、免运维、全球边缘节点就近响应
-- **后台上传**：拖拽 / 批量 / 分片（>8MB 自动分片，大文件无上限）；相同内容 **秒传**（SHA-256 去重，只写新记录、不重复传字节）
-- **文件夹**：树形目录（图标 + 箭头、移动端可滚动）、新建 / 重命名 / 删除 / **树状移动对话框**
-- **回收站**：删除为软删除，可还原；30 天后由 purge cron 彻底清除（R2+D1）
-- **标签 / 收藏 / 最近**：逗号标签筛选、行内星标、最近上传 tab
-- **有效期**：行内三档（小时 / 天数 / 永久）+ 批量设置 + 过期自动 410
-- **预览页**：`/dl/.../view` 图片灯箱（放大/缩小/旋转）、视频 Range 拖进度、音频、PDF、Markdown+Mermaid+代码高亮、TXT；Markdown/PDF/TXT 限高容器内滚动
-- **复制预览链接**：单文件复制 `/view` 落地页；多选则生成**一条**批量预览链接
-- **批量分享**：多选后批量栏「复制链接 / 复制预览链接」各生成一个 `/dl/batch/{token}` 网盘页（全部下载 + 逐文件预览/下载）
-- **选中高亮**：列表主色底、网格 3px 描边——深色 / 浅色 / Nocturne 下都明显
-- **主题系统**：Onyx（默认暗色）/ Porcelain（浅色）/ Nocturne（铃鹿夜空）——设置页卡片切换，D1 持久、公开页跟随
-- **Range 下载**：支持断点续传 / 视频拖动播放
-- **统计仪表盘**：R2 容量与 Class A/B、D1 读写、Worker 调用量（GraphQL Analytics）—— 响应式一屏展示
-- **安全**：路径穿越多层防护、XSS 内容类型硬化、SQL 全参数化、Cloudflare Access JWT 真实验证（fail-closed）
-- **一键部署**：Fork → 导入 Cloudflare → 自动建 D1/R2/跑迁移 → 首次访问配置 Access
+**EdgeDrive = a complete private file hosting + temporary direct-link service**: R2 stores files, D1 manages metadata, Cloudflare Access handles identity — all running on the Cloudflare free tier.
 
 ---
 
-## ⚡ 一键部署
+## ✨ Features
+
+- **Serverless**: no server, no ops, global edge nodes respond locally
+- **Background uploads**: drag & drop / batch / multipart (auto-shards >8MB, no size limit); identical content **instant-upload** (SHA-256 dedupe — writes a new record, transfers zero bytes)
+- **Folders**: tree structure (icons + expand arrows, scrollable on mobile), create / rename / delete / **tree-style move dialog**
+- **Recycle bin**: deletes are soft — restorable; purge cron permanently removes after 30 days (R2 + D1)
+- **Tags / Star / Recent**: comma-tag filtering, inline star toggle, recent-uploads tab
+- **Expiry**: three inline presets (hours / days / permanent) + bulk set + auto `410`
+- **Preview pages**: `/dl/.../view` — image lightbox (zoom/rotate), video Range streaming (seekable), audio, PDF, Markdown+Mermaid+code highlight, TXT; Markdown/PDF/TXT scroll inside height-limited containers
+- **Copy preview link**: copy `/view` landing page per file; multi-select generates **one** batch preview link
+- **Batch sharing**: multi-select → bulk bar "Copy link / Copy preview link" → `/dl/batch/{token}` web-disk page (download all + per-file preview/download)
+- **Selection highlight**: primary-tinted rows in list view, 3px outline in grid view — visible in dark / light / Nocturne themes
+- **Theme system**: Onyx (default dark) / Porcelain (light) / Nocturne — switch from Settings, persisted in D1, public pages follow
+- **Range downloads**: resumable / video seeking
+- **Stats dashboard**: R2 capacity & Class A/B, D1 reads/writes, Worker invocations (GraphQL Analytics) — responsive single-screen
+- **Security**: multi-layer path traversal protection, XSS content-type hardening, fully parameterized SQL, real Cloudflare Access JWT verification (fail-closed)
+- **One-click deploy**: fork → import to Cloudflare → auto-provisions D1/R2/runs migrations → first-visit Access onboarding
+
+---
+
+## ⚡ One-Click Deploy
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/ZUENS2020/EdgeDrive)
 
-点击上方按钮 → 连接 GitHub + Cloudflare 账号 → 填写 Worker/资源名 → **自动 fork + 构建 + 部署**（D1/R2 自动创建并绑定）。部署完成后打开 Worker 域名，按「首次引导」配置 Access 即可。
+Click the button → connect GitHub + Cloudflare accounts → pick Worker/resource names → **auto fork + build + deploy** (D1/R2 created & bound automatically). Open the Worker domain and complete the Access onboarding.
 
-## 快速部署（约 5 分钟）
+## 🚀 Quick Deploy (~5 min)
 
-### 前置
+### Prerequisites
 
-- 一个 [Cloudflare](https://dash.cloudflare.com) 账号（免费即可）
-- 一个 GitHub 账号
+- A [Cloudflare](https://dash.cloudflare.com) account (free tier is fine)
+- A GitHub account
 
-### 步骤
+### Steps
 
-1. **Fork 本仓库**（GitHub → Fork）
+1. **Fork this repo** (GitHub → Fork)
 
-2. **导入 Cloudflare**：
-   - 登录 Cloudflare 面板 → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
-   - 选你 fork 的仓库 → **Begin setup**
-   - 框架预设：`Next.js`；构建命令 `npm run build`；输出目录留空
-   - **Save and Deploy** —— 首次部署会自动创建：
-     - D1 数据库（`edgedrive-db`）+ 自动跑迁移建表
-     - R2 存储桶（`edgedrive`）
-     - Worker 绑定（`DB` / `R2`）
+2. **Import to Cloudflare**:
+   - Cloudflare dashboard → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+   - Pick your fork → **Begin setup**
+   - Framework preset: `Next.js`; build command `npm run build`; output directory empty
+   - **Save and Deploy** — first deploy auto-creates:
+     - D1 database (`edgedrive-db`) + runs migrations
+     - R2 bucket (`edgedrive`)
+     - Worker bindings (`DB` / `R2`)
 
-3. **首次访问配置 Access（引导模式）**：
-   - 打开部署后给你的 `*.workers.dev` 域名
-   - 访问 `/admin` —— **未启用 Access 前无需登录**，只显示引导页
-   - 填写 **Access Team** 与 **AUD**，点 **启用 Access**
-   - 之后所有管理请求走 Access JWT（未认证一律 401）
+3. **First-visit Access onboarding (guided mode)**:
+   - Open your `*.workers.dev` domain
+   - Visit `/admin` — **no login required until Access is enabled**, only the onboarding page shows
+   - Fill in **Access Team** and **AUD**, click **Enable Access**
+   - From then on, all admin requests go through Access JWT (401 without auth)
 
-   > ⚠️ 部署后请**立刻**完成引导并在 Zero Trust 里保护 `/admin*`。引导页在启用前是开放的；可选 Worker Secret `SETUP_TOKEN` 防止别人抢先配置。
+   > ⚠️ Complete onboarding and protect `/admin*` in Zero Trust **immediately** after deploying. The onboarding page is open until enabled; optional Worker Secret `SETUP_TOKEN` prevents others from hijacking the setup.
 
-4. **部署更新**：push 到 main 即自动重新部署（Cloudflare Pages Git 集成）
+4. **Updates**: push to `main` → auto redeploy (Cloudflare Pages Git integration)
 
-> 可选：绑定自定义域名（Workers & Pages → 你的项目 → Custom domains）—— 直链会变成 `https://你的域名/dl/...`
+> Optional: bind a custom domain (Workers & Pages → your project → Custom domains) — direct links become `https://your.domain/dl/...`
 
 ---
 
-## 🔐 Access 认证配置（详细）
+## 🔐 Access Authentication (Detailed)
 
-EdgeDrive 用 **Cloudflare Access** 做管理台认证（无密码可爆破——只有 Cloudflare 账号能进）。
+EdgeDrive uses **Cloudflare Access** for admin authentication (no brute-forceable passwords — only Cloudflare-account holders get in).
 
-### 第 1 步：创建 Access 应用
+### Step 1: Create an Access application
 
-1. Cloudflare 面板 → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**
-2. **Application domain** 填：
-   - 只保护管理台（推荐，`/dl` 分享链接保持公开）：`你的域名/admin*`
-   - 或全站保护：`你的域名/*`
-3. **Add** → 保存
+1. Cloudflare dashboard → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**
+2. **Application domain**:
+   - Protect only the admin (recommended — `/dl` share links stay public): `your.domain/admin*`
+   - Or protect everything: `your.domain/*`
+3. **Add** → save
 
-### 第 2 步：查两个关键值
+### Step 2: Find the two key values
 
-| 值 | 在哪查 |
+| Value | Where |
 |---|---|
-| **Access Team** | Zero Trust 域名前缀：`https://<team>.cloudflareaccess.com` 中的 `<team>` |
-| **AUD** | Access 应用 → **其他设置**（Settings）标签页 → **AUD 标签**（一串十六进制）|
+| **Access Team** | Zero Trust domain prefix: the `<team>` in `https://<team>.cloudflareaccess.com` |
+| **AUD** | Access app → **Other settings** tab → **AUD Tag** (hex string) |
 
-> ⚠️ **AUD 是每个应用独有的**——重建应用/撤销令牌后会变——配置后别乱动应用。
+> ⚠️ **AUD is unique per application** — it changes if you recreate the app or revoke tokens. Don't touch the app after configuring.
 
-### 第 3 步：在 EdgeDrive 引导页启用
+### Step 3: Enable in the EdgeDrive onboarding page
 
-- 打开 `你的域名/admin` → 引导页填 **Team + AUD** → 点「启用 Access」
-- 之后管理台只认 Access JWT（未认证 → 401/跳 Access 登录）
+- Open `your.domain/admin` → onboarding page → fill **Team + AUD** → click **Enable Access**
+- The admin now only accepts Access JWTs (401 / redirected to Access login otherwise)
 
-### 第 4 步：配置 Access 策略（重要！）
+### Step 4: Configure Access policies (important!)
 
-Access 应用**默认全部拒绝**——必须加 Allow 规则，否则登录后也 403：
+Access apps **deny everything by default** — you must add an Allow rule or you'll get 403 after logging in:
 
-- 在应用的 **Policies** 标签页 → **Add a policy**
-- **Action** 选 `Allow`；**Include** 选 `Everyone`（或指定邮箱/组）
-- 若用了 `/admin*` 路径保护 + 想要 `/dl` 公开：
-  - **第一条策略**：`/dl*` → Allow Everyone
-  - **第二条策略**：`/admin*` → Allow 你的邮箱/Everyone
+- In the app's **Policies** tab → **Add a policy**
+- **Action** = `Allow`; **Include** = `Everyone` (or specific email/group)
+- If you protect `/admin*` and want `/dl` public:
+  - **Policy 1**: `/dl*` → Allow Everyone
+  - **Policy 2**: `/admin*` → Allow your email / Everyone
 
-### 常见坑
+### Common pitfalls
 
-| 现象 | 原因 | 解决 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| 登录后 403 Forbidden | Policy 没有 Allow 规则（默认全拒）| 加 Allow 策略 |
-| 管理台一直 401 | AUD 填错/过期 | 用应用「其他设置」里的真实 AUD |
-| hostname 应用只传 cookie 不传 header | CF 边缘行为差异 | EdgeDrive 已双通道兼容（header + cookie）——无需处理 |
-| workers.dev 子域上 hostname 应用失效 | CF 已知历史 bug | 绑定**自定义域名**后用 hostname 应用 |
+| 403 Forbidden after login | No Allow rule (default deny-all) | Add an Allow policy |
+| Admin keeps returning 401 | AUD wrong/outdated | Use the real AUD from "Other settings" |
+| Hostname-level app sends cookie only, no header | CF edge behavior | EdgeDrive reads both (header + cookie) — nothing to do |
+| Hostname apps on `workers.dev` subdomains fail | Known CF bug | Bind a **custom domain** for hostname apps |
 
-> 完整手册（含截图路径）：[docs/cloudflare-access.md](docs/cloudflare-access.md)
+> Full manual (with verification steps): [docs/cloudflare-access.md](docs/cloudflare-access.md)
 
-### 排障：AUD 配错进不去管理台怎么办
+### Troubleshooting: locked out by a wrong AUD
 
-**症状**：Access 登录成功，但 EdgeDrive 一直 401/跳登录；或引导页已启用后想改 AUD 却进不去 /admin。
+**Symptom**: Access login succeeds but EdgeDrive keeps returning 401; or you need to change AUD after onboarding but can't reach `/admin`.
 
-**原理**：Access 配置存在 D1 的 `settings` 表里（`cf_access_team` / `cf_access_aud` / `access_enabled`）——直接改 D1 即可，不依赖管理台。
+**How it works**: Access config lives in the D1 `settings` table (`cf_access_team` / `cf_access_aud` / `access_enabled`) — edit D1 directly, no admin UI needed.
 
-**① 查看当前配置**：
+**① View current config**:
 
 ```bash
-# 在项目目录（有 wrangler.jsonc 的地方）执行
+# run from the project directory (where wrangler.jsonc is)
 npx wrangler d1 execute edgedrive-db --remote \
   --command "SELECT key, value FROM settings WHERE key IN ('cf_access_team','cf_access_aud','access_enabled')"
 ```
 
-**② 修改 AUD 为正确值**（从 Access 应用 → 其他设置 → AUD 标签复制）：
+**② Fix the AUD** (copy from Access app → Other settings → AUD Tag):
 
 ```bash
 npx wrangler d1 execute edgedrive-db --remote \
-  --command "UPDATE settings SET value='你的正确AUD' WHERE key='cf_access_aud'"
+  --command "UPDATE settings SET value='YOUR_CORRECT_AUD' WHERE key='cf_access_aud'"
 ```
 
-**③ 改回引导模式**（如果 AUD 错得离谱 / 想重新配置）：把 `access_enabled` 改回 `0`，/admin 就会重新显示引导页（可重新填 Team + AUD）：
+**③ Back to onboarding mode** (to reconfigure): set `access_enabled` back to `0` — `/admin` shows the onboarding page again:
 
 ```bash
 npx wrangler d1 execute edgedrive-db --remote \
   --command "UPDATE settings SET value='0' WHERE key='access_enabled'"
 ```
 
-**⚠️ 如果 wrangler 报「Couldn't find a D1 DB」**：你的 `wrangler.jsonc` 没填 `database_id`——临时在 `wrangler.jsonc` 的 `d1_databases` 里加上 `"database_id": "<你的D1数据库ID>"`（Cloudflare 面板 → D1 → 数据库 → 查看 ID），或用 `--database-id <ID>` 参数。
+**⚠️ If wrangler says "Couldn't find a D1 DB"**: your `wrangler.jsonc` has no `database_id` — temporarily add `"database_id": "<your D1 database ID>"` to `d1_databases` (Cloudflare dashboard → D1 → your database → ID), or pass `--database-id <ID>`.
 
-**⚠️ 改回引导模式后**：重新配好 Team/AUD 记得再把 `access_enabled` 改回 `1`（或引导页点「启用 Access」会自动写回）。
+**⚠️ After re-onboarding**: remember to set `access_enabled` back to `1` (or click "Enable Access" on the onboarding page, which writes it back).
 
 ---
 
-## 使用
+## 📖 Usage
 
-### 上传
+### Upload
 
-- 拖拽文件到管理台，或点选文件（支持多选）
-- 文件 >8MB 自动走分片上传（8MB/片、4 并发、失败重试）—— 大小无上限
-- 上传时落到当前文件夹
+- Drag files into the admin, or pick files (multi-select supported)
+- Files >8MB auto-multipart (8MB parts, 4 concurrent, retry on failure) — no size limit
+- Uploads land in the current folder
 
-### 有效期
+### Expiry
 
-- 行内 / 右键「有效期」：小时 / 天数 / 永久 / 自定义 / 立即过期
-- 批量勾选 → 批量设过期 / 转永久 / 立即过期
-- 文件过期后：`/dl` 下载返回 **410 Gone**；物理删除由 purge 任务（每日 04:00 UTC）执行
+- Inline / context menu "Expiry": hours / days / permanent / custom / expire-now
+- Bulk select → bulk set expiry / make permanent / expire now
+- After expiry: `/dl` returns **410 Gone**; physical deletion runs in the daily purge (04:00 UTC)
 
-### 直链
+### Direct links
 
-- 下载：`/dl/<路径>/<文件名>`（强制 attachment 下载）
-- 预览：`/dl/<路径>/<文件名>/view`（图片灯箱 / 视频 Range / 音频 / PDF / Markdown+Mermaid / TXT）
-- Markdown、PDF、TXT 在限高容器内滚动，不会把整页撑长
-- 支持 `Range` 头（断点续传、视频拖进度条）
+- Download: `/dl/<path>/<filename>` (forces attachment)
+- Preview: `/dl/<path>/<filename>/view` (image lightbox / video Range / audio / PDF / Markdown+Mermaid / TXT)
+- Markdown, PDF, TXT scroll inside height-limited containers — never stretch the page
+- Supports `Range` headers (resume, video seeking)
 
-### 回收站 / 标签 / 收藏
+### Recycle bin / Tags / Star
 
-- 删除进回收站，可还原；超过 30 天由每日 purge 彻底删除
-- 行内或右键编辑标签，列表可按标签筛选
-- 星标收藏；「最近」按上传时间倒序
+- Deletes go to the recycle bin (restorable); daily purge permanently removes after 30 days
+- Edit tags inline or via context menu; filter the list by tag
+- Star favorites; "Recent" sorts by upload time desc
 
-### 秒传
+### Instant upload
 
-上传前浏览器计算 SHA-256，命中已有文件则复制 R2 对象到新 key 并写 D1 记录，不传文件内容。
+The browser computes SHA-256 before upload; if a file with the same hash exists, the R2 object is copied to the new key with a new D1 record — **zero file bytes transferred**.
 
-### 批量分享
+### Batch sharing
 
-多选文件后，批量栏直接两个按钮（无二级弹窗）：
+Multi-select → bulk bar has two buttons (no nested dialogs):
 
-| 按钮 | 复制的链接 | 打开后 |
+| Button | Copied link | What opens |
 |---|---|---|
-| **复制链接** | `/dl/batch/{token}?mode=download` | 网盘列表 + **自动逐个触发下载** |
-| **复制预览链接** | `/dl/batch/{token}` | 网盘列表，逐文件预览 / 下载 + 「全部下载」 |
+| **Copy link** | `/dl/batch/{token}?mode=download` | Web-disk list + **auto-triggered per-file downloads** |
+| **Copy preview link** | `/dl/batch/{token}` | Web-disk list, per-file preview / download + "Download all" |
 
-- 每次点击都会新建一条 batch（高熵 token，32 字节 base64url）
-- 一次最多 100 个文件；有效期取所选文件的**最短过期时间**，全部永久则 batch 也永久
-- 页面列出类型图标 / 名称 / 大小 / 过期状态；已删除的文件会被跳过
-- **不做服务端 ZIP**（Workers CPU 限制）——「全部下载」= 浏览器里每隔 300ms 点一次 `<a download>`
-- 浏览器可能拦截无手势的多文件下载：页面会提示「如被拦截请点下方「全部下载」或允许浏览器下载」
-- 过期 batch 返回 **410**；无效 token 返回 **404**
-- 单文件行内 / 右键操作不变（仍是 `/dl/xx` 与 `/dl/xx/view`）
+- Each click creates a new batch (high-entropy token, 32-byte base64url)
+- Up to 100 files; expiry = **shortest expiry among selected files**; all-permanent → batch is permanent
+- Page lists type icon / name / size / expiry status; deleted files are skipped
+- **No server-side ZIP** (Workers CPU limit) — "Download all" = browser clicks `<a download>` every 300ms
+- Browsers may block gesture-less multi-downloads: the page shows "if blocked, click Download all below or allow downloads"
+- Expired batch → **410**; invalid token → **404**
+- Single-file inline / context actions unchanged (`/dl/xx` and `/dl/xx/view`)
 
-### 管理台界面
+### Admin UI
 
-- **批量栏**（勾选 ≥1 个文件后出现在工具栏下方）：已选数量、复制链接、复制预览链接、移动、有效期、删除、取消
-- **移动**：树状文件夹选择（根目录 + 可展开子目录），不是下拉框
-- **选中**：列表行主色半透明底；网格卡片 3px 主色描边
-- **主题**：设置页三张卡片（Onyx / Porcelain / Nocturne），保存后管理台与公开 `/dl` 页一起换肤
+- **Bulk bar** (appears when ≥1 file selected): count, copy link, copy preview link, move, expiry, delete, clear
+- **Move**: tree-style folder picker (root + expandable children), not a dropdown
+- **Selection**: list rows get primary-tinted background; grid cards get 3px primary outline
+- **Themes**: three cards in Settings (Onyx / Porcelain / Nocturne); saved → admin and public `/dl` pages switch together
 
-> 截图需要登录管理台才能拍。本机未接 Access 时无法自动截取线上 UI；部署后可在管理台多选文件对照上面两张表验证。
+### Stats
 
-### 统计
-
-- 管理台 → 统计：R2 容量与操作数、D1 读写与行数、Worker 请求与错误（来自 GraphQL Analytics）
-- 在 **设置 → 账号** 里填 Cloudflare 账号 ID 与 API Token 后启用（Token 只需 `Account Analytics Read` 权限）
-- 免费额度条仅作对照，账单以账号套餐为准
+- Admin → Stats: R2 capacity & operations, D1 reads/writes & rows, Worker requests & errors (from GraphQL Analytics)
+- Enable by filling Cloudflare Account ID + API Token in **Settings → Account** (token only needs `Account Analytics Read`)
+- Free-tier usage bar is for reference; billing follows your plan
 
 ---
 
-## 认证：首次引导 → Cloudflare Access
+## 🔑 Auth: First-visit onboarding → Cloudflare Access
 
-**没有密码登录。** Better-Auth 已移除。身份只认 Cloudflare Access JWT。
+**There is no password login.** Better-Auth has been removed. Identity is Cloudflare Access JWT only.
 
-| 阶段 | 行为 |
+| Stage | Behavior |
 |---|---|
-| **未启用 Access** | `/admin` 免认证，只显示引导页（填 Team / AUD → 启用 Access） |
-| **已启用 Access** | `requireAdmin` 只验 Access JWT；未认证返回 401 页（不跳 `/login`） |
+| **Access not enabled** | `/admin` is unauthenticated, shows only the onboarding page (Team / AUD → Enable Access) |
+| **Access enabled** | `requireAdmin` verifies Access JWT only; unauthenticated → 401 page (no `/login` redirect) |
 
-公开下载 `/dl/*` 始终匿名可访问。
+Public downloads `/dl/*` stay anonymous.
 
-### 第 1 步：创建 Access Application
+### Key: JWT dual-channel reading (lessons learned)
 
-1. Cloudflare 面板 → **Zero Trust** → **Access → Applications** → **Add an application**
-2. 类型选 **Self-hosted**；**Application domain 填 `<你的域名>/admin*`**（如 `edgedrive.example.com/admin*` 或 `*.workers.dev/admin*`）—— ⚠️ **只保护管理台路径**，公开下载 `/dl/*` 保持匿名可访问
-3. Policy：配置允许访问的成员（如你的邮箱 / 组织）
-4. 创建完成后，进入应用 → **其他设置（Other settings）** 标签页 → 筛选 **AUD 标签** → 复制 **令牌（Token）** 值（一串 UUID 长串）
+EdgeDrive reads the Access JWT from **two places**:
 
-### 第 2 步：在引导页填写并启用
+1. `cf-access-jwt-assertion` header (injected by **Worker-level** protection — **hostname-level apps may not inject it**)
+2. `CF_Authorization` **cookie** (hostname-level apps usually send only this — the cookie is the JWT itself, same verification)
 
-| 字段 | 值（在哪查）|
-|---|---|
-| **Access Team** | Zero Trust 团队名 = **你的 Access 域名前缀**（`https://<team>.cloudflareaccess.com` 的 `<team>` 部分） |
-| **Access AUD** | 第 1 步拿到的 AUD Token |
+> Don't "fix" Access config just because you see 401 after login — first check whether it's the JWT channel (hostname-level apps sending cookie-only is normal — EdgeDrive already handles both).
 
-保存后写入 D1（`cf_access_team` / `cf_access_aud` / `access_enabled`）。**重新部署不会清空。**
+### Quick troubleshooting
 
-> 💡 Team **不是** Account ID。Team 就是 `xxx.cloudflareaccess.com` 的前缀 `xxx`。
-
-### 第 3 步：启用后
-
-访问 `/admin` 会被 Cloudflare Access 拦截 → 登录后带 JWT 放行 → Worker 验签通过 → 进入管理台。
-
-设置页只显示已配置状态，不能从 UI 关闭 Access（防把自己锁成「全开放」）。
-
-> 回退：在 CF 面板临时关掉 Access Application **不会**重新打开引导页——Worker 仍 fail-closed。需要改 D1 `access_enabled` 才能回到引导。
-
-### ⚠️ 关键：JWT 双通道读取（踩坑总结）
-
-EdgeDrive 从**两个地方**取 Access JWT：
-
-1. 请求头 `cf-access-jwt-assertion`（**Worker 级保护**会注入——**hostname 级应用可能不注入**）
-2. `CF_Authorization` **cookie**（hostname 级应用通常只传这个——cookie 本身就是 JWT，验签方式相同）
-
-> **不要**因为「登录后仍看到 401 页」就去改 Access 配置——先确认是不是 JWT 通道问题（hostname 级应用只传 cookie 是正常行为——EdgeDrive 已兼容）。
-
-### 🩺 排障速查
-
-| 现象 | 原因 | 解决 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `/admin` 直接 401 页（没弹 Access 登录）| Access 没保护该 URL | 检查 Target 路径（应为 `admin*`）|
-| Access 登录后仍 401 | ① D1 的 AUD 是旧值 ② JWT 读不到 | ① 同步 D1（`UPDATE settings SET value='<新AUD>' WHERE key='cf_access_aud'`）② 确认 EdgeDrive ≥ 双通道版本 |
-| 403 Forbidden（Access 页）| Policy 拒绝 | Policy 加 Allow 规则（你的邮箱 / Everyone）|
-| Bypass 策略 | 不注入 JWT 且等于没保护 | 改用 **Allow** |
+| `/admin` returns 401 page (no Access login) | Access doesn't protect that URL | Check Target path (should be `admin*`) |
+| 401 after Access login | ① D1 AUD is stale ② JWT unreadable | ① sync D1 (`UPDATE settings SET value='<newAUD>' WHERE key='cf_access_aud'`) ② confirm dual-channel build |
+| 403 Forbidden (Access page) | Policy denies | Add Allow rule (your email / Everyone) |
+| Bypass policy | No JWT injected and effectively unprotected | Use **Allow** instead |
 
-> **AUD 会变**：重建 Access 应用 / 点「撤销现有令牌」后 AUD 重新生成——必须同步 D1（否则验证失败）。
-
-### 📖 完整手册
-
-详细的每一步配置 + 验证方法 + 调试技巧见 **[docs/cloudflare-access.md](docs/cloudflare-access.md)**。
+> **AUD changes**: recreating the Access app / clicking "revoke tokens" regenerates AUD — you must sync D1 or verification fails.
 
 ---
 
-## 环境变量 / Secrets
+## ⚙️ Environment Variables / Secrets
 
-| 名称 | 类型 | 必需 | 说明 |
+| Name | Type | Required | Description |
 |---|---|---|---|
-| `CF_API_TOKEN` | Secret | 可选 | 启用用量统计时用（优先于设置页填写的 Token）|
-| `SETUP_TOKEN` | Secret | 可选 | 保护首次引导。未配则首次开放；配了则引导页必须填同一令牌 |
+| `CF_API_TOKEN` | Secret | Optional | For usage stats (takes priority over the token entered in Settings) |
+| `SETUP_TOKEN` | Secret | Optional | Protects first-time onboarding. Unset = open; set = onboarding requires this token |
 
-> 站点配置、cron 令牌、Access Team/AUD 默认全部存在 D1 —— 无需配置即可部署。
+> Site config, cron tokens, Access Team/AUD all live in D1 by default — deploy with zero configuration.
 
 ---
 
-## 本机开发（可选）
+## 🛠 Local Development (optional)
 
 ```bash
 npm install
-npx wrangler d1 create edgedrive-db   # 建本地 D1（或按 README 部署流程自动建）
+npx wrangler d1 create edgedrive-db   # create a local D1 (or let the deploy flow create it)
 npm run dev
 ```
 
-需要 `wrangler.jsonc` 里的绑定（D1 / R2）可用。类型检查：`npm run typecheck`；测试：`npm test`。
+Requires the D1 / R2 bindings in `wrangler.jsonc`. Typecheck: `npm run typecheck`; tests: `npm test`.
 
 ---
 
-## 测试
+## ✅ Testing
 
 ```bash
-npm test        # Vitest：sanitize / JWT / 有效期 / Access 守卫 / 批量分享 / 主题 / LIKE
+npm test        # Vitest: sanitize / JWT / expiry / Access guard / batch share / themes / LIKE
 npm run typecheck
-npm run build   # 生成 D1 bootstrap SQL（含 batch_links）+ OpenNext Worker
+npm run build   # generates D1 bootstrap SQL (incl. batch_links) + OpenNext Worker
 ```
 
-GitHub Actions 会在每次 push 时自动跑测试 + 类型检查。
+GitHub Actions runs tests + typecheck on every push.
 
 ---
 
-## 项目结构
+## 📁 Project Structure
 
 ```
-migrations/                 D1 迁移（0010_batch_links.sql → schema_version 10）
+migrations/                 D1 migrations (→ schema_version 12)
 src/
   app/
-    admin/                  管理台（文件 / 统计 / 设置）
+    admin/                  Admin (files / stats / settings)
     api/
-      batch/                POST 创建批量分享（Access 保护）
-      files/                列表、上传、MPU、批量过期/删除
-      cron/purge/           过期文件 + 过期 batch 清理
+      batch/                POST create batch share (Access protected)
+      files/                list, upload, MPU, batch expiry/delete, copy, check (instant upload)
+      cron/purge/           expired files + expired batches cleanup
     dl/
-      [...path]/            单文件下载 / /view 预览页
-      batch/[token]/        批量分享页（公开）
-  components/admin/         FileManager、FolderTree、MoveDialog、主题设置、统计
+      [...path]/            single-file download / /view preview page
+      batch/[token]/        batch share page (public)
+  components/admin/         FileManager, FolderTree, PickFolderDialog, theme settings, stats
   lib/
-    batch.ts                token / 最短过期 / CRUD
-    batch-page.ts           批量页 HTML
+    batch.ts                token / shortest-expiry / CRUD
+    batch-page.ts           batch page HTML
     themes.ts               Onyx / Porcelain / Nocturne
     store.ts                files / folders / D1
 scripts/                    cf-build / cf-deploy / wrangler shim
@@ -335,15 +310,15 @@ scripts/                    cf-build / cf-deploy / wrangler shim
 
 ---
 
-## 技术栈
+## 🧰 Tech Stack
 
-- [Next.js 16](https://nextjs.org)（App Router）+ [OpenNext](https://opennext.js.org) → Cloudflare Workers
-- [Cloudflare D1](https://developers.cloudflare.com/d1/)（SQLite 元数据 + 配置 + `batch_links`）
-- [Cloudflare R2](https://developers.cloudflare.com/r2/)（对象存储，免费 10GB + 零出口流量费）
-- [Refine](https://refine.dev) + [MUI](https://mui.com)（管理台 hooks / 表格 / 对话框）
-- Cloudflare Access（JWT 认证）
-- Vitest（测试）
+- [Next.js 16](https://nextjs.org) (App Router) + [OpenNext](https://opennext.js.org) → Cloudflare Workers
+- [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite metadata + config + `batch_links`)
+- [Cloudflare R2](https://developers.cloudflare.com/r2/) (object storage, free 10GB + zero egress)
+- [Refine](https://refine.dev) + [MUI](https://mui.com) (admin hooks / tables / dialogs)
+- Cloudflare Access (JWT auth)
+- Vitest (tests)
 
 ## License
 
-[GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）—— 网络服务同样适用 copyleft：修改后对外提供网络服务，须以同样许可证开源完整源码。
+[GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0) — network copyleft: modified versions served over a network must be released under the same license with full source.
