@@ -1120,9 +1120,32 @@ th .check {
 }
 @media (max-height: 660px) {
   .usage-main {
-    --usage-chart-h: 44px;
-    --usage-gap: 5px;
+    --usage-chart-h: 0px; /* 矮屏不展示操作明细条——一屏优先 */
+    --usage-gap: 4px;
     --usage-pad: 6px 10px 8px;
+  }
+  .usage-main .usage-metric .k {
+    font-size: 10px;
+  }
+  .usage-main .usage-metric .v {
+    font-size: 12px;
+  }
+  .usage-main .usage-metrics {
+    gap: 3px 8px;
+  }
+  .usage-main .usage-quota-meta {
+    font-size: 10px;
+  }
+  .usage-main .usage-quota-bar {
+    height: 3px;
+    margin-top: 3px;
+  }
+  .usage-main .usage-quotas {
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .usage-main .usage-chart {
+    display: none;
   }
 }
 @media (max-height: 620px) {
