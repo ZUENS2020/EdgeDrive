@@ -12,6 +12,7 @@ import ScheduleIcon from "@mui/icons-material/Schedule";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import UploadIcon from "@mui/icons-material/Upload";
 import ViewListIcon from "@mui/icons-material/ViewList";
+import { alpha } from "@mui/material/styles";
 import { useCreate, useDelete, useList, useNotification, useUpdate, useUpdateMany } from "@refinedev/core";
 import Breadcrumbs from "@mui/material/Breadcrumbs";
 import Button from "@mui/material/Button";
@@ -469,7 +470,16 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                 {files.map((file) => {
                   const st = statusOf(file);
                   return (
-                    <TableRow key={file.id} hover data-file-id={file.id} selected={selected.has(file.id)}>
+                    <TableRow
+                      key={file.id}
+                      hover
+                      data-file-id={file.id}
+                      selected={selected.has(file.id)}
+                      sx={{
+                        "&.Mui-selected": { bgcolor: (theme) => alpha(theme.palette.primary.main, 0.14) },
+                        "&.Mui-selected:hover": { bgcolor: (theme) => alpha(theme.palette.primary.main, 0.2) },
+                      }}
+                    >
                       <TableCell padding="checkbox">
                         <Checkbox
                           checked={selected.has(file.id)}
@@ -557,7 +567,13 @@ export function FileManager({ initialSettings }: { initialSettings: SiteSettings
                   key={file.id}
                   data-file-id={file.id}
                   variant="outlined"
-                  sx={{ p: 1.5, cursor: "pointer", outline: selected.has(file.id) ? "2px solid" : "none", outlineColor: "primary.main" }}
+                  sx={{
+                    p: 1.5,
+                    cursor: "pointer",
+                    outline: selected.has(file.id) ? "3px solid" : "none",
+                    outlineColor: "primary.main",
+                    bgcolor: selected.has(file.id) ? (theme) => alpha(theme.palette.primary.main, 0.1) : undefined,
+                  }}
                   onClick={() => {
                     const next = new Set(selected);
                     if (next.has(file.id)) next.delete(file.id);
