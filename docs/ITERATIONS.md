@@ -1,3 +1,31 @@
+# EdgeDrive 第二十四轮迭代（R24 · 2026-08-17）
+
+## 目标
+
+修复 README「Deploy to Cloudflare」按钮解析 `wrangler.jsonc` 失败（前端解析器不兼容），同时保证 `npx wrangler deploy` 手动部署仍走自动建绑/沿用已有绑定。
+
+## 根因
+
+Cloudflare 一键部署向导（`deploy.workers.cloudflare.com`）用偏旧的前端解析器读仓库里的 Wrangler 配置，和本地 Wrangler CLI 不是同一套：
+
+1. **按 JSON 解析**：`//` 注释会直接炸（CLI 的 JSONC 解析器能吃注释，所以手动部署一直正常）
+2. **要求绑定带默认资源名/ID**：官方 Deploy button 文档要求源仓库给出 `database_name` / `database_id` / `bucket_name`；缺字段会被收成「解析 Wrangler 配置文件时出现了问题」
+
+仓库原先只写 `binding`，是为了避免写死某一套 D1/R2。这对 CLI 自动开通是对的，但向导过不了。
+
+## 改动
+
+- `wrangler.jsonc` 改成**合法 JSON**（去掉注释），并补模板默认值：`edgedrive-db` + 全零 UUID、`edgedrive` 桶名
+- `scripts/resolved-wrangler-config.mjs`：`npx wrangler deploy` 前剥掉占位 UUID/模板名，恢复 names-only，已有绑定继续 inherit；真实 `database_id`（一键向导写回的）原样保留
+- 测试锁定：文件可 `JSON.parse`、模板字段齐全、CLI 剥离逻辑
+
+## 验证
+
+- `npm test` / `tsc --noEmit` / `npm run build`
+- `npx wrangler deploy --dry-run`（配置仍能被 CLI 接受，不发到生产）
+
+---
+
 # EdgeDrive 第二十三轮迭代（R23 · 2026-08-17）
 
 ## 目标
