@@ -53,5 +53,15 @@
     "typescript": "^5",
     "vitest": "^3.2.7",
     "wrangler": "^4.123.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "D1 database for file metadata, shares, and settings. Auto-provisioned on first deploy."
+      },
+      "FILES": {
+        "description": "R2 bucket for uploaded files. Auto-provisioned on first deploy."
+      }
+    }
   }
 }

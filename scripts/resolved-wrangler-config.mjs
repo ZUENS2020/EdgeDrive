@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Committed wrangler.jsonc is a Deploy-to-Cloudflare template: valid JSON plus
- * default D1/R2 names and a nil UUID. Wrangler CLI must not see that UUID
- * (it would skip auto-provision and try to bind a fake database).
+ * Committed wrangler.jsonc is a Deploy-to-Cloudflare template: default D1/R2
+ * names plus an RFC 4122 v4 UUID (not the nil UUID). Wrangler CLI must not see
+ * that UUID (it would skip auto-provision and try to bind a fake database).
  *
  * This module:
  * 1. Strips template placeholders so deploy inherits existing bindings / auto-creates
@@ -12,7 +12,18 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+/** Same string as wrangler.jsonc d1_databases[0].database_id. Valid v4, not nil. */
+export const TEMPLATE_DATABASE_ID = "7c3e1f2a-9b4d-4a6e-8c1f-2d5e8a7b0c13";
+
+/**
+ * Zod 3 `z.string().uuid()` (versions 1–5 + RFC variant). Dashboard parsers that
+ * still use this reject the nil UUID that current Wrangler/Zod 4 special-cases.
+ */
+export const DASHBOARD_UUID_RE =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
 export const PLACEHOLDER_DATABASE_IDS = new Set([
+  TEMPLATE_DATABASE_ID,
   "00000000-0000-0000-0000-000000000000",
   "ffffffff-ffff-ffff-ffff-ffffffffffff",
 ]);
@@ -50,6 +61,10 @@ export function applyTemplatePlaceholdersForCli(cfg) {
   }
   if (r2 && !d1?.database_id && "bucket_name" in r2) {
     delete r2.bucket_name;
+    changed = true;
+  }
+  if (r2 && !d1?.database_id && "preview_bucket_name" in r2) {
+    delete r2.preview_bucket_name;
     changed = true;
   }
   return changed;

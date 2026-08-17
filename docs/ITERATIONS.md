@@ -1,3 +1,36 @@
+# EdgeDrive 第二十四轮 B（R24b · 2026-08-17）
+
+## 目标
+
+R24（`27ce2b0`）补了 D1/R2 默认名和 ID 后，Deploy to Cloudflare 按钮仍报「解析 Wrangler 配置文件时出现了问题」。Connect to Git / `npx wrangler deploy` 一直正常。按官方文档 + 官方模板对比，修掉真正差异。
+
+## 查证（先文档/模板，后改代码）
+
+1. [Deploy to Cloudflare buttons](https://developers.cloudflare.com/workers/platform/deploy-buttons/)：源仓库必须给出 **resource names、resource IDs、以及每个 binding 的其它属性**；部署时 CF 会建资源并把真实 ID 写回配置。JSONC 注释是文档示例的一部分，**不是**解析失败原因。
+2. 官方能过按钮的模板（`cloudflare/templates`）：
+   - `d1-template`：`database_id` = `151f7d9b-365f-41d7-83ed-0bf4eeef5086`（RFC 4122 **v4**）
+   - `saas-admin-template`：`3009feae-2321-421c-97e8-181886710aa0`（v4）
+   - `r2-explorer-template`：`bucket_name` **和** `preview_bucket_name`
+   - `next-starter-template`：与 EdgeDrive 同结构的 OpenNext `main`/`assets`/`global_fetch_strictly_public`，且带 `observability` + `upload_source_maps`；**顶层有 `/* */` 注释**
+   - `templates/cli/src/lint.ts`：官方模板强制 `observability.enabled === true`、`upload_source_maps === true`
+3. Wrangler 4 / Zod 4 的 UUID 正则**额外放行** nil UUID（`00000000-…`）和 max UUID。Zod 3 `z.string().uuid()`（version 位 1–5 + RFC variant）**拒绝** nil UUID。官方模板全部用 v4，从不用 nil。
+4. [workers-sdk#14831](https://github.com/cloudflare/workers-sdk/issues/14831)：同一句报错经常是 **dashboard/`template-from-worker` 的旧 schema**，不是 CLI；空字符串 `package.json.cloudflare.preview_image_url` 也会误报成 Wrangler 解析失败。因此 **不写** `preview_image_url`。
+
+R24 把 `database_id` 写成全零 UUID，CLI 能过、向导过不了——和「向导用更旧的 UUID schema」对得上。注释不是根因。
+
+## 改动
+
+- `database_id` 改为模板用 RFC 4122 v4：`7c3e1f2a-9b4d-4a6e-8c1f-2d5e8a7b0c13`（CLI 部署前仍当占位符剥掉）
+- 对齐官方模板：`observability.enabled`、`upload_source_maps`、R2 `preview_bucket_name`
+- `package.json` 增加官方文档所述的 `cloudflare.bindings` 说明；**没有** `preview_image_url`
+- 测试锁定：v4 UUID 能过 Zod 3 正则、nil UUID 不能；CLI 剥离逻辑不变
+
+## 验证
+
+- `npm test` / `tsc --noEmit` / `npx wrangler deploy --dry-run`
+
+---
+
 # EdgeDrive 第二十四轮迭代（R24 · 2026-08-17）
 
 ## 目标

@@ -5,21 +5,26 @@
   "compatibility_date": "2025-06-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
   },
+  "observability": {
+    "enabled": true
+  },
+  "upload_source_maps": true,
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "edgedrive-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "7c3e1f2a-9b4d-4a6e-8c1f-2d5e8a7b0c13",
       "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
     {
       "binding": "FILES",
-      "bucket_name": "edgedrive"
+      "bucket_name": "edgedrive",
+      "preview_bucket_name": "edgedrive"
     }
   ],
   "triggers": {
