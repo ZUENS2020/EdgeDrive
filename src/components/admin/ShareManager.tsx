@@ -7,6 +7,7 @@ import IosShareIcon from "@mui/icons-material/IosShare";
 import LinkIcon from "@mui/icons-material/Link";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
+import TuneIcon from "@mui/icons-material/Tune";
 import VpnKeyIcon from "@mui/icons-material/VpnKey";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -42,11 +43,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { copyAbsoluteUrl } from "@/lib/clipboard";
 import { fileExpiryLabel } from "@/lib/format";
 import { tApiError } from "@/lib/i18n";
+import { buildShareAccessPatch, shareAccessValid } from "@/lib/share-create";
 import type { ShareKind, ShareLinkView, ShareStatus } from "@/lib/share";
 import type { FileView } from "@/lib/types";
-import { CreateShareDialog } from "./CreateShareDialog";
+import { CreateShareDialog, ShareAccessSwitches } from "./CreateShareDialog";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { useI18n } from "./I18nProvider";
+import { ShareCopyPanel } from "./ShareCopyPanel";
 
 type KindFilter = "all" | ShareKind;
 type StatusFilter = "all" | ShareStatus;
@@ -63,6 +66,10 @@ export function ShareManager() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [menu, setMenu] = useState<{ el: HTMLElement; link: ShareLinkView } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [copyFor, setCopyFor] = useState<ShareLinkView | null>(null);
+  const [accessFor, setAccessFor] = useState<ShareLinkView | null>(null);
+  const [accessDownload, setAccessDownload] = useState(true);
+  const [accessPreview, setAccessPreview] = useState(true);
   const [passwordFor, setPasswordFor] = useState<ShareLinkView | null>(null);
   const [passwordValue, setPasswordValue] = useState("");
   const [expireFor, setExpireFor] = useState<ShareLinkView | null>(null);
@@ -265,9 +272,9 @@ export function ShareManager() {
                 <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                   <IconButton
                     size="small"
-                    title={t("sharePage.copy")}
-                    aria-label={t("sharePage.copy")}
-                    onClick={() => void copyPath(link.url, t("sharePage.copied"))}
+                    title={t("sharePage.copyLinks")}
+                    aria-label={t("sharePage.copyLinks")}
+                    onClick={() => setCopyFor(link)}
                   >
                     <ContentCopyIcon fontSize="small" />
                   </IconButton>
@@ -289,12 +296,30 @@ export function ShareManager() {
       <Menu open={Boolean(menu)} anchorEl={menu?.el} onClose={() => setMenu(null)}>
         <MenuItem
           onClick={() => {
-            if (menu) void copyPath(menu.link.url, t("sharePage.copied"));
+            setCopyFor(menu?.link ?? null);
             setMenu(null);
           }}
         >
           <ContentCopyIcon fontSize="small" sx={{ mr: 1 }} />
-          {t("sharePage.copy")}
+          {t("sharePage.copyLinks")}
+        </MenuItem>
+        <MenuItem
+          disabled={!menu?.link.allow_download}
+          onClick={() => {
+            if (menu) void copyPath(menu.link.downloadUrl, t("sharePage.copiedDownload"));
+            setMenu(null);
+          }}
+        >
+          {t("sharePage.copyDownload")}
+        </MenuItem>
+        <MenuItem
+          disabled={!menu?.link.allow_preview || !menu?.link.viewUrl}
+          onClick={() => {
+            if (menu?.link.viewUrl) void copyPath(menu.link.viewUrl, t("sharePage.copiedPreview"));
+            setMenu(null);
+          }}
+        >
+          {t("sharePage.copyPreview")}
         </MenuItem>
         {menu?.link.shortUrl ? (
           <MenuItem
@@ -324,6 +349,18 @@ export function ShareManager() {
             {t("sharePage.toShort")}
           </MenuItem>
         )}
+        <MenuItem
+          onClick={() => {
+            const link = menu?.link ?? null;
+            setAccessFor(link);
+            setAccessDownload(link?.allow_download ?? true);
+            setAccessPreview(link?.allow_preview ?? true);
+            setMenu(null);
+          }}
+        >
+          <TuneIcon fontSize="small" sx={{ mr: 1 }} />
+          {t("sharePage.accessTitle")}
+        </MenuItem>
         <MenuItem
           onClick={() => {
             setPasswordFor(menu?.link ?? null);
@@ -467,6 +504,64 @@ export function ShareManager() {
           ))}
         </Stack>
       </CreateShareDialog>
+
+      <Dialog open={Boolean(copyFor)} onClose={() => setCopyFor(null)} fullWidth maxWidth="sm">
+        <DialogTitle>{t("sharePage.copyLinks")}</DialogTitle>
+        <DialogContent>
+          {copyFor ? (
+            <ShareCopyPanel
+              source={{
+                downloadUrl: copyFor.downloadUrl,
+                viewUrl: copyFor.viewUrl,
+                allowDownload: copyFor.allow_download,
+                allowPreview: copyFor.allow_preview,
+              }}
+            />
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setCopyFor(null)}>
+            {t("sharePage.done")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(accessFor)} onClose={() => setAccessFor(null)} fullWidth maxWidth="xs">
+        <DialogTitle>{t("sharePage.accessTitle")}</DialogTitle>
+        <DialogContent>
+          <ShareAccessSwitches
+            allowDownload={accessDownload}
+            allowPreview={accessPreview}
+            onChange={(next) => {
+              setAccessDownload(next.allowDownload);
+              setAccessPreview(next.allowPreview);
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAccessFor(null)}>{t("common.cancel")}</Button>
+          <Button
+            variant="contained"
+            disabled={!shareAccessValid(accessDownload, accessPreview)}
+            onClick={() => {
+              const token = accessFor?.token;
+              const built = buildShareAccessPatch(accessDownload, accessPreview);
+              setAccessFor(null);
+              if (!token || !built.ok) return;
+              void api(`/api/share/${encodeURIComponent(token)}`, {
+                method: "PATCH",
+                body: JSON.stringify(built.body),
+              }).then((data) => {
+                if (!data) return;
+                toast(t("sharePage.accessSaved"));
+                void load();
+              });
+            }}
+          >
+            {t("common.save")}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={Boolean(passwordFor)} onClose={() => setPasswordFor(null)} fullWidth maxWidth="xs">
         <DialogTitle>{t("sharePage.passwordTitle")}</DialogTitle>

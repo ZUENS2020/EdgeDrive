@@ -13,14 +13,20 @@ import {
   incrementShareFileCount,
   listShareLinks,
   patchShare,
+  shareAllowsDownload,
   shareAllowsFile,
+  shareCopyPaths,
   shareStatus,
+  toShareView,
   verifySharePasswordAttempt,
   type ShareLink,
 } from "./share";
 import type { FileRow } from "./types";
 
-type ShareRow = ShareLink;
+type ShareRow = Omit<ShareLink, "allow_preview" | "allow_download"> & {
+  allow_preview: number | null;
+  allow_download: number | null;
+};
 
 function file(partial: Partial<FileRow> & Pick<FileRow, "id" | "name">): FileRow {
   return {
@@ -43,7 +49,7 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
   const links = new Map(
     (init?.links ?? []).map((row) => [
       row.token,
-      { ...row, allow_preview: row.allow_preview ?? 1, allow_download: row.allow_download ?? 1 },
+      { ...row, allow_preview: row.allow_preview ?? 1, allow_download: row.allow_download === undefined ? 1 : row.allow_download },
     ]),
   );
   const fileCounts = new Map<string, number>();
@@ -524,6 +530,9 @@ describe("share access / password / short", () => {
     expect(created.url).toContain("/view?t=");
     expect(created.allowDownload).toBe(false);
     expect(created.allowPreview).toBe(true);
+    expect(created.downloadUrl).toContain("/dl/a.txt?t=");
+    expect(created.downloadUrl).not.toContain("/view");
+    expect(created.viewUrl).toContain("/view?t=");
     const view = await authorizeFileShare(db, {
       fileId: "1",
       token: created.token,
@@ -560,7 +569,9 @@ describe("share access / password / short", () => {
     expect(created.ok).toBe(true);
     if (!created.ok) return;
     expect(created.url).toContain("/dl/a.txt?t=");
-    expect(created.viewUrl).toBeNull();
+    expect(created.viewUrl).toContain("/view?t=");
+    expect(created.downloadUrl).toContain("/dl/a.txt?t=");
+    expect(created.downloadUrl).not.toContain("/view");
     expect(
       await authorizeFileShare(db, {
         fileId: "1",
@@ -590,6 +601,8 @@ describe("share access / password / short", () => {
     );
     expect(created.ok).toBe(true);
     if (!created.ok) return;
+    expect(created.downloadUrl).toContain("mode=download");
+    expect(created.viewUrl).toMatch(/^\/dl\/batch\//);
     const view = await authorizeFileShare(db, {
       fileId: "1",
       token: created.token,
@@ -615,5 +628,150 @@ describe("share access / password / short", () => {
         bundle: true,
       }),
     ).toEqual({ status: 404 });
+  });
+});
+
+describe("patchShare access flags / legacy links", () => {
+  const now = new Date("2026-08-17T12:00:00.000Z");
+
+  it("always exposes download and preview URLs regardless of flags", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt", path: "docs" })] });
+    const created = await createShare(
+      db,
+      { kind: "file", ids: ["1"], allow_download: 0, allow_preview: 1 },
+      now,
+    );
+    if (!created.ok) throw new Error("create");
+    const link = await getShareLink(db, created.token);
+    expect(link).toBeTruthy();
+    const copies = shareCopyPaths(link!, { path: "docs", name: "a.txt" });
+    expect(copies.downloadUrl).toBe("/dl/docs/a.txt?t=" + created.token);
+    expect(copies.viewUrl).toBe("/dl/docs/a.txt/view?t=" + created.token);
+    const view = toShareView(link!, [file({ id: "1", name: "a.txt", path: "docs" })], now.getTime());
+    expect(view.downloadUrl).toBe(copies.downloadUrl);
+    expect(view.viewUrl).toBe(copies.viewUrl);
+    expect(view.allow_download).toBe(false);
+    expect(view.allow_preview).toBe(true);
+  });
+
+  it("full access lets the preview page download via the attachment URL", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(
+      db,
+      { kind: "file", ids: ["1"], allow_download: 1, allow_preview: 1 },
+      now,
+    );
+    if (!created.ok) throw new Error("create");
+    const preview = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt/view?t=x",
+      view: true,
+    });
+    expect(preview.status).toBe(200);
+    const fromPreview = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=x",
+    });
+    expect(fromPreview.status).toBe(200);
+  });
+
+  it("patches allow_download off then back on", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    if (!created.ok) throw new Error("create");
+    const off = await patchShare(db, created.token, { allow_download: 0 }, now);
+    expect(off.ok).toBe(true);
+    if (!off.ok) return;
+    expect(off.link.allow_download).toBe(false);
+    expect(off.link.allow_preview).toBe(true);
+    expect(
+      await authorizeFileShare(db, {
+        fileId: "1",
+        token: created.token,
+        cookieHeader: null,
+        nextPath: "/dl/a.txt?t=x",
+      }),
+    ).toEqual({ status: 404 });
+    const view = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt/view?t=x",
+      view: true,
+    });
+    expect(view.status).toBe(200);
+    const on = await patchShare(db, created.token, { allow_download: 1 }, now);
+    expect(on.ok).toBe(true);
+    if (!on.ok) return;
+    expect(on.link.allow_download).toBe(true);
+    const dl = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=x",
+    });
+    expect(dl.status).toBe(200);
+  });
+
+  it("rejects patching both flags off", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    if (!created.ok) throw new Error("create");
+    const both = await patchShare(db, created.token, { allow_download: 0, allow_preview: 0 }, now);
+    expect(both).toMatchObject({ ok: false, status: 400, error: "need download or preview" });
+    const previewOnly = await patchShare(db, created.token, { allow_download: 0, allow_preview: 1 }, now);
+    expect(previewOnly.ok).toBe(true);
+    const collapsed = await patchShare(db, created.token, { allow_preview: 0 }, now);
+    expect(collapsed).toMatchObject({ ok: false, status: 400, error: "need download or preview" });
+    const still = await getShareLink(db, created.token);
+    expect(still?.allow_download).toBe(0);
+    expect(still?.allow_preview).toBe(1);
+  });
+
+  it("treats legacy rows with null allow_download as download+preview allowed", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt" })],
+      links: [
+        {
+          token: "legacy",
+          kind: "file",
+          target: "1",
+          password_hash: null,
+          max_downloads: null,
+          download_count: 0,
+          created_at: now.toISOString(),
+          expires_at: null,
+          revoked: 0,
+          short_code: null,
+          fail_count: 0,
+          locked_until: null,
+          allow_preview: null,
+          allow_download: null,
+        },
+      ],
+    });
+    const link = await getShareLink(db, "legacy");
+    expect(link?.allow_download).toBe(1);
+    expect(link?.allow_preview).toBe(1);
+    expect(shareAllowsDownload({ allow_download: null })).toBe(true);
+    const view = await authorizeFileShare(db, {
+      fileId: "1",
+      token: "legacy",
+      cookieHeader: null,
+      nextPath: "/dl/a.txt/view?t=legacy",
+      view: true,
+    });
+    expect(view.status).toBe(200);
+    const dl = await authorizeFileShare(db, {
+      fileId: "1",
+      token: "legacy",
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=legacy",
+    });
+    expect(dl.status).toBe(200);
   });
 });

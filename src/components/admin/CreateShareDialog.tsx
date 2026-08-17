@@ -15,7 +15,6 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
 import { useNotification } from "@refinedev/core";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { copyAbsoluteUrl } from "@/lib/clipboard";
 import { parseExpireInput } from "@/lib/expires";
 import { formatTime } from "@/lib/format";
 import { tApiError } from "@/lib/i18n";
@@ -24,7 +23,9 @@ import {
   shareAccessValid,
   type ShareExpireMode,
 } from "@/lib/share-create";
+import type { ShareCopySource } from "@/lib/share-copy";
 import { MAX_BATCH_IDS } from "@/lib/types";
+import { ShareCopyPanel } from "./ShareCopyPanel";
 import { useI18n } from "./I18nProvider";
 
 export type ShareCreateValues = {
@@ -51,6 +52,42 @@ export const DEFAULT_SHARE_CREATE: ShareCreateValues = {
   short: false,
 };
 
+export function ShareAccessSwitches({
+  allowDownload,
+  allowPreview,
+  onChange,
+}: {
+  allowDownload: boolean;
+  allowPreview: boolean;
+  onChange: (next: { allowDownload: boolean; allowPreview: boolean }) => void;
+}) {
+  const { t } = useI18n();
+  const accessOk = shareAccessValid(allowDownload, allowPreview);
+  return (
+    <Stack spacing={0.5} sx={{ mt: 1 }}>
+      <FormControlLabel
+        control={
+          <Switch
+            checked={allowDownload}
+            onChange={(_, checked) => onChange({ allowDownload: checked, allowPreview })}
+          />
+        }
+        label={t("sharePage.allowDownload")}
+      />
+      <FormControlLabel
+        control={
+          <Switch
+            checked={allowPreview}
+            onChange={(_, checked) => onChange({ allowDownload, allowPreview: checked })}
+          />
+        }
+        label={t("sharePage.allowPreview")}
+      />
+      {accessOk ? null : <FormHelperText error>{t("sharePage.needAccess")}</FormHelperText>}
+    </Stack>
+  );
+}
+
 export function ShareCreateFields({
   values,
   onChange,
@@ -61,7 +98,6 @@ export function ShareCreateFields({
   showShort?: boolean;
 }) {
   const { t } = useI18n();
-  const accessOk = shareAccessValid(values.allowDownload, values.allowPreview);
   const expirePreview = useMemo(() => {
     if (values.expireMode === "none") return t("sharePage.expireNone");
     if (values.expireMode === "perm") return t("expire.previewPerm");
@@ -82,27 +118,11 @@ export function ShareCreateFields({
 
   return (
     <>
-      <Stack spacing={0.5} sx={{ mt: 1 }}>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={values.allowDownload}
-              onChange={(_, checked) => onChange({ ...values, allowDownload: checked })}
-            />
-          }
-          label={t("sharePage.allowDownload")}
-        />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={values.allowPreview}
-              onChange={(_, checked) => onChange({ ...values, allowPreview: checked })}
-            />
-          }
-          label={t("sharePage.allowPreview")}
-        />
-        {accessOk ? null : <FormHelperText error>{t("sharePage.needAccess")}</FormHelperText>}
-      </Stack>
+      <ShareAccessSwitches
+        allowDownload={values.allowDownload}
+        allowPreview={values.allowPreview}
+        onChange={(next) => onChange({ ...values, ...next })}
+      />
       <TextField
         fullWidth
         margin="dense"
@@ -202,11 +222,13 @@ export function CreateShareDialog({
   const { open: notify } = useNotification();
   const [values, setValues] = useState<ShareCreateValues>(DEFAULT_SHARE_CREATE);
   const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState<ShareCopySource | null>(null);
 
   useEffect(() => {
     if (open) {
       setValues(DEFAULT_SHARE_CREATE);
       setBusy(false);
+      setCreated(null);
     }
   }, [open]);
 
@@ -250,20 +272,28 @@ export function CreateShareDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(built.body),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string };
-      if (!res.ok || !data.url) {
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        url?: string;
+        viewUrl?: string | null;
+        downloadUrl?: string;
+        allowDownload?: boolean;
+        allowPreview?: boolean;
+      };
+      if (!res.ok || !(data.downloadUrl || data.url)) {
         notify?.({
           type: "error",
           message: tApiError(locale, data.error, "fileManager.shareFailed"),
         });
         return;
       }
-      const ok = await copyAbsoluteUrl(data.url);
-      notify?.({
-        type: ok ? "success" : "error",
-        message: ok ? t("sharePage.copied") : t("common.copyFailed"),
+      setCreated({
+        downloadUrl: data.downloadUrl || data.url || "",
+        viewUrl: data.viewUrl ?? null,
+        allowDownload: data.allowDownload ?? values.allowDownload,
+        allowPreview: data.allowPreview ?? values.allowPreview,
       });
-      onClose();
+      notify?.({ type: "success", message: t("sharePage.created") });
       onSuccess?.();
     } catch {
       notify?.({ type: "error", message: t("fileManager.shareFailed") });
@@ -274,23 +304,45 @@ export function CreateShareDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{t("fileManager.newShare")}</DialogTitle>
+      <DialogTitle>{created ? t("sharePage.created") : t("fileManager.newShare")}</DialogTitle>
       <DialogContent>
-        {children}
-        <Typography variant="body2" sx={{ mt: children ? 1.5 : 0.5, fontWeight: 600 }}>
-          {summary}
-        </Typography>
-        <ShareCreateFields values={values} onChange={setValues} showShort={showShort} />
+        {created ? (
+          <>
+            <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>
+              {summary}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              {t("sharePage.createdHint")}
+            </Typography>
+            <ShareCopyPanel source={created} />
+          </>
+        ) : (
+          <>
+            {children}
+            <Typography variant="body2" sx={{ mt: children ? 1.5 : 0.5, fontWeight: 600 }}>
+              {summary}
+            </Typography>
+            <ShareCreateFields values={values} onChange={setValues} showShort={showShort} />
+          </>
+        )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t("common.cancel")}</Button>
-        <Button
-          variant="contained"
-          disabled={busy || !shareAccessValid(values.allowDownload, values.allowPreview) || !ids.length}
-          onClick={() => void submit()}
-        >
-          {t("sharePage.createCopy")}
-        </Button>
+        {created ? (
+          <Button variant="contained" onClick={onClose}>
+            {t("sharePage.done")}
+          </Button>
+        ) : (
+          <>
+            <Button onClick={onClose}>{t("common.cancel")}</Button>
+            <Button
+              variant="contained"
+              disabled={busy || !shareAccessValid(values.allowDownload, values.allowPreview) || !ids.length}
+              onClick={() => void submit()}
+            >
+              {t("sharePage.createSubmit")}
+            </Button>
+          </>
+        )}
       </DialogActions>
     </Dialog>
   );

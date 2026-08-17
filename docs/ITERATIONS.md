@@ -1,3 +1,36 @@
+# EdgeDrive 第二十二轮迭代（R22 · 2026-08-17）
+
+## 目标
+
+R21 分享语义补充：新建分享成功后同时给出下载 + 预览两条可复制链接；分享页可改已有链接的 `allow_download` / `allow_preview`（PATCH）；预览页内下载按钮由 `allow_download` 控制（`=1` 时预览页也能下）。
+
+## 权限语义（修正）
+
+| allow_download | allow_preview | 行为 |
+|---|---|---|
+| 1 | 1 | 下载链接可用 + 预览页可开（页内也能下载） |
+| 1 | 0 | 下载链接可用 + 预览页 404 |
+| 0 | 1 | 下载链接 404 + 预览页可开但页内下载禁用 |
+| 0 | 0 | 创建/PATCH 均 400 |
+
+预览链接是「打开预览界面」的入口，不是「只能看」；页内下载能力单独由 `allow_download` 决定。`inline=1` 仍跟预览走（嵌入内容），附件下载走 `allow_download`。
+
+## 改动
+
+- 新建分享对话框：创建成功后停留并显示两条绝对 URL（`copyAbsoluteUrl`），按开关启用/禁用对应栏
+- 分享页：复制打开双链接面板；菜单可分别复制；新增「权限设置」→ PATCH
+- `toShareView` / `shareCopyPaths`：始终返回真实下载/预览路径（权限只挡访问，不改 URL 形状）
+- `PATCH /api/share/[token]`：支持 `allow_download` / `allow_preview`，结果为 0/0 则 400（不写库）
+- 老链接 `allow_download`/`allow_preview` 为 null 仍视为 1
+
+## 验证
+
+- `npm test`：42 files / 268 tests 全绿
+- `tsc --noEmit`（`noUnusedLocals`）通过
+- `npm run build` 通过
+
+---
+
 # EdgeDrive 第十二轮迭代（R12 · 2026-08-16）
 
 ## 目标

@@ -269,19 +269,32 @@ export function shareLandingPath(
   return fileLongPath(file, link.token);
 }
 
+/** Always the real download + preview paths (permissions only gate access, not URL shape). */
+export function shareCopyPaths(
+  link: Pick<ShareLink, "kind" | "token">,
+  file?: Pick<FileRow, "path" | "name"> | null,
+): { downloadUrl: string; viewUrl: string | null } {
+  if (link.kind === "batch") {
+    const batch = batchSharePaths(link.token);
+    return { downloadUrl: batch.downloadUrl, viewUrl: batch.previewUrl };
+  }
+  if (!file) return { downloadUrl: `/share/${link.token}`, viewUrl: null };
+  return {
+    downloadUrl: fileLongPath(file, link.token),
+    viewUrl: fileLongPath(file, link.token, true),
+  };
+}
+
 export function toShareView(link: ShareLink, files: FileRow[], now = Date.now()): ShareLinkView {
   const ids = targetIds(link);
   const status = shareStatus(link, now);
-  const batch = batchSharePaths(link.token);
   const file = files[0];
   const allowPreview = shareAllowsPreview(link);
   const allowDownload = shareAllowsDownload(link);
-  const fileView = file ? fileLongPath(file, link.token, true) : null;
-  const fileDl = file ? fileLongPath(file, link.token) : `/share/${link.token}`;
+  const copies = shareCopyPaths(link, file);
   const url = shareLandingPath(link, file);
-  const viewUrl = link.kind === "batch" ? (allowPreview ? batch.previewUrl : null) : allowPreview ? fileView : null;
-  const downloadUrl =
-    link.kind === "batch" ? (allowDownload ? batch.downloadUrl : batch.previewUrl) : allowDownload ? fileDl : url;
+  const viewUrl = copies.viewUrl;
+  const downloadUrl = copies.downloadUrl;
   return {
     token: link.token,
     kind: link.kind,
@@ -513,6 +526,8 @@ export type PatchShareBody = {
   permanent?: unknown;
   expireNow?: unknown;
   revoked?: unknown;
+  allow_download?: unknown;
+  allow_preview?: unknown;
 };
 
 export async function patchShare(
@@ -571,6 +586,22 @@ export async function patchShare(
   if (body.revoked != null) {
     sets.push("revoked = ?");
     binds.push(asBool(body.revoked) ? 1 : 0);
+  }
+
+  if ("allow_download" in body || "allow_preview" in body) {
+    const nextDownload = "allow_download" in body ? (asBool(body.allow_download) ? 1 : 0) : existing.allow_download;
+    const nextPreview = "allow_preview" in body ? (asBool(body.allow_preview) ? 1 : 0) : existing.allow_preview;
+    if (!nextDownload && !nextPreview) {
+      return { ok: false, status: 400, error: "need download or preview" };
+    }
+    if ("allow_download" in body) {
+      sets.push("allow_download = ?");
+      binds.push(nextDownload);
+    }
+    if ("allow_preview" in body) {
+      sets.push("allow_preview = ?");
+      binds.push(nextPreview);
+    }
   }
 
   if (!sets.length) return { ok: false, status: 400, error: "need patch" };

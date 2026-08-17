@@ -198,4 +198,21 @@ describe("GET /dl/[...path]", () => {
     expect(html).not.toContain("复制下载链接");
     expect(html).toContain("复制预览链接");
   });
+
+  it("keeps download actions on the view page when allow_download=1", async () => {
+    authorizeFileShare.mockResolvedValue({
+      status: 200,
+      link: { token: "tok", kind: "file", allow_download: 1, allow_preview: 1 },
+      countShare: false,
+    });
+    getFileByKey.mockImplementation(async (key: string) => (key === "docs/a.txt" ? meta : null));
+    const res = await GET(request("/dl/docs/a.txt/view?t=tok"), {
+      params: Promise.resolve({ path: ["docs", "a.txt", "view"] }),
+    });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("复制下载链接");
+    expect(html).toContain(">下载<");
+    expect(html).toContain("复制预览链接");
+  });
 });

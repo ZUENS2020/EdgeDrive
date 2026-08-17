@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildShareCreateBody, shareAccessValid } from "./share-create";
+import { buildShareAccessPatch, buildShareCreateBody, shareAccessValid } from "./share-create";
 
 describe("shareAccessValid", () => {
   it("rejects the empty quadrant", () => {
@@ -7,6 +7,20 @@ describe("shareAccessValid", () => {
     expect(shareAccessValid(true, false)).toBe(true);
     expect(shareAccessValid(false, true)).toBe(true);
     expect(shareAccessValid(false, false)).toBe(false);
+  });
+});
+
+describe("buildShareAccessPatch", () => {
+  it("serializes flags for PATCH and rejects 0/0", () => {
+    expect(buildShareAccessPatch(true, false)).toEqual({
+      ok: true,
+      body: { allow_download: 1, allow_preview: 0 },
+    });
+    expect(buildShareAccessPatch(false, true)).toEqual({
+      ok: true,
+      body: { allow_download: 0, allow_preview: 1 },
+    });
+    expect(buildShareAccessPatch(false, false)).toEqual({ ok: false, error: "need-access" });
   });
 });
 

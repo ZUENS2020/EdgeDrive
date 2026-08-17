@@ -21,6 +21,20 @@ export function shareAccessValid(allowDownload: boolean, allowPreview: boolean):
   return Boolean(allowDownload || allowPreview);
 }
 
+export function buildShareAccessPatch(
+  allowDownload: boolean,
+  allowPreview: boolean,
+): { ok: true; body: { allow_download: number; allow_preview: number } } | { ok: false; error: "need-access" } {
+  if (!shareAccessValid(allowDownload, allowPreview)) return { ok: false, error: "need-access" };
+  return {
+    ok: true,
+    body: {
+      allow_download: allowDownload ? 1 : 0,
+      allow_preview: allowPreview ? 1 : 0,
+    },
+  };
+}
+
 export function buildShareCreateBody(
   input: ShareCreateInput,
 ): { ok: true; body: Record<string, unknown> } | { ok: false; error: ShareCreateBodyErr } {

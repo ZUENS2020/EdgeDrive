@@ -199,6 +199,21 @@ describe("renderViewPage", () => {
     expect(html).toContain("/dl/a.txt/view?t=tok");
   });
 
+  it("keeps preview-page download actions when allowDownload is true", () => {
+    const html = renderViewPage({
+      origin: "https://edgedrive.example",
+      key: "a.txt",
+      meta: file({ id: "1", name: "a.txt", mime: "text/plain" }),
+      theme,
+      token: "tok",
+      allowDownload: true,
+    });
+    expect(html).toContain("复制下载链接");
+    expect(html).toContain(">下载<");
+    expect(html).toContain('href="https://edgedrive.example/dl/a.txt?t=tok"');
+    expect(html).toContain("复制预览链接");
+  });
+
   it("resolves relative clipboard targets against location.origin at click time", () => {
     const js = viewPageClientJs();
     expect(js).toContain("new URL(");
