@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  dashboardCloudflareMetadata,
+  simulateD2cParse,
+} from "../../scripts/d2c-parse.mjs";
+import {
   applyTemplatePlaceholdersForCli,
   DASHBOARD_UUID_RE,
   isPlaceholderDatabaseId,
@@ -70,13 +74,50 @@ describe("wrangler.jsonc deploy-button compatibility", () => {
 });
 
 describe("package.json cloudflare metadata", () => {
-  it("describes bindings and does not set an empty preview_image_url", () => {
-    const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
-      cloudflare?: { preview_image_url?: string; bindings?: Record<string, { description?: string }> };
+  const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
+    cloudflare?: {
+      label?: string;
+      products?: string[];
+      categories?: string[];
+      preview_image_url?: string;
+      bindings?: Record<string, { description?: string }>;
     };
+  };
+
+  it("matches official D2C templates: label + products + categories, no empty preview_image_url", () => {
+    expect(pkg.cloudflare?.label).toBe("EdgeDrive");
+    expect(pkg.cloudflare?.products).toEqual(["Workers", "D1", "R2"]);
+    expect(pkg.cloudflare?.categories).toEqual(["storage"]);
     expect(pkg.cloudflare?.bindings?.DB?.description).toMatch(/D1/);
     expect(pkg.cloudflare?.bindings?.FILES?.description).toMatch(/R2/);
     expect(pkg.cloudflare).not.toHaveProperty("preview_image_url");
+    expect(dashboardCloudflareMetadata.safeParse(pkg.cloudflare).success).toBe(true);
+  });
+
+  it("rejects the incomplete cloudflare.bindings-only object (R24b) and empty preview_image_url (#14831)", () => {
+    expect(
+      dashboardCloudflareMetadata.safeParse({
+        bindings: { DB: { description: "D1" } },
+      }).success,
+    ).toBe(false);
+    expect(
+      dashboardCloudflareMetadata.safeParse({
+        label: "EdgeDrive",
+        products: ["Workers"],
+        categories: ["storage"],
+        preview_image_url: "",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("local D2C parse simulation", () => {
+  it("passes the same parse/validate steps as official d1 / next-starter / r2-explorer templates", () => {
+    const wranglerRaw = readFileSync(wranglerPath, "utf8");
+    const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+    const result = simulateD2cParse({ wranglerRaw, wranglerName: "wrangler.jsonc", pkg });
+    expect(result.steps.filter((s) => !s.ok), JSON.stringify(result.steps, null, 2)).toEqual([]);
+    expect(result.ok).toBe(true);
   });
 });
 

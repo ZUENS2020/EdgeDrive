@@ -1,3 +1,35 @@
+# EdgeDrive 第二十五轮（R25 · 2026-08-17）
+
+## 目标
+
+R24b（`640e58f`）把 D1 占位 UUID 改成 RFC 4122 v4 后，Deploy to Cloudflare 按钮仍报「解析 Wrangler 配置文件时出现了问题」。按任务书：**先本地模拟 deploy 工具解析，对照官方能成功的模板，找出具体报错步骤再改**。
+
+## 查证（先模拟，后改）
+
+1. `deploy.workers.cloudflare.com` 307 到 dashboard 的 create/deploy-to-workers。真正校验在 `POST /api/v4/workers/template-from-worker`。同一句报错会误把 **package.json `cloudflare` 元数据** 说成 wrangler 解析失败（[workers-sdk#14831](https://github.com/cloudflare/workers-sdk/issues/14831)）。
+2. 官方 `cloudflare/templates` 用 **`comment-json`** 读 wrangler JSONC（`cli/src/util.ts` `readJsonC`）。本地脚本对 EdgeDrive / `d1-template` / `next-starter-template` / `r2-explorer-template` / `x402-proxy-template` 跑了同一条流水线：
+   - JSON / comment-json 解析
+   - AJV + `wrangler/config-schema.json`（`additionalProperties: false`）
+   - D1 `database_id` 的 Zod 3 `uuid()`（version 1–5）
+   - R2 `bucket_name`
+   - `package.json.cloudflare` 元数据（`templates/cli/src/lint.ts`：有 `cloudflare` 对象就必须有 `label` / `products` / `categories`；`preview_image_url` 若出现则必须是合法 URL）
+3. **结果**：EdgeDrive 的 `wrangler.jsonc` 四步全绿（v4 UUID、schema、D1/R2 都过）。官方四个模板五步全绿。EdgeDrive **只在第 5 步失败**：
+   - `cloudflare.label: expected string, received undefined`
+   - `cloudflare.products: expected array, received undefined`
+   - `cloudflare.categories: expected array, received undefined`
+4. R24b 只加了 `cloudflare.bindings`、没加官方模板必填的 `label`/`products`/`categories`。`x402-proxy-template` 证明 **bindings 可以和 label 一起存在**；#14831 证明 **空字符串 `preview_image_url` 会炸**，缺省该字段则可以。因此补齐 label 三件套、**不写** `preview_image_url`。
+
+## 改动
+
+- `package.json.cloudflare` 对齐官方能过按钮的模板：`label` / `products` / `categories`，保留 bindings 说明，不写 `preview_image_url`
+- `scripts/d2c-parse.mjs`：本地复现上述解析/校验；`npm run d2c-parse`；测试锁定 bindings-only 对象和空 `preview_image_url` 会失败
+
+## 验证
+
+- `node scripts/d2c-parse.mjs` / `npm test` / `tsc --noEmit` / `npx wrangler deploy --dry-run`
+
+---
+
 # EdgeDrive 第二十四轮 B（R24b · 2026-08-17）
 
 ## 目标

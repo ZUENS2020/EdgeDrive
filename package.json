@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "cf-build": "node scripts/cf-build.mjs",
     "cf-deploy": "node scripts/cf-deploy.mjs",
+    "d2c-parse": "node scripts/d2c-parse.mjs",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv",
     "postinstall": "node scripts/install-wrangler-shim.mjs",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
@@ -55,6 +56,9 @@
     "wrangler": "^4.123.0"
   },
   "cloudflare": {
+    "label": "EdgeDrive",
+    "products": ["Workers", "D1", "R2"],
+    "categories": ["storage"],
     "bindings": {
       "DB": {
         "description": "D1 database for file metadata, shares, and settings. Auto-provisioned on first deploy."
