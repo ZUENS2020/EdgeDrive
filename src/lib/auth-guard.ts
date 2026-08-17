@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { verifyAccessJwt } from "./access-jwt";
 import { evaluateAdminGate, evaluateAdminPageGate } from "./auth-gate";
+import { adminMutationAllowed } from "./csrf";
 import { getSettings } from "./settings";
 
 export { evaluateAdminGate, evaluateAdminPageGate, setupTokenMatches } from "./auth-gate";
@@ -61,6 +62,13 @@ export async function requireAdmin(request?: Request) {
       ok: false as const,
       setup: gate.kind === "setup",
       response: NextResponse.json({ error }, { status }),
+    };
+  }
+  if (request && !adminMutationAllowed(request)) {
+    return {
+      ok: false as const,
+      setup: false as const,
+      response: NextResponse.json({ error: "forbidden" }, { status: 403 }),
     };
   }
   return { ok: true as const, setup: false as const };

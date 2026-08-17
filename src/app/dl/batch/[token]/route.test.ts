@@ -151,6 +151,8 @@ describe("GET /dl/batch/[token]", () => {
     expect(html).toContain("https://edgedrive.example/dl/pack.zip/view?t=live");
     expect(html).toContain("https://edgedrive.example/dl/pack.zip?t=live");
     expect(html).not.toContain("DOMContentLoaded");
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(res.headers.get("Cache-Control")).not.toContain("public");
   });
 
   it("uses the forwarded public origin on per-file hrefs", async () => {

@@ -115,9 +115,10 @@ export function lockRemainingMinutes(lockedUntil: string | null, now = Date.now(
   return Math.max(1, Math.ceil((ts - now) / 60000));
 }
 
-/** Relative next= only: /dl /s /share. Blocks open redirects. */
+/** Relative next= only: /dl /s /share. Blocks open redirects and header injection. */
 export function safeShareNext(raw: string | null | undefined, fallback: string): string {
   const value = String(raw || "").trim();
+  if (/[\0\r\n]/.test(value)) return fallback;
   if (!value.startsWith("/") || value.startsWith("//") || value.includes("://")) return fallback;
   if (value.startsWith("/dl/") || value.startsWith("/s/") || value.startsWith("/share/")) return value;
   return fallback;

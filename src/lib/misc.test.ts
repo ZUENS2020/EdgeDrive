@@ -3,7 +3,7 @@ import { evaluateSchemaVersion, missingCoreTables } from "./d1-bootstrap";
 import { D1_BOOTSTRAP_SQL, EXPECTED_SCHEMA_VERSION } from "./d1-bootstrap-sql";
 import { shouldCountDownload } from "./download-policy";
 import { cfApiTokenConfigured, readEnvSecret } from "./cf-credentials";
-import { bearerMatches } from "./cron-auth";
+import { bearerMatches, cronAllowsSessionAuth } from "./cron-auth";
 import { fileExpiryLabel } from "./format";
 
 describe("d1 schema helpers", () => {
@@ -102,6 +102,12 @@ describe("purge bearer", () => {
     expect(bearerMatches("Bearer abc", "xyz")).toBe(false);
     expect(bearerMatches(null, "abc")).toBe(false);
     expect(bearerMatches("Bearer abc", undefined)).toBe(false);
+  });
+
+  it("does not accept session cookies on GET", () => {
+    expect(cronAllowsSessionAuth("GET")).toBe(false);
+    expect(cronAllowsSessionAuth("HEAD")).toBe(false);
+    expect(cronAllowsSessionAuth("POST")).toBe(true);
   });
 });
 

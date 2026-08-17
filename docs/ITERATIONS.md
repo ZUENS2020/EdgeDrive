@@ -1,3 +1,22 @@
+# EdgeDrive 第二十六轮（R26 · 2026-08-18）
+
+## 目标
+
+全面审查安全 / 功能 / 部署。P0 安全漏洞直接修。
+
+## P0 已修
+
+1. **批量分享页公开缓存**：`/dl/batch/[token]` 曾用 `Cache-Control: public, max-age=30`。口令解锁后的 HTML 含文件列表和 `?t=` token，共享缓存按 URL 命中即可绕过 cookie。改为 `private, no-store`。
+2. **GET `/api/cron/purge` CSRF**：定时任务走 Bearer GET，但同一路由也接受 Access cookie。管理员点开恶意链接会触发清理。GET/HEAD 只认 Bearer；设置页的「立即清理」仍用 POST + session。
+3. **管理写操作 CSRF**：Access 的 `CF_Authorization` 常为 SameSite=None。跨站 `Origin` 的 POST/PUT/PATCH/DELETE 一律 403；无 Origin 的 curl / 定时请求不受影响。
+4. **分享 `next` 头注入**：`safeShareNext` 拒绝 CR/LF/NUL，避免 `Location` 拆头。
+
+## 验证
+
+- `npm test` / `npm run typecheck`
+
+---
+
 # EdgeDrive 第二十五轮（R25 · 2026-08-17）
 
 ## 目标

@@ -3,7 +3,7 @@ import { getKv, KV } from "@/lib/app-config";
 import { requireAdmin } from "@/lib/auth-guard";
 import { deleteExpiredBatches } from "@/lib/batch";
 import { getDB } from "@/lib/cloudflare";
-import { bearerMatches } from "@/lib/cron-auth";
+import { bearerMatches, cronAllowsSessionAuth } from "@/lib/cron-auth";
 import { getSettings } from "@/lib/settings";
 import { purgeExpired, purgeTrash } from "@/lib/store";
 
@@ -13,6 +13,9 @@ async function authorized(request: Request): Promise<boolean> {
   const db = await getDB();
   const secret = await getKv(db, KV.cronSecret);
   if (bearerMatches(request.headers.get("authorization"), secret)) return true;
+  // GET is used by the injected scheduled handler with Bearer only.
+  // Session cookies on GET would let a logged-in admin's click purge the catalog.
+  if (!cronAllowsSessionAuth(request.method)) return false;
   const gate = await requireAdmin(request);
   return gate.ok;
 }

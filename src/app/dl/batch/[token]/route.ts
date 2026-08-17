@@ -86,7 +86,8 @@ async function handle(
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "public, max-age=30, must-revalidate",
+      "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer",
       ...DL_CORS,
     },
   });

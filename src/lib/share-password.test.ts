@@ -48,6 +48,8 @@ describe("share helpers", () => {
     expect(safeShareNext("https://evil.test/", "/dl/x")).toBe("/dl/x");
     expect(safeShareNext("//evil.test", "/dl/x")).toBe("/dl/x");
     expect(safeShareNext("/admin", "/dl/x")).toBe("/dl/x");
+    expect(safeShareNext("/dl/a\r\nSet-Cookie: x=1", "/dl/x")).toBe("/dl/x");
+    expect(safeShareNext("/share/tok\nLocation: https://evil.test", "/dl/x")).toBe("/dl/x");
   });
 
   it("builds readable long links and short links", () => {

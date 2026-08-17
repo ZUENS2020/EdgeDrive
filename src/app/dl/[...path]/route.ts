@@ -124,6 +124,7 @@ async function handle(
         "Content-Type": "text/html; charset=utf-8",
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "private, no-store",
+        "Referrer-Policy": "no-referrer",
         ...DL_CORS,
       },
     });
