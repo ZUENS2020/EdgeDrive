@@ -11,6 +11,8 @@
 
 **EdgeDrive = 一套完整的私人文件托管 + 临时直链服务**：R2 存文件、D1 管元数据、Cloudflare Access 管身份——全部跑在 Cloudflare 免费层上。
 
+> ⚠️ **安全要求（必读）**：EdgeDrive 的管理台**必须**通过 Cloudflare Access 保护。部署后的**第一件事**就是配置 Access（见下文「🔐 Access 认证配置」）——在配置完成之前，`/admin` 是开放的（任何知道地址的人都能访问）。**请勿在未配置 Access 的情况下把服务暴露到公网**；配置完成后所有管理请求均需 Access JWT 认证（fail-closed）。
+
 ---
 
 ## ✨ 特性
@@ -71,13 +73,13 @@
      - R2 存储桶（`edgedrive`）
      - Worker 绑定（`DB` / `R2`）
 
-3. **首次访问配置 Access（引导模式）**：
+3. **首次访问配置 Access（必需——不能跳过）**：
    - 打开部署后给你的 `*.workers.dev` 域名
    - 访问 `/admin` —— **未启用 Access 前无需登录**，只显示引导页
-   - 填写 **Access Team** 与 **AUD**，点 **启用 Access**
+   - 填写 **Access Team** 与 **AUD**，点 **启用 Access** —— **这是部署后必须完成的第一步**（详见下方「🔐 Access 认证配置」）
    - 之后所有管理请求走 Access JWT（未认证一律 401）
 
-   > ⚠️ 部署后请**立刻**完成引导并在 Zero Trust 里保护 `/admin*`。引导页在启用前是开放的；可选 Worker Secret `SETUP_TOKEN` 防止别人抢先配置。
+   > ⚠️ **必须立即完成引导并在 Zero Trust 里保护 `/admin*`**——引导页在启用前是开放的；可选 Worker Secret `SETUP_TOKEN` 防止别人抢先配置。**跳过此步 = 管理台裸奔在公网**。
 
 4. **部署更新**：push 到 main 即自动重新部署（Cloudflare Pages Git 集成）
 
@@ -85,7 +87,7 @@
 
 ---
 
-## 🔐 Access 认证配置（详细）
+## 🔐 Access 认证配置（必需——部署后第一步）
 
 EdgeDrive 用 **Cloudflare Access** 做管理台认证（无密码可爆破——只有 Cloudflare 账号能进）。
 

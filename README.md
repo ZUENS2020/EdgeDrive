@@ -11,6 +11,8 @@
 
 **EdgeDrive = a complete private file hosting + temporary direct-link service**: R2 stores files, D1 manages metadata, Cloudflare Access handles identity — all running on the Cloudflare free tier.
 
+> ⚠️ **SECURITY REQUIREMENT (READ FIRST)**: The EdgeDrive admin panel **MUST** be protected by Cloudflare Access. Configuring Access is the **first thing you do after deploying** (see "🔐 Access authentication (required)"). Until it's configured, `/admin` is wide open — anyone who knows the URL can access it. **Do not expose the service to the public internet without Access configured.** Once enabled, all admin requests require Access JWT (fail-closed).
+
 ---
 
 ## ✨ Features
@@ -71,13 +73,13 @@ Click the button → connect GitHub + Cloudflare accounts → pick Worker/resour
      - R2 bucket (`edgedrive`)
      - Worker bindings (`DB` / `R2`)
 
-3. **First-visit Access onboarding (guided mode)**:
+3. **First-visit Access onboarding (REQUIRED — do not skip)**:
    - Open your `*.workers.dev` domain
    - Visit `/admin` — **no login required until Access is enabled**, only the onboarding page shows
-   - Fill in **Access Team** and **AUD**, click **Enable Access**
+   - Fill in **Access Team** and **AUD**, click **Enable Access** — **this is the mandatory first step after deploying** (see "🔐 Access authentication" below)
    - From then on, all admin requests go through Access JWT (401 without auth)
 
-   > ⚠️ Complete onboarding and protect `/admin*` in Zero Trust **immediately** after deploying. The onboarding page is open until enabled; optional Worker Secret `SETUP_TOKEN` prevents others from hijacking the setup.
+   > ⚠️ **You MUST complete onboarding and protect `/admin*` in Zero Trust immediately.** The onboarding page is open until enabled; optional Worker Secret `SETUP_TOKEN` prevents others from hijacking the setup. **Skipping this = your admin panel exposed naked on the public internet.**
 
 4. **Updates**: push to `main` → auto redeploy (Cloudflare Pages Git integration)
 
@@ -85,7 +87,7 @@ Click the button → connect GitHub + Cloudflare accounts → pick Worker/resour
 
 ---
 
-## 🔐 Access Authentication (Detailed)
+## 🔐 Access authentication (required — step 1 after deploy)
 
 EdgeDrive uses **Cloudflare Access** for admin authentication (no brute-forceable passwords — only Cloudflare-account holders get in).
 
