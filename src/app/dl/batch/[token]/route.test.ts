@@ -146,8 +146,49 @@ describe("GET /dl/batch/[token]", () => {
     const html = await res.text();
     expect(html).toContain("1 个文件");
     expect(html).toContain("pack.zip");
-    expect(html).toContain("/dl/pack.zip/view");
+    expect(html).toContain("https://edgedrive.example/dl/pack.zip/view?t=live");
+    expect(html).toContain("https://edgedrive.example/dl/pack.zip?t=live");
     expect(html).not.toContain("DOMContentLoaded");
+  });
+
+  it("uses the forwarded public origin on per-file hrefs", async () => {
+    getDB.mockResolvedValue(
+      memoryBatch({
+        batches: [
+          {
+            token: "live",
+            file_ids: JSON.stringify(["1"]),
+            created_at: "2026-08-16T00:00:00.000Z",
+            expires_at: null,
+          },
+        ],
+        files: [
+          {
+            id: "1",
+            name: "pack.zip",
+            path: "",
+            size: 10,
+            mime: "application/zip",
+            expires: null,
+            download_count: 0,
+            created_at: "2026-08-16T00:00:00.000Z",
+            tags: "",
+          },
+        ],
+      }),
+    );
+    const req = new NextRequest("http://localhost:8787/dl/batch/live", {
+      headers: {
+        host: "localhost:8787",
+        "x-forwarded-host": "dlp.zuens2020.work",
+        "x-forwarded-proto": "https",
+      },
+    });
+    const res = await GET(req, { params: Promise.resolve({ token: "live" }) });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("https://dlp.zuens2020.work/dl/pack.zip/view?t=live");
+    expect(html).not.toContain("http://localhost:8787/dl/pack.zip");
   });
 
   it("pack-only batch pages hide the file list", async () => {

@@ -7,6 +7,7 @@ import {
   shouldCountDownload,
 } from "@/lib/download-count";
 import { looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
+import { requestOrigin } from "@/lib/share-urls";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { authorizeFileShare } from "@/lib/share";
 import { dlText, DL_CORS, serveR2Object } from "@/lib/serve-r2";
@@ -105,7 +106,7 @@ async function handle(
   if (view) {
     const themeVars = publicThemeVars(settings.theme_name);
     const html = renderViewPage({
-      origin: request.nextUrl.origin,
+      origin: requestOrigin(request),
       key,
       meta,
       theme: themeVars,

@@ -149,4 +149,26 @@ describe("GET /dl/[...path]", () => {
     expect(scheduleShareDownloadIncrement).not.toHaveBeenCalled();
     expect(scheduleShareFileCountIncrement).toHaveBeenCalledWith("batch", "1");
   });
+
+  it("renders the public view page with absolute copy URLs", async () => {
+    authorizeFileShare.mockResolvedValue({
+      status: 200,
+      link: { token: "tok", kind: "file" },
+      countShare: false,
+    });
+    getFileByKey.mockImplementation(async (key: string) => (key === "docs/a.txt" ? meta : null));
+    const req = new NextRequest("http://localhost:8787/dl/docs/a.txt/view?t=tok", {
+      headers: {
+        host: "localhost:8787",
+        "x-forwarded-host": "dlp.zuens2020.work",
+        "x-forwarded-proto": "https",
+      },
+    });
+    const res = await GET(req, { params: Promise.resolve({ path: ["docs", "a.txt", "view"] }) });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('data-copy="https://dlp.zuens2020.work/dl/docs/a.txt?t=tok"');
+    expect(html).toContain('data-copy="https://dlp.zuens2020.work/dl/docs/a.txt/view?t=tok"');
+    expect(html).not.toMatch(/data-copy="\/dl\//);
+  });
 });

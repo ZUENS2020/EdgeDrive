@@ -54,7 +54,7 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { copyToClipboard } from "@/lib/clipboard";
+import { copyAbsoluteUrl } from "@/lib/clipboard";
 import { copyErrorMessage } from "@/lib/copy";
 import { isGlobalFileFilter, type FileListFilter } from "@/lib/files-query";
 import { folderDeleteConfirmMessage, folderDeleteConfirmTitle } from "@/lib/folder-delete-confirm";
@@ -193,7 +193,7 @@ export function FileManager() {
         return;
       }
       const path = kind === "download" ? data.downloadUrl : data.previewUrl;
-      const ok = await copyToClipboard(`${window.location.origin}${path}`);
+      const ok = await copyAbsoluteUrl(path);
       toast(
         ok
           ? kind === "download"
@@ -295,7 +295,7 @@ export function FileManager() {
       return;
     }
     const path = view ? data.viewUrl || data.url : data.url;
-    const ok = await copyToClipboard(`${window.location.origin}${path}`);
+    const ok = await copyAbsoluteUrl(path);
     toast(ok ? (view ? t("fileManager.copiedView") : t("fileManager.copiedShare")) : t("common.copyFailed"), ok ? "success" : "error");
   }
 

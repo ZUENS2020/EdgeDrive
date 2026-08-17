@@ -39,7 +39,7 @@ import Typography from "@mui/material/Typography";
 import { useNotification } from "@refinedev/core";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { copyToClipboard } from "@/lib/clipboard";
+import { copyAbsoluteUrl } from "@/lib/clipboard";
 import { fileExpiryLabel } from "@/lib/format";
 import { tApiError } from "@/lib/i18n";
 import type { ShareKind, ShareLinkView, ShareStatus } from "@/lib/share";
@@ -132,11 +132,9 @@ export function ShareManager() {
     return () => window.clearTimeout(tmr);
   }, [createOpen, fileQ]);
 
-  const abs = (path: string) => `${window.location.origin}${path}`;
-
   async function copyPath(path: string | null, okMsg: string) {
     if (!path) return;
-    const ok = await copyToClipboard(abs(path));
+    const ok = await copyAbsoluteUrl(path);
     toast(ok ? okMsg : t("common.copyFailed"), ok ? "success" : "error");
   }
 

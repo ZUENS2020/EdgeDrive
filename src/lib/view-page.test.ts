@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fileKind, isInlineSafe, previewKind } from "./format";
-import { extractMermaidBlocks, renderViewPage, TEXT_PREVIEW_MAX_BYTES, viewPageClientJs } from "./view-page";
+import { extractMermaidBlocks, renderViewPage, TEXT_PREVIEW_MAX_BYTES, viewPageAbsoluteHrefs, viewPageClientJs } from "./view-page";
 import { publicThemeVars } from "./themes";
 import type { FileRow } from "./types";
 
@@ -154,5 +154,39 @@ describe("renderViewPage", () => {
     expect(html).not.toContain("<script>.mp3");
     expect(html).toContain("&lt;script&gt;.mp3");
     expect(html).toContain("<audio class=\"preview-media\" controls");
+  });
+
+  it("absolutizes relative admin preview hrefs used by 复制链接", () => {
+    const hrefs = viewPageAbsoluteHrefs({
+      origin: "https://dlp.zuens2020.work",
+      key: "a.txt",
+      downloadHref: "/api/files/abc/content",
+      inlineHref: "/api/files/abc/content?inline=1",
+      viewHref: "/api/files/abc/view",
+    });
+    expect(hrefs).toEqual({
+      download: "https://dlp.zuens2020.work/api/files/abc/content",
+      inline: "https://dlp.zuens2020.work/api/files/abc/content?inline=1",
+      view: "https://dlp.zuens2020.work/api/files/abc/view",
+    });
+    const html = renderViewPage({
+      origin: "https://dlp.zuens2020.work",
+      key: "a.txt",
+      meta: file({ id: "abc", name: "a.txt", mime: "text/plain" }),
+      theme,
+      downloadHref: "/api/files/abc/content",
+      inlineHref: "/api/files/abc/content?inline=1",
+      viewHref: "/api/files/abc/view",
+    });
+    expect(html).toContain('data-copy="https://dlp.zuens2020.work/api/files/abc/content"');
+    expect(html).toContain('data-copy="https://dlp.zuens2020.work/api/files/abc/view"');
+    expect(html).not.toMatch(/data-copy="\/api\/files/);
+    expect(html).toContain('href="https://dlp.zuens2020.work/api/files/abc/content"');
+  });
+
+  it("resolves relative clipboard targets against location.origin at click time", () => {
+    const js = viewPageClientJs();
+    expect(js).toContain("new URL(");
+    expect(js).toContain("location.origin");
   });
 });

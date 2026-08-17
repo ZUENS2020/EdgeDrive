@@ -2,7 +2,7 @@ import { fileExpiryLabel, formatSize, formatTime, isInlineSafe, previewKind, typ
 import { DEFAULT_LOCALE, htmlLang, parseLocale, t, type Locale } from "./i18n";
 import { PRODUCT_NAME, PRODUCT_SHORT } from "./product";
 import { escapeHtml } from "./sanitize";
-import { withSearch } from "./share-urls";
+import { originJoin, withSearch } from "./share-urls";
 import type { PublicThemeVars } from "./themes";
 import type { FileRow } from "./types";
 
@@ -150,6 +150,7 @@ export function viewPageClientJs(messages: ViewPageClientMessages = viewPageClie
     '    clearTimeout(n._t); n._t=setTimeout(function(){ n.style.display="none"; },1600);',
     "  }",
     "  function copy(text){",
+    "    try { text = new URL(text || location.href, location.origin).href; } catch (e) {}",
     "    function fallback(){",
     '      var ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select();',
     "      try{ document.execCommand(\"copy\"); toast(" +
@@ -280,12 +281,20 @@ export function extractMermaidBlocks(src: string): { markdown: string; blocks: s
   return { markdown, blocks };
 }
 
+export function viewPageAbsoluteHrefs(opts: Pick<
+  RenderViewPageOpts,
+  "origin" | "key" | "token" | "downloadHref" | "inlineHref" | "viewHref"
+>): { download: string; inline: string; view: string } {
+  const origin = (opts.origin || "").replace(/\/$/, "");
+  const download = originJoin(origin, opts.downloadHref || dlPath(origin, opts.key, opts.token));
+  const inline = originJoin(origin, opts.inlineHref || withSearch(download, { inline: "1" }));
+  const view = originJoin(origin, opts.viewHref || dlPath(origin, opts.key, opts.token, true));
+  return { download, inline, view };
+}
+
 export function renderViewPage(opts: RenderViewPageOpts): string {
   const locale = parseLocale(opts.locale);
-  const origin = opts.origin.replace(/\/$/, "");
-  const dl = opts.downloadHref || dlPath(origin, opts.key, opts.token);
-  const inline = opts.inlineHref || withSearch(dl, { inline: "1" });
-  const view = opts.viewHref || dlPath(origin, opts.key, opts.token, true);
+  const { download: dl, inline, view } = viewPageAbsoluteHrefs(opts);
   const kind = previewKind(opts.meta.name, opts.meta.mime);
   const theme = opts.theme;
   const dark = theme?.dark ?? true;

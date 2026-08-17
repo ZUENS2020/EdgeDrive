@@ -1,3 +1,5 @@
+import { originJoin } from "./share-urls";
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
@@ -21,4 +23,9 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Copy a share/preview/download URL as an absolute http(s) link. */
+export async function copyAbsoluteUrl(path: string, origin = typeof window !== "undefined" ? window.location.origin : ""): Promise<boolean> {
+  return copyToClipboard(originJoin(origin, path));
 }

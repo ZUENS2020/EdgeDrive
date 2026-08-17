@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { parseLocale } from "@/lib/i18n";
 import { DEFAULTS, getSettings } from "@/lib/settings";
-import { adminFileContentPath, adminFileViewPath, withSearch } from "@/lib/share-urls";
+import { adminFileContentPath, adminFileViewPath, originJoin, requestOrigin, withSearch } from "@/lib/share-urls";
 import { getFileById } from "@/lib/store";
 import { publicThemeVars } from "@/lib/themes";
 import { fileKey, isExpired } from "@/lib/types";
@@ -31,16 +31,17 @@ export async function GET(
     // ignore
   }
   const locale = parseLocale(settings.language);
-  const content = adminFileContentPath(id);
+  const origin = requestOrigin(request);
+  const content = originJoin(origin, adminFileContentPath(id));
   const html = renderViewPage({
-    origin: request.nextUrl.origin,
+    origin,
     key: fileKey(meta.path, meta.name),
     meta,
     theme: publicThemeVars(settings.theme_name),
     locale,
     downloadHref: content,
     inlineHref: withSearch(content, { inline: "1" }),
-    viewHref: adminFileViewPath(id),
+    viewHref: originJoin(origin, adminFileViewPath(id)),
   });
   return new Response(html, {
     status: 200,

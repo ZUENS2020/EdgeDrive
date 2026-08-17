@@ -5,6 +5,7 @@ import { getDB } from "@/lib/cloudflare";
 import { parseLocale, t } from "@/lib/i18n";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { evaluateShareAccess, getShareLink, sharePackOnly } from "@/lib/share";
+import { requestOrigin } from "@/lib/share-urls";
 import { DL_CORS, dlText } from "@/lib/serve-r2";
 import { publicThemeVars } from "@/lib/themes";
 
@@ -62,7 +63,7 @@ async function handle(
 
   const autoDownload = request.nextUrl.searchParams.get("mode") === "download";
   const html = renderBatchPage({
-    origin: request.nextUrl.origin,
+    origin: requestOrigin(request),
     files: resolved.files,
     expiresAt: resolved.batch.expires_at,
     autoDownload,

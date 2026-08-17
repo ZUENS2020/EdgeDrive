@@ -45,6 +45,22 @@ describe("GET /api/files", () => {
       expect.objectContaining({ filter: "trash", tag: "合同" }),
     );
   });
+
+  it("uses forwarded host as the public origin for file urls", async () => {
+    const res = await GET(
+      new Request("http://localhost:8787/api/files", {
+        headers: {
+          host: "localhost:8787",
+          "x-forwarded-host": "dlp.zuens2020.work",
+          "x-forwarded-proto": "https",
+        },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(listFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ origin: "https://dlp.zuens2020.work" }),
+    );
+  });
 });
 
 describe("PATCH /api/files", () => {

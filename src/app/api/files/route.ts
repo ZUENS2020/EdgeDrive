@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { getFileById, listFiles, moveFiles, setFileStarred, setFileTags } from "@/lib/store";
 import { parseFileListFilter } from "@/lib/files-query";
 import { getSettings } from "@/lib/settings";
+import { requestOrigin } from "@/lib/share-urls";
 import { serializeTags } from "@/lib/tags";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
   const pageSize = Number(url.searchParams.get("pageSize") || settings.page_size);
   const filter = parseFileListFilter(url.searchParams.get("filter"));
   const data = await listFiles({
-    origin: url.origin,
+    origin: requestOrigin(request),
     path: url.searchParams.has("path") ? url.searchParams.get("path") || "" : undefined,
     q: url.searchParams.get("q") || undefined,
     page,
