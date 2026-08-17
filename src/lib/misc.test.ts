@@ -13,12 +13,12 @@ describe("d1 schema helpers", () => {
   });
 
   it("treats missing version as untracked and old as stale", () => {
-    expect(EXPECTED_SCHEMA_VERSION).toBe(16);
-    expect(evaluateSchemaVersion(undefined, 16)).toBe("untracked");
-    expect(evaluateSchemaVersion("", 16)).toBe("untracked");
-    expect(evaluateSchemaVersion("15", 16)).toBe("stale");
-    expect(evaluateSchemaVersion("16", 16)).toBe("ok");
-    expect(evaluateSchemaVersion("17", 16)).toBe("ok");
+    expect(EXPECTED_SCHEMA_VERSION).toBe(17);
+    expect(evaluateSchemaVersion(undefined, 17)).toBe("untracked");
+    expect(evaluateSchemaVersion("", 17)).toBe("untracked");
+    expect(evaluateSchemaVersion("16", 17)).toBe("stale");
+    expect(evaluateSchemaVersion("17", 17)).toBe("ok");
+    expect(evaluateSchemaVersion("18", 17)).toBe("ok");
   });
 
   it("bootstrap SQL includes drive enhancements (migration 0011)", () => {
@@ -60,6 +60,12 @@ describe("d1 schema helpers", () => {
   it("bootstrap SQL includes allow_download (migration 0016)", () => {
     expect(D1_BOOTSTRAP_SQL).toContain("allow_download");
     expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '16'/);
+  });
+
+  it("bootstrap SQL includes share_short_codes (migration 0017)", () => {
+    expect(D1_BOOTSTRAP_SQL).toContain("CREATE TABLE IF NOT EXISTS share_short_codes");
+    expect(D1_BOOTSTRAP_SQL).toContain("copy_download");
+    expect(D1_BOOTSTRAP_SQL).toMatch(/schema_version', '17'/);
   });
 });
 

@@ -37,7 +37,6 @@ export type ShareCreateValues = {
   expireN: string;
   expireUnit: "hours" | "days";
   expireUntil: string;
-  short: boolean;
 };
 
 export const DEFAULT_SHARE_CREATE: ShareCreateValues = {
@@ -49,7 +48,6 @@ export const DEFAULT_SHARE_CREATE: ShareCreateValues = {
   expireN: "24",
   expireUnit: "hours",
   expireUntil: "",
-  short: false,
 };
 
 export function ShareAccessSwitches({
@@ -91,11 +89,9 @@ export function ShareAccessSwitches({
 export function ShareCreateFields({
   values,
   onChange,
-  showShort,
 }: {
   values: ShareCreateValues;
   onChange: (next: ShareCreateValues) => void;
-  showShort?: boolean;
 }) {
   const { t } = useI18n();
   const expirePreview = useMemo(() => {
@@ -188,15 +184,6 @@ export function ShareCreateFields({
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
         {expirePreview}
       </Typography>
-      {showShort ? (
-        <FormControlLabel
-          control={
-            <Switch checked={values.short} onChange={(_, v) => onChange({ ...values, short: v })} />
-          }
-          label={t("sharePage.makeShort")}
-          sx={{ mt: 1 }}
-        />
-      ) : null}
     </>
   );
 }
@@ -206,7 +193,6 @@ export function CreateShareDialog({
   onClose,
   ids,
   names,
-  showShort,
   children,
   onSuccess,
 }: {
@@ -214,7 +200,6 @@ export function CreateShareDialog({
   onClose: () => void;
   ids: string[];
   names?: string[];
-  showShort?: boolean;
   children?: ReactNode;
   onSuccess?: () => void;
 }) {
@@ -251,7 +236,6 @@ export function CreateShareDialog({
       expireN: values.expireN,
       expireUnit: values.expireUnit,
       expireUntil: values.expireUntil,
-      short: showShort ? values.short : false,
     });
     if (!built.ok) {
       const key =
@@ -322,7 +306,7 @@ export function CreateShareDialog({
             <Typography variant="body2" sx={{ mt: children ? 1.5 : 0.5, fontWeight: 600 }}>
               {summary}
             </Typography>
-            <ShareCreateFields values={values} onChange={setValues} showShort={showShort} />
+            <ShareCreateFields values={values} onChange={setValues} />
           </>
         )}
       </DialogContent>

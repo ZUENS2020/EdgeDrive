@@ -214,6 +214,22 @@ describe("renderViewPage", () => {
     expect(html).toContain("复制预览链接");
   });
 
+  it("copies short /s/ URLs when copy hrefs are provided", () => {
+    const html = renderViewPage({
+      origin: "https://edgedrive.example",
+      key: "a.txt",
+      meta: file({ id: "1", name: "a.txt", mime: "text/plain" }),
+      theme,
+      token: "tok",
+      copyDownloadHref: "/s/Ab12Cd",
+      copyViewHref: "/s/Xy98Zq",
+    });
+    expect(html).toContain('data-copy="https://edgedrive.example/s/Ab12Cd"');
+    expect(html).toContain('data-copy="https://edgedrive.example/s/Xy98Zq"');
+    expect(html).toContain('href="https://edgedrive.example/dl/a.txt?t=tok"');
+    expect(html).not.toMatch(/data-copy="https:\/\/edgedrive\.example\/dl\//);
+  });
+
   it("resolves relative clipboard targets against location.origin at click time", () => {
     const js = viewPageClientJs();
     expect(js).toContain("new URL(");

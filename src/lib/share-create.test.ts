@@ -47,7 +47,6 @@ describe("buildShareCreateBody", () => {
       expireMode: "dur",
       expireN: "12",
       expireUnit: "hours",
-      short: true,
     });
     expect(built.ok).toBe(true);
     if (!built.ok) return;
@@ -59,7 +58,6 @@ describe("buildShareCreateBody", () => {
       password: "secret",
       max_downloads: 3,
       hours: 12,
-      short: true,
     });
   });
 

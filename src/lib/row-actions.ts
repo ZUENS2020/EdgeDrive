@@ -1,6 +1,8 @@
 export const ROW_ACTION_IDS = [
   "download",
   "preview",
+  "copy_download",
+  "copy_preview",
   "share",
   "expire",
   "star",
@@ -11,11 +13,12 @@ export const ROW_ACTION_IDS = [
 
 export type RowActionId = (typeof ROW_ACTION_IDS)[number];
 
-/** Current inline toolbar — keep as default so existing installs look the same. */
+/** Inline toolbar: copy download/preview sit on the row; New share stays in ⋮ / context menu. */
 export const DEFAULT_ROW_ACTIONS: RowActionId[] = [
   "download",
   "preview",
-  "share",
+  "copy_download",
+  "copy_preview",
   "expire",
   "delete",
 ];
@@ -28,7 +31,8 @@ export function isRowActionId(value: string): value is RowActionId {
 
 function aliasRowAction(raw: string): string {
   const id = raw.trim();
-  if (id === "copy_link" || id === "copy_view_link") return "share";
+  if (id === "copy_link") return "copy_download";
+  if (id === "copy_view_link") return "copy_preview";
   return id;
 }
 

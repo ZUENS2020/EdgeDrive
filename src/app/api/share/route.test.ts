@@ -51,7 +51,7 @@ describe("POST /api/share", () => {
     expect(createShare).not.toHaveBeenCalled();
   });
 
-  it("creates a file share and returns long/view urls", async () => {
+  it("creates a file share and returns short copy urls", async () => {
     requireAdmin.mockResolvedValue({ ok: true });
     getDB.mockResolvedValue({});
     createShare.mockResolvedValue({
@@ -59,21 +59,25 @@ describe("POST /api/share", () => {
       token: "tok",
       kind: "file",
       url: "/dl/a.txt?t=tok",
-      viewUrl: "/dl/a.txt/view?t=tok",
-      downloadUrl: "/dl/a.txt?t=tok",
-      shortUrl: null,
-      shortCode: null,
+      viewUrl: "/s/Xy98Zq",
+      downloadUrl: "/s/Ab12Cd",
+      shortUrl: "/s/Ab12Cd",
+      shortCode: "Ab12Cd",
       count: 1,
       expiresAt: null,
       reused: false,
       hasPassword: false,
+      allowDownload: true,
+      allowPreview: true,
     });
     const res = await POST(jsonRequest({ kind: "file", ids: ["1"] }));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
       token: "tok",
       url: "/dl/a.txt?t=tok",
-      viewUrl: "/dl/a.txt/view?t=tok",
+      viewUrl: "/s/Xy98Zq",
+      downloadUrl: "/s/Ab12Cd",
+      shortUrl: "/s/Ab12Cd",
     });
   });
 });

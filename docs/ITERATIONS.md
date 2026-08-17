@@ -1,3 +1,25 @@
+# EdgeDrive 第二十三轮迭代（R23 · 2026-08-17）
+
+## 目标
+
+全短链：创建分享自动生成下载/预览两条 `/s/{code}`；所有复制入口只出短链（长链 `/dl/...` 仍可访问但不展示）。行内直放「复制下载」「复制预览」图标；删除「复制链接」；row_actions 同步为 `copy_download` / `copy_preview`。
+
+## 改动
+
+- 迁移 0017：`share_short_codes(code, token, mode)`，下载码与预览码各一条；默认行操作改为 `copy_download` / `copy_preview`
+- 创建分享始终分配两个 6–8 位 base62 短码（查重 `share_links.short_code` + `share_short_codes.code`）
+- `/s/{code}`：mode 短码分别 302 到下载/预览落地；权限关闭则 404；旧 `share_links.short_code` 仍走原落地；`/dl?...` 长链兼容
+- 行内图标：复制下载 / 复制预览（不藏右键）；「新建分享」留在 ⋮ / 右键；设置页勾选项同步
+- 新建分享成功面板、分享页复制、公开预览页「复制*」均输出短链
+
+## 验证
+
+- `npm test`：42 files / 278 tests 全绿
+- `tsc --noEmit`（`noUnusedLocals`）通过
+- `npm run build` 通过
+
+---
+
 # EdgeDrive 第二十二轮迭代（R22 · 2026-08-17）
 
 ## 目标

@@ -7,9 +7,9 @@ import {
   shouldCountDownload,
 } from "@/lib/download-count";
 import { looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
-import { requestOrigin } from "@/lib/share-urls";
+import { authorizeFileShare, getShareModeCodes, shareAllowsDownload } from "@/lib/share";
+import { requestOrigin, shortSharePath } from "@/lib/share-urls";
 import { DEFAULTS, getSettings } from "@/lib/settings";
-import { authorizeFileShare, shareAllowsDownload } from "@/lib/share";
 import { dlText, DL_CORS, serveR2Object } from "@/lib/serve-r2";
 import { getFileByKey } from "@/lib/store";
 import { publicThemeVars } from "@/lib/themes";
@@ -106,6 +106,7 @@ async function handle(
 
   if (view) {
     const themeVars = publicThemeVars(settings.theme_name);
+    const codes = await getShareModeCodes(db, gate.link.token);
     const html = renderViewPage({
       origin: requestOrigin(request),
       key,
@@ -114,6 +115,8 @@ async function handle(
       locale,
       token: gate.link.token,
       allowDownload: shareAllowsDownload(gate.link),
+      copyDownloadHref: codes.download ? shortSharePath(codes.download) : undefined,
+      copyViewHref: codes.view ? shortSharePath(codes.view) : undefined,
     });
     return new Response(headOnly ? null : html, {
       status: 200,

@@ -1,9 +1,11 @@
 "use client";
 
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DownloadIcon from "@mui/icons-material/Download";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
+import FindInPageIcon from "@mui/icons-material/FindInPage";
 import IosShareIcon from "@mui/icons-material/IosShare";
 import LabelIcon from "@mui/icons-material/Label";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -85,6 +87,26 @@ export function FileRowActions({ file, actions, trash, onAction }: Props) {
         return (
           <ActionBtn key={id} title={t("rowAction.preview")} href={file.adminViewUrl}>
             <PreviewIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "copy_download":
+        return (
+          <ActionBtn
+            key={id}
+            title={t("rowAction.copy_download")}
+            onClick={() => onAction(file, { type: "copy_download" })}
+          >
+            <ContentCopyIcon fontSize="small" />
+          </ActionBtn>
+        );
+      case "copy_preview":
+        return (
+          <ActionBtn
+            key={id}
+            title={t("rowAction.copy_preview")}
+            onClick={() => onAction(file, { type: "copy_preview" })}
+          >
+            <FindInPageIcon fontSize="small" />
           </ActionBtn>
         );
       case "share":

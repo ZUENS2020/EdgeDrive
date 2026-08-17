@@ -23,22 +23,30 @@ describe("parseRowActions", () => {
   });
 
   it("parses the migration default JSON", () => {
+    expect(ROW_ACTION_IDS).toContain("copy_download");
+    expect(ROW_ACTION_IDS).toContain("copy_preview");
     expect(DEFAULT_ROW_ACTIONS).toEqual([
       "download",
       "preview",
-      "share",
+      "copy_download",
+      "copy_preview",
       "expire",
       "delete",
     ]);
     expect(serializeRowActions(DEFAULT_ROW_ACTIONS)).toBe(
-      '["download","preview","share","expire","delete"]',
+      '["download","preview","copy_download","copy_preview","expire","delete"]',
     );
     expect(parseRowActions('["download","preview","copy_link","copy_view_link","expire","delete"]')).toEqual(
       DEFAULT_ROW_ACTIONS,
     );
-    expect(parseRowActions('["download","preview","share","copy_view_link","expire","delete"]')).toEqual(
-      DEFAULT_ROW_ACTIONS,
-    );
+    expect(parseRowActions('["download","preview","share","copy_view_link","expire","delete"]')).toEqual([
+      "download",
+      "preview",
+      "share",
+      "copy_preview",
+      "expire",
+      "delete",
+    ]);
     expect(serializeRowActions([])).toBe("[]");
   });
 
@@ -63,14 +71,16 @@ describe("setRowActionEnabled", () => {
     expect(next).toEqual([
       "download",
       "preview",
-      "share",
+      "copy_download",
+      "copy_preview",
       "expire",
       "star",
       "delete",
     ]);
     expect(setRowActionEnabled(next, "download", false)).toEqual([
       "preview",
-      "share",
+      "copy_download",
+      "copy_preview",
       "expire",
       "star",
       "delete",

@@ -6,6 +6,7 @@ const getSettings = vi.fn();
 const getDB = vi.fn();
 const getR2 = vi.fn();
 const authorizeFileShare = vi.fn();
+const getShareModeCodes = vi.fn();
 const scheduleDownloadIncrement = vi.fn();
 const scheduleShareDownloadIncrement = vi.fn();
 const scheduleShareFileCountIncrement = vi.fn();
@@ -29,6 +30,7 @@ vi.mock("@/lib/share", async () => {
   return {
     ...actual,
     authorizeFileShare: (...args: unknown[]) => authorizeFileShare(...args),
+    getShareModeCodes: (...args: unknown[]) => getShareModeCodes(...args),
   };
 });
 
@@ -67,12 +69,14 @@ describe("GET /dl/[...path]", () => {
     getDB.mockReset();
     getR2.mockReset();
     authorizeFileShare.mockReset();
+    getShareModeCodes.mockReset();
     scheduleDownloadIncrement.mockReset();
     scheduleShareDownloadIncrement.mockReset();
     scheduleShareFileCountIncrement.mockReset();
     getSettings.mockResolvedValue({ theme_name: "default", language: "zh" });
     getDB.mockResolvedValue({});
     getFileByKey.mockResolvedValue(meta);
+    getShareModeCodes.mockResolvedValue({ download: null, view: null });
   });
 
   it("404s old direct links without a token", async () => {
@@ -170,6 +174,24 @@ describe("GET /dl/[...path]", () => {
     expect(html).toContain('data-copy="https://dlp.zuens2020.work/dl/docs/a.txt?t=tok"');
     expect(html).toContain('data-copy="https://dlp.zuens2020.work/dl/docs/a.txt/view?t=tok"');
     expect(html).not.toMatch(/data-copy="\/dl\//);
+  });
+
+  it("copies short /s/ links on the public view page when mode codes exist", async () => {
+    authorizeFileShare.mockResolvedValue({
+      status: 200,
+      link: { token: "tok", kind: "file" },
+      countShare: false,
+    });
+    getShareModeCodes.mockResolvedValue({ download: "Ab12Cd", view: "Xy98Zq" });
+    getFileByKey.mockImplementation(async (key: string) => (key === "docs/a.txt" ? meta : null));
+    const req = new NextRequest("https://dlp.zuens2020.work/dl/docs/a.txt/view?t=tok");
+    const res = await GET(req, { params: Promise.resolve({ path: ["docs", "a.txt", "view"] }) });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('data-copy="https://dlp.zuens2020.work/s/Ab12Cd"');
+    expect(html).toContain('data-copy="https://dlp.zuens2020.work/s/Xy98Zq"');
+    expect(html).not.toMatch(/data-copy="https:\/\/dlp\.zuens2020\.work\/dl\//);
+    expect(html).toContain('href="https://dlp.zuens2020.work/dl/docs/a.txt?t=tok"');
   });
 
   it("passes inline=1 through to authorizeFileShare", async () => {

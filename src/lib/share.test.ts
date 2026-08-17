@@ -9,10 +9,12 @@ import {
   deleteShareLink,
   evaluateShareAccess,
   getShareLink,
+  getShareModeCodes,
   incrementShareDownload,
   incrementShareFileCount,
   listShareLinks,
   patchShare,
+  resolveShortShareRedirect,
   shareAllowsDownload,
   shareAllowsFile,
   shareCopyPaths,
@@ -53,6 +55,7 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
     ]),
   );
   const fileCounts = new Map<string, number>();
+  const shortCodes = new Map<string, { code: string; token: string; mode: string }>();
 
   function countKey(token: string, fileId: string) {
     return `${token}\t${fileId}`;
@@ -88,6 +91,10 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
                 if (n == null) return null;
                 return { count: n } as T;
               }
+              if (normalized.includes("FROM share_short_codes") && normalized.includes("WHERE code")) {
+                const hit = shortCodes.get(String(args[0]));
+                return (hit ?? null) as T;
+              }
               if (normalized.includes("FROM share_links") && normalized.includes("WHERE token")) {
                 const row = links.get(String(args[0]));
                 if (!row) return null;
@@ -104,6 +111,11 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
               return null;
             },
             async all<T>() {
+              if (normalized.includes("FROM share_short_codes") && normalized.includes("WHERE token")) {
+                const token = String(args[0]);
+                const results = [...shortCodes.values()].filter((row) => row.token === token);
+                return { results: results as T[] };
+              }
               if (normalized.includes("FROM files") && normalized.includes("id IN")) {
                 const results = args
                   .map((id) => files.get(String(id)))
@@ -131,6 +143,14 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
                 const token = String(args[0]);
                 for (const key of [...fileCounts.keys()]) {
                   if (key.startsWith(`${token}\t`)) fileCounts.delete(key);
+                }
+              } else if (normalized.startsWith("INSERT INTO share_short_codes")) {
+                const code = String(args[0]);
+                shortCodes.set(code, { code, token: String(args[1]), mode: String(args[2]) });
+              } else if (normalized.startsWith("DELETE FROM share_short_codes")) {
+                const token = String(args[0]);
+                for (const [code, row] of [...shortCodes.entries()]) {
+                  if (row.token === token) shortCodes.delete(code);
                 }
               } else if (normalized.startsWith("INSERT INTO share_links")) {
                 const token = String(args[0]);
@@ -206,6 +226,16 @@ describe("0016 share_links allow_download", () => {
   });
 });
 
+describe("0017 share_short_codes", () => {
+  it("adds mode-specific short codes and inline copy row actions", () => {
+    const sql = readFileSync(path.join(process.cwd(), "migrations/0017_share_short_codes.sql"), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS share_short_codes");
+    expect(sql).toContain("UNIQUE (token, mode)");
+    expect(sql).toContain("schema_version', '17'");
+    expect(sql).toContain('["download","preview","copy_download","copy_preview","expire","delete"]');
+  });
+});
+
 describe("createShare / multi-link", () => {
   const now = new Date("2026-08-17T00:00:00.000Z");
 
@@ -220,8 +250,9 @@ describe("createShare / multi-link", () => {
     expect(locked.hasPassword).toBe(true);
     expect(open.hasPassword).toBe(false);
     expect(limited.url).toContain("/view?t=");
-    expect(limited.downloadUrl).toContain("/dl/docs/a.txt?t=");
-    expect(open.viewUrl).toContain("/view?t=");
+    expect(limited.downloadUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(open.viewUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(limited.downloadUrl).not.toBe(limited.viewUrl);
     const listed = await listShareLinks(db);
     expect(listed).toHaveLength(3);
     expect(new Set(listed.map((l) => l.token)).size).toBe(3);
@@ -247,15 +278,17 @@ describe("createShare / multi-link", () => {
     expect(second.token).not.toBe(first.token);
   });
 
-  it("creates batch links and optional short codes", async () => {
+  it("creates batch links and always mints download/preview short codes", async () => {
     const db = memoryShare({
       files: [file({ id: "1", name: "a.txt" }), file({ id: "2", name: "b.txt" })],
     });
-    const created = await createShare(db, { kind: "batch", ids: ["1", "2"], short: true }, now);
+    const created = await createShare(db, { kind: "batch", ids: ["1", "2"] }, now);
     expect(created.ok).toBe(true);
     if (!created.ok) return;
     expect(created.url).toMatch(/^\/dl\/batch\//);
-    expect(created.downloadUrl).toContain("mode=download");
+    expect(created.downloadUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.viewUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.downloadUrl).not.toBe(created.viewUrl);
     expect(created.shortCode).toMatch(/^[0-9A-Za-z]{6,8}$/);
     expect(created.shortUrl).toBe(`/s/${created.shortCode}`);
   });
@@ -530,9 +563,9 @@ describe("share access / password / short", () => {
     expect(created.url).toContain("/view?t=");
     expect(created.allowDownload).toBe(false);
     expect(created.allowPreview).toBe(true);
-    expect(created.downloadUrl).toContain("/dl/a.txt?t=");
-    expect(created.downloadUrl).not.toContain("/view");
-    expect(created.viewUrl).toContain("/view?t=");
+    expect(created.downloadUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.viewUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.downloadUrl).not.toBe(created.viewUrl);
     const view = await authorizeFileShare(db, {
       fileId: "1",
       token: created.token,
@@ -569,9 +602,9 @@ describe("share access / password / short", () => {
     expect(created.ok).toBe(true);
     if (!created.ok) return;
     expect(created.url).toContain("/dl/a.txt?t=");
-    expect(created.viewUrl).toContain("/view?t=");
-    expect(created.downloadUrl).toContain("/dl/a.txt?t=");
-    expect(created.downloadUrl).not.toContain("/view");
+    expect(created.viewUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.downloadUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.downloadUrl).not.toBe(created.viewUrl);
     expect(
       await authorizeFileShare(db, {
         fileId: "1",
@@ -601,8 +634,9 @@ describe("share access / password / short", () => {
     );
     expect(created.ok).toBe(true);
     if (!created.ok) return;
-    expect(created.downloadUrl).toContain("mode=download");
-    expect(created.viewUrl).toMatch(/^\/dl\/batch\//);
+    expect(created.downloadUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.viewUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.downloadUrl).not.toBe(created.viewUrl);
     const view = await authorizeFileShare(db, {
       fileId: "1",
       token: created.token,
@@ -647,6 +681,8 @@ describe("patchShare access flags / legacy links", () => {
     const copies = shareCopyPaths(link!, { path: "docs", name: "a.txt" });
     expect(copies.downloadUrl).toBe("/dl/docs/a.txt?t=" + created.token);
     expect(copies.viewUrl).toBe("/dl/docs/a.txt/view?t=" + created.token);
+    expect(created.downloadUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
+    expect(created.viewUrl).toMatch(/^\/s\/[0-9A-Za-z]{6,8}$/);
     const view = toShareView(link!, [file({ id: "1", name: "a.txt", path: "docs" })], now.getTime());
     expect(view.downloadUrl).toBe(copies.downloadUrl);
     expect(view.viewUrl).toBe(copies.viewUrl);
@@ -773,5 +809,110 @@ describe("patchShare access flags / legacy links", () => {
       nextPath: "/dl/a.txt?t=legacy",
     });
     expect(dl.status).toBe(200);
+  });
+});
+
+describe("short-code landings / copy URLs", () => {
+  const now = new Date("2026-08-17T12:00:00.000Z");
+
+  it("mints two distinct short codes and skips occupied ones", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt", path: "docs" })] });
+    const first = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    const second = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    const a = await getShareModeCodes(db, first.token);
+    const b = await getShareModeCodes(db, second.token);
+    const codes = [a.download, a.view, b.download, b.view];
+    expect(codes.every((c) => c && /^[0-9A-Za-z]{6,8}$/.test(c))).toBe(true);
+    expect(new Set(codes).size).toBe(4);
+  });
+
+  it("redirects download/preview shorts to the long landing and 404s when the flag is off", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt", path: "docs" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    if (!created.ok) throw new Error("create");
+    const codes = await getShareModeCodes(db, created.token);
+    const dl = await resolveShortShareRedirect(db, codes.download!, now.getTime());
+    const view = await resolveShortShareRedirect(db, codes.view!, now.getTime());
+    expect(dl).toEqual({ status: 302, location: `/dl/docs/a.txt?t=${created.token}` });
+    expect(view).toEqual({ status: 302, location: `/dl/docs/a.txt/view?t=${created.token}` });
+
+    await patchShare(db, created.token, { allow_download: 0 }, now);
+    expect(await resolveShortShareRedirect(db, codes.download!, now.getTime())).toEqual({ status: 404 });
+    expect(await resolveShortShareRedirect(db, codes.view!, now.getTime())).toMatchObject({
+      status: 302,
+      location: `/dl/docs/a.txt/view?t=${created.token}`,
+    });
+
+    await patchShare(db, created.token, { allow_download: 1, allow_preview: 0 }, now);
+    expect(await resolveShortShareRedirect(db, codes.view!, now.getTime())).toEqual({ status: 404 });
+    expect(await resolveShortShareRedirect(db, codes.download!, now.getTime())).toEqual({
+      status: 302,
+      location: `/dl/docs/a.txt?t=${created.token}`,
+    });
+  });
+
+  it("keeps a legacy /s/{short_code} landing and still serves the old long /dl URL", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt", path: "docs" })],
+      links: [
+        {
+          token: "legacyTok",
+          kind: "file",
+          target: "1",
+          password_hash: null,
+          max_downloads: null,
+          download_count: 0,
+          created_at: now.toISOString(),
+          expires_at: null,
+          revoked: 0,
+          short_code: "Ab12Cd",
+          fail_count: 0,
+          locked_until: null,
+          allow_preview: 1,
+          allow_download: 1,
+        },
+      ],
+    });
+    const landing = await resolveShortShareRedirect(db, "Ab12Cd", now.getTime());
+    expect(landing).toEqual({ status: 302, location: "/dl/docs/a.txt/view?t=legacyTok" });
+    const long = await authorizeFileShare(db, {
+      fileId: "1",
+      token: "legacyTok",
+      cookieHeader: null,
+      nextPath: "/dl/docs/a.txt?t=legacyTok",
+    });
+    expect(long.status).toBe(200);
+    expect(await resolveShortShareRedirect(db, "nope!!", now.getTime())).toEqual({ status: 404 });
+  });
+
+  it("410s a revoked short code", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"] }, now);
+    if (!created.ok) throw new Error("create");
+    const codes = await getShareModeCodes(db, created.token);
+    await patchShare(db, created.token, { revoked: true }, now);
+    expect(await resolveShortShareRedirect(db, codes.download!, now.getTime())).toMatchObject({
+      status: 410,
+      reason: "revoked",
+    });
+  });
+
+  it("batch download/preview shorts land on the batch page", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt" }), file({ id: "2", name: "b.txt" })],
+    });
+    const created = await createShare(db, { kind: "batch", ids: ["1", "2"] }, now);
+    if (!created.ok) throw new Error("create");
+    const codes = await getShareModeCodes(db, created.token);
+    expect(await resolveShortShareRedirect(db, codes.download!, now.getTime())).toEqual({
+      status: 302,
+      location: `/dl/batch/${created.token}?mode=download`,
+    });
+    expect(await resolveShortShareRedirect(db, codes.view!, now.getTime())).toEqual({
+      status: 302,
+      location: `/dl/batch/${created.token}`,
+    });
   });
 });

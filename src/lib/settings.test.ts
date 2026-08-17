@@ -114,7 +114,8 @@ describe("access settings in D1", () => {
     expect(settings.row_actions).toEqual([
       "download",
       "preview",
-      "share",
+      "copy_download",
+      "copy_preview",
       "expire",
       "delete",
     ]);

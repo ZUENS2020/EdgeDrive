@@ -53,6 +53,7 @@ import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { copyErrorMessage } from "@/lib/copy";
+import { copyAbsoluteUrl } from "@/lib/clipboard";
 import { isGlobalFileFilter, type FileListFilter } from "@/lib/files-query";
 import { folderDeleteConfirmMessage, folderDeleteConfirmTitle } from "@/lib/folder-delete-confirm";
 import { formatSize, formatTime } from "@/lib/format";
@@ -169,6 +170,39 @@ export function FileManager() {
     setShareOpen(true);
   }
 
+  async function copyShareShort(file: FileView, kind: "download" | "preview") {
+    try {
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "file", ids: [file.id], reuseDefault: true }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        downloadUrl?: string;
+        viewUrl?: string | null;
+      };
+      if (!res.ok) {
+        toast(tApiError(locale, data.error, "fileManager.shareFailed"), "error");
+        return;
+      }
+      const path = kind === "download" ? data.downloadUrl : data.viewUrl;
+      if (!path) {
+        toast(t("fileManager.shareFailed"), "error");
+        return;
+      }
+      const ok = await copyAbsoluteUrl(path);
+      toast(
+        ok
+          ? t(kind === "download" ? "fileManager.copiedDl" : "fileManager.copiedView")
+          : t("common.copyFailed"),
+        ok ? "success" : "error",
+      );
+    } catch {
+      toast(t("fileManager.shareFailed"), "error");
+    }
+  }
+
   async function batch(body: Record<string, unknown>) {
     const res = await fetch("/api/files/batch", {
       method: "POST",
@@ -246,6 +280,12 @@ export function FileManager() {
         return;
       case "share":
         openShare([file.id]);
+        return;
+      case "copy_download":
+        void copyShareShort(file, "download");
+        return;
+      case "copy_preview":
+        void copyShareShort(file, "preview");
         return;
       case "expire":
         setExpireIds([file.id]);

@@ -22,15 +22,24 @@ export function isShortCode(value: string): boolean {
   return /^[0-9A-Za-z]{6,8}$/.test(value);
 }
 
+export async function isShortCodeTaken(db: D1Database, code: string): Promise<boolean> {
+  const inLinks = await db
+    .prepare("SELECT token FROM share_links WHERE short_code = ?")
+    .bind(code)
+    .first<{ token: string }>();
+  if (inLinks) return true;
+  const inModes = await db
+    .prepare("SELECT token FROM share_short_codes WHERE code = ?")
+    .bind(code)
+    .first<{ token: string }>();
+  return Boolean(inModes);
+}
+
 export async function allocateShortCode(db: D1Database): Promise<string> {
   for (const len of [6, 7, 8]) {
     for (let i = 0; i < 8; i++) {
       const code = randomBase62(len);
-      const exists = await db
-        .prepare("SELECT token FROM share_links WHERE short_code = ?")
-        .bind(code)
-        .first<{ token: string }>();
-      if (!exists) return code;
+      if (!(await isShortCodeTaken(db, code))) return code;
     }
   }
   throw new Error("short-code-exhausted");

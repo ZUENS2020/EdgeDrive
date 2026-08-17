@@ -3,8 +3,8 @@
 import AddIcon from "@mui/icons-material/Add";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import FindInPageIcon from "@mui/icons-material/FindInPage";
 import IosShareIcon from "@mui/icons-material/IosShare";
-import LinkIcon from "@mui/icons-material/Link";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
 import TuneIcon from "@mui/icons-material/Tune";
@@ -49,7 +49,6 @@ import type { FileView } from "@/lib/types";
 import { CreateShareDialog, ShareAccessSwitches } from "./CreateShareDialog";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { useI18n } from "./I18nProvider";
-import { ShareCopyPanel } from "./ShareCopyPanel";
 
 type KindFilter = "all" | ShareKind;
 type StatusFilter = "all" | ShareStatus;
@@ -66,7 +65,6 @@ export function ShareManager() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [menu, setMenu] = useState<{ el: HTMLElement; link: ShareLinkView } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [copyFor, setCopyFor] = useState<ShareLinkView | null>(null);
   const [accessFor, setAccessFor] = useState<ShareLinkView | null>(null);
   const [accessDownload, setAccessDownload] = useState(true);
   const [accessPreview, setAccessPreview] = useState(true);
@@ -272,11 +270,23 @@ export function ShareManager() {
                 <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
                   <IconButton
                     size="small"
-                    title={t("sharePage.copyLinks")}
-                    aria-label={t("sharePage.copyLinks")}
-                    onClick={() => setCopyFor(link)}
+                    title={t("sharePage.copyDownload")}
+                    aria-label={t("sharePage.copyDownload")}
+                    disabled={!link.allow_download}
+                    onClick={() => void copyPath(link.downloadUrl, t("sharePage.copiedDownload"))}
                   >
                     <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    title={t("sharePage.copyPreview")}
+                    aria-label={t("sharePage.copyPreview")}
+                    disabled={!link.allow_preview || !link.viewUrl}
+                    onClick={() => {
+                      if (link.viewUrl) void copyPath(link.viewUrl, t("sharePage.copiedPreview"));
+                    }}
+                  >
+                    <FindInPageIcon fontSize="small" />
                   </IconButton>
                   <IconButton
                     size="small"
@@ -295,21 +305,13 @@ export function ShareManager() {
 
       <Menu open={Boolean(menu)} anchorEl={menu?.el} onClose={() => setMenu(null)}>
         <MenuItem
-          onClick={() => {
-            setCopyFor(menu?.link ?? null);
-            setMenu(null);
-          }}
-        >
-          <ContentCopyIcon fontSize="small" sx={{ mr: 1 }} />
-          {t("sharePage.copyLinks")}
-        </MenuItem>
-        <MenuItem
           disabled={!menu?.link.allow_download}
           onClick={() => {
             if (menu) void copyPath(menu.link.downloadUrl, t("sharePage.copiedDownload"));
             setMenu(null);
           }}
         >
+          <ContentCopyIcon fontSize="small" sx={{ mr: 1 }} />
           {t("sharePage.copyDownload")}
         </MenuItem>
         <MenuItem
@@ -319,36 +321,9 @@ export function ShareManager() {
             setMenu(null);
           }}
         >
+          <FindInPageIcon fontSize="small" sx={{ mr: 1 }} />
           {t("sharePage.copyPreview")}
         </MenuItem>
-        {menu?.link.shortUrl ? (
-          <MenuItem
-            onClick={() => {
-              if (menu) void copyPath(menu.link.shortUrl, t("sharePage.copiedShort"));
-              setMenu(null);
-            }}
-          >
-            <LinkIcon fontSize="small" sx={{ mr: 1 }} />
-            {t("sharePage.copyShort")}
-          </MenuItem>
-        ) : (
-          <MenuItem
-            onClick={() => {
-              const token = menu?.link.token;
-              setMenu(null);
-              if (!token) return;
-              void api(`/api/share/${encodeURIComponent(token)}/short`, { method: "POST" }).then(async (data) => {
-                if (!data) return;
-                toast(t("sharePage.shortened"));
-                if (data.shortUrl) await copyPath(data.shortUrl, t("sharePage.copiedShort"));
-                await load();
-              });
-            }}
-          >
-            <LinkIcon fontSize="small" sx={{ mr: 1 }} />
-            {t("sharePage.toShort")}
-          </MenuItem>
-        )}
         <MenuItem
           onClick={() => {
             const link = menu?.link ?? null;
@@ -450,7 +425,6 @@ export function ShareManager() {
         open={createOpen}
         ids={[...picked]}
         names={[...picked].map((id) => fileHits.find((f) => f.id === id)?.name || id)}
-        showShort
         onClose={() => setCreateOpen(false)}
         onSuccess={() => {
           setPicked(new Set());
@@ -504,27 +478,6 @@ export function ShareManager() {
           ))}
         </Stack>
       </CreateShareDialog>
-
-      <Dialog open={Boolean(copyFor)} onClose={() => setCopyFor(null)} fullWidth maxWidth="sm">
-        <DialogTitle>{t("sharePage.copyLinks")}</DialogTitle>
-        <DialogContent>
-          {copyFor ? (
-            <ShareCopyPanel
-              source={{
-                downloadUrl: copyFor.downloadUrl,
-                viewUrl: copyFor.viewUrl,
-                allowDownload: copyFor.allow_download,
-                allowPreview: copyFor.allow_preview,
-              }}
-            />
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button variant="contained" onClick={() => setCopyFor(null)}>
-            {t("sharePage.done")}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <Dialog open={Boolean(accessFor)} onClose={() => setAccessFor(null)} fullWidth maxWidth="xs">
         <DialogTitle>{t("sharePage.accessTitle")}</DialogTitle>

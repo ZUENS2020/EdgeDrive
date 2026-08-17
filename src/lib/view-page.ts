@@ -29,6 +29,8 @@ export type RenderViewPageOpts = {
   downloadHref?: string;
   inlineHref?: string;
   viewHref?: string;
+  copyDownloadHref?: string;
+  copyViewHref?: string;
   allowDownload?: boolean;
 };
 
@@ -301,6 +303,8 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
   const locale = parseLocale(opts.locale);
   const allowDownload = opts.allowDownload !== false;
   const { download: dl, inline, view } = viewPageAbsoluteHrefs(opts);
+  const copyDl = originJoin(opts.origin, opts.copyDownloadHref || dl);
+  const copyView = originJoin(opts.origin, opts.copyViewHref || view);
   const kind = previewKind(opts.meta.name, opts.meta.mime);
   const theme = opts.theme;
   const dark = theme?.dark ?? true;
@@ -322,9 +326,9 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
 
   const downloadBtn = allowDownload
     ? `<a class="btn" href="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.download"))}</a>
-      <button type="button" class="btn ghost" data-copy="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.copyDl"))}</button>`
+      <button type="button" class="btn ghost" data-copy="${escapeHtml(copyDl)}">${escapeHtml(t(locale, "viewPage.copyDl"))}</button>`
     : "";
-  const copyViewBtn = `<button type="button" class="btn ghost" data-copy="${escapeHtml(view)}">${escapeHtml(t(locale, "viewPage.copyView"))}</button>`;
+  const copyViewBtn = `<button type="button" class="btn ghost" data-copy="${escapeHtml(copyView)}">${escapeHtml(t(locale, "viewPage.copyView"))}</button>`;
   const unsupported =
     kind === "none"
       ? `<p class="hint">${escapeHtml(t(locale, allowDownload ? "viewPage.unsupported" : "viewPage.unsupportedNoDl"))}</p>`

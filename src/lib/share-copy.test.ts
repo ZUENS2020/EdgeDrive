@@ -14,6 +14,20 @@ describe("shareCopyRows", () => {
     ]);
   });
 
+  it("uses short /s/ paths for copy output", () => {
+    expect(
+      shareCopyRows({
+        downloadUrl: "/s/Ab12Cd",
+        viewUrl: "/s/Xy98Zq",
+        allowDownload: true,
+        allowPreview: true,
+      }),
+    ).toEqual([
+      { kind: "download", path: "/s/Ab12Cd", enabled: true },
+      { kind: "preview", path: "/s/Xy98Zq", enabled: true },
+    ]);
+  });
+
   it("keeps the download path visible but disabled when allow_download=0", () => {
     expect(shareCopyRows({ ...both, allowDownload: false, allowPreview: true })).toEqual([
       { kind: "download", path: both.downloadUrl, enabled: false },

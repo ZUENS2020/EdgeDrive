@@ -12,7 +12,6 @@ export type ShareCreateInput = {
   expireN?: string;
   expireUnit?: "hours" | "days";
   expireUntil?: string;
-  short?: boolean;
 };
 
 export type ShareCreateBodyErr = "need-ids" | "need-access" | "invalid-expire" | "invalid-max";
@@ -57,7 +56,6 @@ export function buildShareCreateBody(
     if (!Number.isFinite(n) || n < 1) return { ok: false, error: "invalid-max" };
     body.max_downloads = Math.floor(n);
   }
-  if (input.short) body.short = true;
   const mode = input.expireMode || "none";
   if (mode === "perm") {
     body.permanent = true;

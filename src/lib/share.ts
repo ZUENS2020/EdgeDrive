@@ -13,7 +13,7 @@ import {
   verifySharePassword,
   verifyUnlockCookie,
 } from "./share-password";
-import { allocateShortCode, generateShareToken } from "./share-token";
+import { allocateShortCode, generateShareToken, isShortCode } from "./share-token";
 import { batchSharePaths, fileLongPath, passwordPagePath, shortSharePath } from "./share-urls";
 import { isExpired, type FileRow } from "./types";
 
@@ -51,6 +51,8 @@ export type ShareLinkView = {
   expires_at: string | null;
   revoked: boolean;
   short_code: string | null;
+  download_short_code: string | null;
+  preview_short_code: string | null;
   url: string;
   viewUrl: string | null;
   downloadUrl: string;
@@ -94,6 +96,17 @@ export type CreateShareOk = {
 
 export type CreateShareErr = { ok: false; status: number; error: string };
 export type CreateShareResult = CreateShareOk | CreateShareErr;
+
+export type ShareShortMode = "download" | "view";
+
+export type ShareModeCodes = {
+  download: string | null;
+  view: string | null;
+};
+
+export function isShareShortMode(value: unknown): value is ShareShortMode {
+  return value === "download" || value === "view";
+}
 
 const SHARE_COLS =
   "token, kind, target, password_hash, max_downloads, download_count, created_at, expires_at, revoked, short_code, fail_count, locked_until, allow_preview, allow_download";
@@ -196,6 +209,72 @@ export async function getShareLinkByShortCode(db: D1Database, code: string): Pro
   return row ? normalizeShareLink(row) : null;
 }
 
+export async function getShareShortByCode(
+  db: D1Database,
+  code: string,
+): Promise<{ code: string; token: string; mode: ShareShortMode } | null> {
+  const trimmed = (code || "").trim();
+  if (!trimmed) return null;
+  const row = await db
+    .prepare("SELECT code, token, mode FROM share_short_codes WHERE code = ?")
+    .bind(trimmed)
+    .first<{ code: string; token: string; mode: string }>();
+  if (!row || !isShareShortMode(row.mode)) return null;
+  return { code: row.code, token: row.token, mode: row.mode };
+}
+
+export async function getShareModeCodes(db: D1Database, token: string): Promise<ShareModeCodes> {
+  const rows = await db
+    .prepare("SELECT code, mode FROM share_short_codes WHERE token = ?")
+    .bind(token)
+    .all<{ code: string; mode: string }>();
+  const out: ShareModeCodes = { download: null, view: null };
+  for (const row of rows.results || []) {
+    if (row.mode === "download") out.download = row.code;
+    else if (row.mode === "view") out.view = row.code;
+  }
+  return out;
+}
+
+async function insertShareModeCode(
+  db: D1Database,
+  code: string,
+  token: string,
+  mode: ShareShortMode,
+): Promise<void> {
+  await db
+    .prepare("INSERT INTO share_short_codes (code, token, mode) VALUES (?, ?, ?)")
+    .bind(code, token, mode)
+    .run();
+}
+
+export async function ensureShareModeCodes(
+  db: D1Database,
+  token: string,
+): Promise<{ ok: true; download: string; view: string } | { ok: false; status: number; error: string }> {
+  const existing = await getShareLink(db, token);
+  if (!existing) return { ok: false, status: 404, error: "not found" };
+  const current = await getShareModeCodes(db, token);
+  let download = current.download;
+  let view = current.view;
+  try {
+    if (!download) {
+      download = await allocateShortCode(db);
+      await insertShareModeCode(db, download, token, "download");
+    }
+    if (!view) {
+      view = await allocateShortCode(db);
+      await insertShareModeCode(db, view, token, "view");
+    }
+  } catch {
+    return { ok: false, status: 500, error: "short-code-exhausted" };
+  }
+  if (!existing.short_code) {
+    await db.prepare("UPDATE share_links SET short_code = ? WHERE token = ?").bind(download, token).run();
+  }
+  return { ok: true, download, view };
+}
+
 export async function insertShareLink(db: D1Database, row: ShareLink): Promise<void> {
   await db
     .prepare(
@@ -249,6 +328,7 @@ export async function deleteShareLink(db: D1Database, token: string): Promise<bo
   const existing = await getShareLink(db, token);
   if (!existing) return false;
   await db.prepare("DELETE FROM share_file_counts WHERE token = ?").bind(token).run();
+  await db.prepare("DELETE FROM share_short_codes WHERE token = ?").bind(token).run();
   await db.prepare("DELETE FROM share_links WHERE token = ?").bind(token).run();
   return true;
 }
@@ -285,16 +365,26 @@ export function shareCopyPaths(
   };
 }
 
-export function toShareView(link: ShareLink, files: FileRow[], now = Date.now()): ShareLinkView {
+export function toShareView(
+  link: ShareLink,
+  files: FileRow[],
+  now = Date.now(),
+  codes: ShareModeCodes = { download: null, view: null },
+): ShareLinkView {
   const ids = targetIds(link);
   const status = shareStatus(link, now);
   const file = files[0];
   const allowPreview = shareAllowsPreview(link);
   const allowDownload = shareAllowsDownload(link);
-  const copies = shareCopyPaths(link, file);
+  const longCopies = shareCopyPaths(link, file);
   const url = shareLandingPath(link, file);
-  const viewUrl = copies.viewUrl;
-  const downloadUrl = copies.downloadUrl;
+  const downloadUrl = codes.download ? shortSharePath(codes.download) : longCopies.downloadUrl;
+  const viewUrl = codes.view ? shortSharePath(codes.view) : longCopies.viewUrl;
+  const shortUrl = codes.download
+    ? shortSharePath(codes.download)
+    : link.short_code
+      ? shortSharePath(link.short_code)
+      : null;
   return {
     token: link.token,
     kind: link.kind,
@@ -308,10 +398,12 @@ export function toShareView(link: ShareLink, files: FileRow[], now = Date.now())
     expires_at: link.expires_at,
     revoked: Boolean(link.revoked),
     short_code: link.short_code,
+    download_short_code: codes.download,
+    preview_short_code: codes.view,
     url,
     viewUrl,
     downloadUrl,
-    shortUrl: link.short_code ? shortSharePath(link.short_code) : null,
+    shortUrl,
     status,
     allow_preview: allowPreview,
     allow_download: allowDownload,
@@ -322,12 +414,19 @@ async function hydrate(db: D1Database, links: ShareLink[], now = Date.now()): Pr
   const ids = [...new Set(links.flatMap(targetIds))];
   const files = await getFilesByIds(db, ids);
   const byId = new Map(files.map((f) => [f.id, f]));
-  return links.map((link) => {
+  const views: ShareLinkView[] = [];
+  for (const link of links) {
     const ordered = targetIds(link)
       .map((id) => byId.get(id))
       .filter((row): row is FileRow => Boolean(row));
-    return toShareView(link, ordered, now);
-  });
+    let codes = await getShareModeCodes(db, link.token);
+    if (!codes.download || !codes.view) {
+      const ensured = await ensureShareModeCodes(db, link.token);
+      if (ensured.ok) codes = { download: ensured.download, view: ensured.view };
+    }
+    views.push(toShareView(link, ordered, now, codes));
+  }
+  return views;
 }
 
 export async function listShareLinks(
@@ -345,7 +444,8 @@ export async function listShareLinks(
   const q = (opts.q || "").trim().toLowerCase();
   if (q) {
     views = views.filter((v) => {
-      const hay = `${v.target_label} ${v.token} ${v.short_code || ""} ${v.target}`.toLowerCase();
+      const hay =
+        `${v.target_label} ${v.token} ${v.short_code || ""} ${v.download_short_code || ""} ${v.preview_short_code || ""} ${v.target}`.toLowerCase();
       return hay.includes(q);
     });
   }
@@ -432,7 +532,6 @@ export async function createShare(
     body.kind === "file" &&
     !password &&
     maxDownloads == null &&
-    !asBool(body.short) &&
     body.expires == null &&
     body.hours == null &&
     body.days == null &&
@@ -453,7 +552,7 @@ export async function createShare(
           viewUrl: view.viewUrl,
           downloadUrl: view.downloadUrl,
           shortUrl: view.shortUrl,
-          shortCode: existing.short_code,
+          shortCode: view.download_short_code || view.short_code,
           count: 1,
           expiresAt: existing.expires_at,
           reused: true,
@@ -469,13 +568,13 @@ export async function createShare(
   const expires = parseExpires(body, fallbackExpires);
   if (expires.error) return { ok: false, status: 400, error: expires.error };
 
-  let shortCode: string | null = null;
-  if (asBool(body.short)) {
-    try {
-      shortCode = await allocateShortCode(db);
-    } catch {
-      return { ok: false, status: 500, error: "short-code-exhausted" };
-    }
+  let downloadCode: string;
+  let viewCode: string;
+  try {
+    downloadCode = await allocateShortCode(db);
+    viewCode = await allocateShortCode(db);
+  } catch {
+    return { ok: false, status: 500, error: "short-code-exhausted" };
   }
 
   const token = generateShareToken();
@@ -490,13 +589,15 @@ export async function createShare(
     created_at: now.toISOString(),
     expires_at: expires.value,
     revoked: 0,
-    short_code: shortCode,
+    short_code: downloadCode,
     fail_count: 0,
     locked_until: null,
     allow_preview: allowPreview,
     allow_download: allowDownload,
   };
   await insertShareLink(db, row);
+  await insertShareModeCode(db, downloadCode, token, "download");
+  await insertShareModeCode(db, viewCode, token, "view");
   const [view] = await hydrate(db, [row], now.getTime());
   return {
     ok: true,
@@ -505,8 +606,8 @@ export async function createShare(
     url: view?.url || `/share/${token}`,
     viewUrl: view?.viewUrl ?? null,
     downloadUrl: view?.downloadUrl || (view?.url ?? `/share/${token}`),
-    shortUrl: view?.shortUrl ?? null,
-    shortCode,
+    shortUrl: view?.shortUrl ?? shortSharePath(downloadCode),
+    shortCode: downloadCode,
     count: files.length,
     expiresAt: row.expires_at,
     reused: false,
@@ -618,20 +719,19 @@ export async function patchShare(
 export async function assignShareShortCode(
   db: D1Database,
   token: string,
-): Promise<{ ok: true; shortCode: string; shortUrl: string } | { ok: false; status: number; error: string }> {
-  const existing = await getShareLink(db, token);
-  if (!existing) return { ok: false, status: 404, error: "not found" };
-  if (existing.short_code) {
-    return { ok: true, shortCode: existing.short_code, shortUrl: shortSharePath(existing.short_code) };
-  }
-  let code: string;
-  try {
-    code = await allocateShortCode(db);
-  } catch {
-    return { ok: false, status: 500, error: "short-code-exhausted" };
-  }
-  await db.prepare("UPDATE share_links SET short_code = ? WHERE token = ?").bind(code, token).run();
-  return { ok: true, shortCode: code, shortUrl: shortSharePath(code) };
+): Promise<
+  | { ok: true; shortCode: string; shortUrl: string; downloadUrl: string; viewUrl: string }
+  | { ok: false; status: number; error: string }
+> {
+  const ensured = await ensureShareModeCodes(db, token);
+  if (!ensured.ok) return ensured;
+  return {
+    ok: true,
+    shortCode: ensured.download,
+    shortUrl: shortSharePath(ensured.download),
+    downloadUrl: shortSharePath(ensured.download),
+    viewUrl: shortSharePath(ensured.view),
+  };
 }
 
 export type ShareGate =
@@ -704,10 +804,59 @@ export async function authorizeFileShare(
   return { status: 200, link, countShare: wantsAttachment, countBatchFile: false };
 }
 
-export async function longPathForShare(db: D1Database, link: ShareLink): Promise<string> {
-  if (link.kind === "batch") return batchSharePaths(link.token).previewUrl;
+export async function longPathForShare(db: D1Database, link: ShareLink): Promise<string>;
+export async function longPathForShare(
+  db: D1Database,
+  link: ShareLink,
+  mode: ShareShortMode,
+): Promise<string | null>;
+export async function longPathForShare(
+  db: D1Database,
+  link: ShareLink,
+  mode?: ShareShortMode | null,
+): Promise<string | null> {
+  if (link.kind === "batch") {
+    const batch = batchSharePaths(link.token);
+    if (mode === "download") return shareAllowsDownload(link) ? batch.downloadUrl : null;
+    if (mode === "view") return shareAllowsPreview(link) ? batch.previewUrl : null;
+    return batch.previewUrl;
+  }
   const files = await getFilesByIds(db, [link.target]);
-  return shareLandingPath(link, files[0] ?? null);
+  const file = files[0] ?? null;
+  if (mode === "download") {
+    if (!shareAllowsDownload(link)) return null;
+    if (!file) return `/share/${link.token}`;
+    return fileLongPath(file, link.token, false);
+  }
+  if (mode === "view") {
+    if (!shareAllowsPreview(link)) return null;
+    if (!file) return `/share/${link.token}`;
+    return fileLongPath(file, link.token, true);
+  }
+  return shareLandingPath(link, file);
+}
+
+export async function resolveShortShareRedirect(
+  db: D1Database,
+  code: string,
+  now = Date.now(),
+): Promise<
+  | { status: 404 }
+  | { status: 410; reason: Exclude<ShareStatus, "active"> }
+  | { status: 302; location: string }
+> {
+  const trimmed = (code || "").trim();
+  if (!isShortCode(trimmed)) return { status: 404 };
+  const modeRow = await getShareShortByCode(db, trimmed);
+  const link = modeRow ? await getShareLink(db, modeRow.token) : await getShareLinkByShortCode(db, trimmed);
+  if (!link) return { status: 404 };
+  const status = shareStatus(link, now);
+  if (status !== "active") return { status: 410, reason: status };
+  const location = modeRow
+    ? await longPathForShare(db, link, modeRow.mode)
+    : await longPathForShare(db, link);
+  if (!location) return { status: 404 };
+  return { status: 302, location };
 }
 
 export type VerifyShareResult =
@@ -726,7 +875,7 @@ export async function verifySharePasswordAttempt(
   if (!link) return { ok: false, status: 404, error: "not found" };
   const status = shareStatus(link, nowMs);
   if (status !== "active") return { ok: false, status: 410, error: status };
-  const fallback = await longPathForShare(db, link);
+  const fallback = (await longPathForShare(db, link)) || `/share/${link.token}`;
   const next = safeShareNext(opts.next, fallback);
 
   if (!link.password_hash) {
