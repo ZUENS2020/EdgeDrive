@@ -65,6 +65,8 @@ export function ShareManager() {
   const [passwordFor, setPasswordFor] = useState<ShareLinkView | null>(null);
   const [passwordValue, setPasswordValue] = useState("");
   const [expireFor, setExpireFor] = useState<ShareLinkView | null>(null);
+  const [limitFor, setLimitFor] = useState<ShareLinkView | null>(null);
+  const [limitValue, setLimitValue] = useState("");
   const [confirm, setConfirm] = useState<{ title: string; body: string; run: () => void } | null>(null);
   const [fileHits, setFileHits] = useState<FileView[]>([]);
   const [fileQ, setFileQ] = useState("");
@@ -397,6 +399,14 @@ export function ShareManager() {
         </MenuItem>
         <MenuItem
           onClick={() => {
+            setLimitFor(menu?.link ?? null);
+            setMenu(null);
+          }}
+        >
+          {t("sharePage.increaseLimit")}
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
             const link = menu?.link;
             setMenu(null);
             if (!link) return;
@@ -582,6 +592,49 @@ export function ShareManager() {
           });
         }}
       />
+
+      <Dialog open={Boolean(limitFor)} onClose={() => setLimitFor(null)} fullWidth maxWidth="xs">
+        <DialogTitle>{t("sharePage.increaseLimit")}</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            autoFocus
+            type="number"
+            inputProps={{ min: 1 }}
+            defaultValue={limitFor?.max_downloads ?? 1}
+            helperText={
+              limitFor?.max_downloads != null
+                ? t("sharePage.currentLimit").replace("{n}", String(limitFor.max_downloads))
+                : t("sharePage.currentLimitUnlimited")
+            }
+            onChange={(e) => setLimitValue(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLimitFor(null)}>{t("common.cancel")}</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              const link = limitFor;
+              setLimitFor(null);
+              if (!link) return;
+              const n = Number(limitValue);
+              if (!Number.isFinite(n) || n < 1) return;
+              void api(`/api/share/${encodeURIComponent(link.token)}`, {
+                method: "PATCH",
+                body: JSON.stringify({ max_downloads: Math.floor(n) }),
+              }).then((data) => {
+                if (!data) return;
+                toast(t("sharePage.limitUpdated"));
+                void load();
+              });
+            }}
+          >
+            {t("common.save")}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={Boolean(confirm)} onClose={() => setConfirm(null)}>
         <DialogTitle>{confirm?.title}</DialogTitle>
