@@ -115,7 +115,6 @@ describe("access settings in D1", () => {
       "download",
       "preview",
       "share",
-      "copy_view_link",
       "expire",
       "delete",
     ]);

@@ -184,6 +184,21 @@ describe("renderViewPage", () => {
     expect(html).toContain('href="https://dlp.zuens2020.work/api/files/abc/content"');
   });
 
+  it("hides download actions when allowDownload is false", () => {
+    const html = renderViewPage({
+      origin: "https://edgedrive.example",
+      key: "a.txt",
+      meta: file({ id: "1", name: "a.txt", mime: "text/plain" }),
+      theme,
+      token: "tok",
+      allowDownload: false,
+    });
+    expect(html).not.toContain("复制下载链接");
+    expect(html).not.toContain(">下载<");
+    expect(html).toContain("复制预览链接");
+    expect(html).toContain("/dl/a.txt/view?t=tok");
+  });
+
   it("resolves relative clipboard targets against location.origin at click time", () => {
     const js = viewPageClientJs();
     expect(js).toContain("new URL(");

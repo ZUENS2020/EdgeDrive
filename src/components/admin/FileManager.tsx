@@ -7,15 +7,14 @@ import FileCopyIcon from "@mui/icons-material/FileCopy";
 import DownloadIcon from "@mui/icons-material/Download";
 import EditIcon from "@mui/icons-material/Edit";
 import GridViewIcon from "@mui/icons-material/GridView";
+import IosShareIcon from "@mui/icons-material/IosShare";
 import LabelIcon from "@mui/icons-material/Label";
-import LinkIcon from "@mui/icons-material/Link";
 import RestoreFromTrashIcon from "@mui/icons-material/RestoreFromTrash";
 import SearchIcon from "@mui/icons-material/Search";
 import PreviewIcon from "@mui/icons-material/Preview";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import UploadIcon from "@mui/icons-material/Upload";
 import ViewListIcon from "@mui/icons-material/ViewList";
 import { alpha } from "@mui/material/styles";
@@ -53,8 +52,6 @@ import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { copyAbsoluteUrl } from "@/lib/clipboard";
 import { copyErrorMessage } from "@/lib/copy";
 import { isGlobalFileFilter, type FileListFilter } from "@/lib/files-query";
 import { folderDeleteConfirmMessage, folderDeleteConfirmTitle } from "@/lib/folder-delete-confirm";
@@ -62,9 +59,10 @@ import { formatSize, formatTime } from "@/lib/format";
 import { tApiError, tFilter } from "@/lib/i18n";
 import { parseRowActions } from "@/lib/row-actions";
 import { parseTags } from "@/lib/tags";
-import { MAX_BATCH_IDS, type FileView, type FolderNode } from "@/lib/types";
+import { type FileView, type FolderNode } from "@/lib/types";
 import { uploadFilesQueued } from "@/lib/upload-client";
 import { useSiteSettings } from "./AdminProviders";
+import { CreateShareDialog } from "./CreateShareDialog";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { FileRowActions, type FileRowActionEvent } from "./FileRowActions";
 import { FolderTree } from "./FolderTree";
@@ -78,7 +76,6 @@ const FILTER_IDS: Filter[] = ["all", "ok", "soon", "expired", "starred", "recent
 
 export function FileManager() {
   const { t, locale } = useI18n();
-  const router = useRouter();
   const { open: notify } = useNotification();
   const { siteSettings } = useSiteSettings();
   const [path, setPath] = useState<string | null>(null);
@@ -89,7 +86,8 @@ export function FileManager() {
   const [page, setPage] = useState(0);
   const [view, setView] = useState<"list" | "grid">("list");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [shareBusy, setShareBusy] = useState(false);
+  const [shareIds, setShareIds] = useState<string[]>([]);
+  const [shareOpen, setShareOpen] = useState(false);
   const [expireOpen, setExpireOpen] = useState(false);
   const [expireIds, setExpireIds] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -165,48 +163,10 @@ export function FileManager() {
     await Promise.all([filesQuery.query.refetch(), foldersQuery.query.refetch()]);
   }
 
-  async function copyBatchShare(kind: "download" | "preview") {
-    if (shareBusy) return;
-    const ids = [...selected];
+  function openShare(ids: string[]) {
     if (!ids.length) return;
-    if (ids.length > MAX_BATCH_IDS) {
-      toast(t("fileManager.batchTooMany", { max: MAX_BATCH_IDS }), "error");
-      return;
-    }
-    setShareBusy(true);
-    try {
-      const res = await fetch("/api/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        previewUrl?: string;
-        downloadUrl?: string;
-      };
-      if (!res.ok || !data.previewUrl || !data.downloadUrl) {
-        toast(
-          tApiError(locale, data.error, "fileManager.batchFailed", { max: MAX_BATCH_IDS }),
-          "error",
-        );
-        return;
-      }
-      const path = kind === "download" ? data.downloadUrl : data.previewUrl;
-      const ok = await copyAbsoluteUrl(path);
-      toast(
-        ok
-          ? kind === "download"
-            ? t("fileManager.copiedBatchDl")
-            : t("fileManager.copiedBatchView")
-          : t("common.copyFailed"),
-        ok ? "success" : "error",
-      );
-    } catch {
-      toast(t("fileManager.batchFailed"), "error");
-    } finally {
-      setShareBusy(false);
-    }
+    setShareIds(ids);
+    setShareOpen(true);
   }
 
   async function batch(body: Record<string, unknown>) {
@@ -279,40 +239,13 @@ export function FileManager() {
     }
   }
 
-  async function createFileShare(file: FileView, view: boolean) {
-    const res = await fetch("/api/share", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "file", ids: [file.id], reuseDefault: true }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      url?: string;
-      viewUrl?: string;
-    };
-    if (!res.ok || !data.url) {
-      toast(tApiError(locale, data.error, "fileManager.shareFailed"), "error");
-      return;
-    }
-    const path = view ? data.viewUrl || data.url : data.url;
-    const ok = await copyAbsoluteUrl(path);
-    toast(ok ? (view ? t("fileManager.copiedView") : t("fileManager.copiedShare")) : t("common.copyFailed"), ok ? "success" : "error");
-  }
-
   function handleRowAction(file: FileView, event: FileRowActionEvent) {
     switch (event.type) {
       case "more":
         setCtx({ x: event.event.clientX, y: event.event.clientY, file });
         return;
-      case "share_copy":
       case "share":
-        void createFileShare(file, false);
-        return;
-      case "share_new":
-        router.push(`/admin/shares?create=${encodeURIComponent(file.id)}`);
-        return;
-      case "copy_view_link":
-        void createFileShare(file, true);
+        openShare([file.id]);
         return;
       case "expire":
         setExpireIds([file.id]);
@@ -625,19 +558,10 @@ export function FileManager() {
               <>
                 <Button
                   size="small"
-                  startIcon={<LinkIcon />}
-                  disabled={shareBusy}
-                  onClick={() => void copyBatchShare("download")}
+                  startIcon={<IosShareIcon />}
+                  onClick={() => openShare([...selected])}
                 >
-                  {t("fileManager.copyLink")}
-                </Button>
-                <Button
-                  size="small"
-                  startIcon={<VisibilityIcon />}
-                  disabled={shareBusy}
-                  onClick={() => void copyBatchShare("preview")}
-                >
-                  {t("fileManager.copyViewLink")}
+                  {t("fileManager.newShare")}
                 </Button>
                 <Button
                   size="small"
@@ -904,30 +828,12 @@ export function FileManager() {
         </MenuItem>
         <MenuItem
           onClick={() => {
-            if (ctxFile) void createFileShare(ctxFile, false);
+            if (ctxFile) openShare([ctxFile.id]);
             setCtx(null);
           }}
         >
-          <LinkIcon fontSize="small" sx={{ mr: 1 }} />
-          {t("fileManager.shareCopy")}
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            if (ctxFile) router.push(`/admin/shares?create=${encodeURIComponent(ctxFile.id)}`);
-            setCtx(null);
-          }}
-        >
-          <LinkIcon fontSize="small" sx={{ mr: 1 }} />
-          {t("fileManager.shareNew")}
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            if (ctxFile) void createFileShare(ctxFile, true);
-            setCtx(null);
-          }}
-        >
-          <VisibilityIcon fontSize="small" sx={{ mr: 1 }} />
-          {t("fileManager.copyViewLink")}
+          <IosShareIcon fontSize="small" sx={{ mr: 1 }} />
+          {t("fileManager.newShare")}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -1047,6 +953,12 @@ export function FileManager() {
         )}
       </Menu>
 
+      <CreateShareDialog
+        open={shareOpen}
+        ids={shareIds}
+        names={shareIds.map((id) => files.find((f) => f.id === id)?.name || id)}
+        onClose={() => setShareOpen(false)}
+      />
       <ExpireDialog
         open={expireOpen}
         count={expireIds.length || selected.size}

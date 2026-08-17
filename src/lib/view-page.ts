@@ -29,6 +29,7 @@ export type RenderViewPageOpts = {
   downloadHref?: string;
   inlineHref?: string;
   viewHref?: string;
+  allowDownload?: boolean;
 };
 
 function dlPath(origin: string, key: string, token?: string, view = false): string {
@@ -124,12 +125,16 @@ export type ViewPageClientMessages = {
   loadFailed: string;
 };
 
-export function viewPageClientMessages(locale: Locale = DEFAULT_LOCALE): ViewPageClientMessages {
+export function viewPageClientMessages(
+  locale: Locale = DEFAULT_LOCALE,
+  opts?: { allowDownload?: boolean },
+): ViewPageClientMessages {
+  const allowDownload = opts?.allowDownload !== false;
   return {
     copied: t(locale, "viewPage.copied"),
     copyFailed: t(locale, "viewPage.copyFailed"),
-    truncated: t(locale, "viewPage.truncated"),
-    loadFailed: t(locale, "viewPage.loadFailed"),
+    truncated: t(locale, allowDownload ? "viewPage.truncated" : "viewPage.truncatedNoDl"),
+    loadFailed: t(locale, allowDownload ? "viewPage.loadFailed" : "viewPage.loadFailedNoDl"),
   };
 }
 
@@ -294,6 +299,7 @@ export function viewPageAbsoluteHrefs(opts: Pick<
 
 export function renderViewPage(opts: RenderViewPageOpts): string {
   const locale = parseLocale(opts.locale);
+  const allowDownload = opts.allowDownload !== false;
   const { download: dl, inline, view } = viewPageAbsoluteHrefs(opts);
   const kind = previewKind(opts.meta.name, opts.meta.mime);
   const theme = opts.theme;
@@ -313,6 +319,16 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
         `<script src="${escapeHtml(CDN.hljs)}" defer></script>`,
       ].join("\n  ")
     : "";
+
+  const downloadBtn = allowDownload
+    ? `<a class="btn" href="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.download"))}</a>
+      <button type="button" class="btn ghost" data-copy="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.copyDl"))}</button>`
+    : "";
+  const copyViewBtn = `<button type="button" class="btn ghost" data-copy="${escapeHtml(view)}">${escapeHtml(t(locale, "viewPage.copyView"))}</button>`;
+  const unsupported =
+    kind === "none"
+      ? `<p class="hint">${escapeHtml(t(locale, allowDownload ? "viewPage.unsupported" : "viewPage.unsupportedNoDl"))}</p>`
+      : "";
 
   return `<!doctype html>
 <html lang="${htmlLang(locale)}">
@@ -341,11 +357,10 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
       ${infoRow(t(locale, "viewPage.expires"), status)}
       ${opts.meta.path ? infoRow(t(locale, "viewPage.path"), opts.meta.path) : ""}
     </dl>
-    ${embed}
+    ${kind === "none" ? unsupported : embed}
     <div class="actions">
-      <a class="btn" href="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.download"))}</a>
-      <button type="button" class="btn ghost" data-copy="${escapeHtml(dl)}">${escapeHtml(t(locale, "viewPage.copyDl"))}</button>
-      <button type="button" class="btn ghost" data-copy="${escapeHtml(view)}">${escapeHtml(t(locale, "viewPage.copyView"))}</button>
+      ${downloadBtn}
+      ${copyViewBtn}
     </div>
     <div class="footer">
       <span style="color:var(--text-3);font-size:13px">${escapeHtml(PRODUCT_NAME)} · ${escapeHtml(t(locale, "product.tagline"))}</span>
@@ -353,7 +368,7 @@ export function renderViewPage(opts: RenderViewPageOpts): string {
     </div>
   </div>
   <script>window.__ED_VIEW=${payload};</script>
-  <script>${viewPageClientJs(viewPageClientMessages(locale))}</script>
+  <script>${viewPageClientJs(viewPageClientMessages(locale, { allowDownload }))}</script>
 </body>
 </html>`;
 }

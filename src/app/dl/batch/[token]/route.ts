@@ -4,7 +4,13 @@ import { renderBatchPage } from "@/lib/batch-page";
 import { getDB } from "@/lib/cloudflare";
 import { parseLocale, t } from "@/lib/i18n";
 import { DEFAULTS, getSettings } from "@/lib/settings";
-import { evaluateShareAccess, getShareLink, sharePackOnly } from "@/lib/share";
+import {
+  evaluateShareAccess,
+  getShareLink,
+  shareAllowsDownload,
+  shareAllowsPreview,
+  sharePackOnly,
+} from "@/lib/share";
 import { requestOrigin } from "@/lib/share-urls";
 import { DL_CORS, dlText } from "@/lib/serve-r2";
 import { publicThemeVars } from "@/lib/themes";
@@ -61,7 +67,8 @@ async function handle(
   if (resolved.status === 404) return dlText("404 Not Found", 404);
   if (resolved.status === 410) return dlText(t(locale, "dl.gone"), 410);
 
-  const autoDownload = request.nextUrl.searchParams.get("mode") === "download";
+  const allowDownload = shareAllowsDownload(link);
+  const autoDownload = request.nextUrl.searchParams.get("mode") === "download" && allowDownload;
   const html = renderBatchPage({
     origin: requestOrigin(request),
     files: resolved.files,
@@ -71,6 +78,8 @@ async function handle(
     locale,
     token: link.token,
     packOnly: sharePackOnly(link),
+    allowDownload,
+    allowPreview: shareAllowsPreview(link),
   });
   return new Response(headOnly ? null : html, {
     status: 200,

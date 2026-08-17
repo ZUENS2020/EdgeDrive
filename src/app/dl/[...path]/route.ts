@@ -9,7 +9,7 @@ import {
 import { looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
 import { requestOrigin } from "@/lib/share-urls";
 import { DEFAULTS, getSettings } from "@/lib/settings";
-import { authorizeFileShare } from "@/lib/share";
+import { authorizeFileShare, shareAllowsDownload } from "@/lib/share";
 import { dlText, DL_CORS, serveR2Object } from "@/lib/serve-r2";
 import { getFileByKey } from "@/lib/store";
 import { publicThemeVars } from "@/lib/themes";
@@ -99,6 +99,7 @@ async function handle(
     cookieHeader: request.headers.get("cookie"),
     nextPath,
     view,
+    inline: request.nextUrl.searchParams.get("inline") === "1",
     bundle: request.nextUrl.searchParams.get("bundle") === "1",
   });
   if (gate.status !== 200) return gateResponse(gate, t(locale, "dl.gone"));
@@ -112,6 +113,7 @@ async function handle(
       theme: themeVars,
       locale,
       token: gate.link.token,
+      allowDownload: shareAllowsDownload(gate.link),
     });
     return new Response(headOnly ? null : html, {
       status: 200,

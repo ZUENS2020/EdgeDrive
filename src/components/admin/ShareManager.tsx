@@ -44,6 +44,7 @@ import { fileExpiryLabel } from "@/lib/format";
 import { tApiError } from "@/lib/i18n";
 import type { ShareKind, ShareLinkView, ShareStatus } from "@/lib/share";
 import type { FileView } from "@/lib/types";
+import { CreateShareDialog } from "./CreateShareDialog";
 import { ExpireDialog, type ExpireSubmit } from "./ExpireDialog";
 import { useI18n } from "./I18nProvider";
 
@@ -71,11 +72,6 @@ export function ShareManager() {
   const [fileHits, setFileHits] = useState<FileView[]>([]);
   const [fileQ, setFileQ] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [createPassword, setCreatePassword] = useState("");
-  const [createMax, setCreateMax] = useState("");
-  const [createShort, setCreateShort] = useState(false);
-  const [createPackOnly, setCreatePackOnly] = useState(false);
-  const [createBusy, setCreateBusy] = useState(false);
 
   const toast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
@@ -149,39 +145,6 @@ export function ShareManager() {
       return null;
     }
     return data;
-  }
-
-  async function createShare() {
-    const ids = [...picked];
-    if (!ids.length) {
-      toast(t("sharePage.noFile"), "error");
-      return;
-    }
-    setCreateBusy(true);
-    try {
-      const body: Record<string, unknown> = {
-        kind: ids.length === 1 ? "file" : "batch",
-        ids,
-        short: createShort,
-      };
-      if (createPassword.trim()) body.password = createPassword.trim();
-      if (createMax.trim()) body.max_downloads = Number(createMax);
-      if (ids.length > 1 && createPackOnly) body.allow_preview = 0;
-      const data = await api("/api/share", { method: "POST", body: JSON.stringify(body) });
-      if (!data) return;
-      setCreateOpen(false);
-      setPicked(new Set());
-      setCreatePassword("");
-      setCreateMax("");
-      setCreateShort(false);
-      setCreatePackOnly(false);
-      toast(t("sharePage.created"));
-      const url = (data as { url?: string }).url;
-      if (url) await copyPath(url, t("sharePage.copied"));
-      await load();
-    } finally {
-      setCreateBusy(false);
-    }
   }
 
   function statusChip(link: ShareLinkView) {
@@ -284,6 +247,8 @@ export function ShareManager() {
                   </Typography>
                   <Typography variant="caption" color="text.secondary" noWrap>
                     {link.short_code ? `/s/${link.short_code}` : link.token.slice(0, 10) + "…"}
+                    {!link.allow_download && link.allow_preview ? ` · ${t("sharePage.previewOnly")}` : ""}
+                    {link.allow_download && !link.allow_preview ? ` · ${t("sharePage.downloadOnly")}` : ""}
                   </Typography>
                 </TableCell>
                 <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
@@ -444,90 +409,64 @@ export function ShareManager() {
         </MenuItem>
       </Menu>
 
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{t("sharePage.createTitle")}</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            margin="dense"
-            label={t("sharePage.searchFiles")}
-            value={fileQ}
-            onChange={(e) => setFileQ(e.target.value)}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, mb: 0.5 }}>
-            {t("sharePage.pickFiles")}
-          </Typography>
-          <Stack sx={{ maxHeight: 220, overflow: "auto", border: 1, borderColor: "divider", borderRadius: 1, px: 1 }}>
-            {fileHits.map((file) => (
-              <FormControlLabel
-                key={file.id}
-                control={
-                  <Checkbox
-                    checked={picked.has(file.id)}
-                    onChange={(_, checked) => {
-                      const next = new Set(picked);
-                      if (checked) next.add(file.id);
-                      else next.delete(file.id);
-                      setPicked(next);
-                    }}
-                  />
-                }
-                label={`${file.name}${file.path ? ` (${file.path})` : ""}`}
-              />
-            ))}
-            {[...picked].filter((id) => !fileHits.some((f) => f.id === id)).map((id) => (
-              <FormControlLabel
-                key={id}
-                control={
-                  <Checkbox
-                    checked
-                    onChange={() => {
-                      const next = new Set(picked);
-                      next.delete(id);
-                      setPicked(next);
-                    }}
-                  />
-                }
-                label={id}
-              />
-            ))}
-          </Stack>
-          <TextField
-            fullWidth
-            margin="dense"
-            type="password"
-            label={t("sharePage.passwordLabel")}
-            helperText={t("sharePage.passwordOptional")}
-            value={createPassword}
-            onChange={(e) => setCreatePassword(e.target.value)}
-          />
-          <TextField
-            fullWidth
-            margin="dense"
-            type="number"
-            label={t("sharePage.maxDownloads")}
-            helperText={t("sharePage.maxOptional")}
-            value={createMax}
-            onChange={(e) => setCreateMax(e.target.value)}
-          />
-          <FormControlLabel
-            control={<Checkbox checked={createShort} onChange={(_, v) => setCreateShort(v)} />}
-            label={t("sharePage.makeShort")}
-          />
-          {picked.size > 1 ? (
+      <CreateShareDialog
+        open={createOpen}
+        ids={[...picked]}
+        names={[...picked].map((id) => fileHits.find((f) => f.id === id)?.name || id)}
+        showShort
+        onClose={() => setCreateOpen(false)}
+        onSuccess={() => {
+          setPicked(new Set());
+          setFileQ("");
+          void load();
+        }}
+      >
+        <TextField
+          fullWidth
+          margin="dense"
+          label={t("sharePage.searchFiles")}
+          value={fileQ}
+          onChange={(e) => setFileQ(e.target.value)}
+        />
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1, mb: 0.5 }}>
+          {t("sharePage.pickFiles")}
+        </Typography>
+        <Stack sx={{ maxHeight: 220, overflow: "auto", border: 1, borderColor: "divider", borderRadius: 1, px: 1 }}>
+          {fileHits.map((file) => (
             <FormControlLabel
-              control={<Checkbox checked={createPackOnly} onChange={(_, v) => setCreatePackOnly(v)} />}
-              label={t("sharePage.packOnly")}
+              key={file.id}
+              control={
+                <Checkbox
+                  checked={picked.has(file.id)}
+                  onChange={(_, checked) => {
+                    const next = new Set(picked);
+                    if (checked) next.add(file.id);
+                    else next.delete(file.id);
+                    setPicked(next);
+                  }}
+                />
+              }
+              label={`${file.name}${file.path ? ` (${file.path})` : ""}`}
             />
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
-          <Button variant="contained" disabled={createBusy} onClick={() => void createShare()}>
-            {t("sharePage.create")}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          ))}
+          {[...picked].filter((id) => !fileHits.some((f) => f.id === id)).map((id) => (
+            <FormControlLabel
+              key={id}
+              control={
+                <Checkbox
+                  checked
+                  onChange={() => {
+                    const next = new Set(picked);
+                    next.delete(id);
+                    setPicked(next);
+                  }}
+                />
+              }
+              label={id}
+            />
+          ))}
+        </Stack>
+      </CreateShareDialog>
 
       <Dialog open={Boolean(passwordFor)} onClose={() => setPasswordFor(null)} fullWidth maxWidth="xs">
         <DialogTitle>{t("sharePage.passwordTitle")}</DialogTitle>

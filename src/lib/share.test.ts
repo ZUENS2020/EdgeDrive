@@ -40,7 +40,12 @@ function file(partial: Partial<FileRow> & Pick<FileRow, "id" | "name">): FileRow
 
 function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Database {
   const files = new Map((init?.files ?? []).map((row) => [row.id, { ...row }]));
-  const links = new Map((init?.links ?? []).map((row) => [row.token, { ...row, allow_preview: row.allow_preview ?? 1 }]));
+  const links = new Map(
+    (init?.links ?? []).map((row) => [
+      row.token,
+      { ...row, allow_preview: row.allow_preview ?? 1, allow_download: row.allow_download ?? 1 },
+    ]),
+  );
   const fileCounts = new Map<string, number>();
 
   function countKey(token: string, fileId: string) {
@@ -138,6 +143,7 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
                   fail_count: Number(args[10] ?? 0),
                   locked_until: args[11] == null ? null : String(args[11]),
                   allow_preview: args[12] == null ? 1 : Number(args[12]) ? 1 : 0,
+                  allow_download: args[13] == null ? 1 : Number(args[13]) ? 1 : 0,
                 });
               } else if (normalized.startsWith("UPDATE share_links")) {
                 applyUpdate(sql, args);
@@ -185,6 +191,15 @@ describe("0015 share_file_counts migration", () => {
   });
 });
 
+describe("0016 share_links allow_download", () => {
+  it("adds allow_download and drops copy_view_link from the default toolbar", () => {
+    const sql = readFileSync(path.join(process.cwd(), "migrations/0016_share_allow_download.sql"), "utf8");
+    expect(sql).toContain("ALTER TABLE share_links ADD COLUMN allow_download");
+    expect(sql).toContain("schema_version', '16'");
+    expect(sql).toContain('["download","preview","share","expire","delete"]');
+  });
+});
+
 describe("createShare / multi-link", () => {
   const now = new Date("2026-08-17T00:00:00.000Z");
 
@@ -198,7 +213,8 @@ describe("createShare / multi-link", () => {
     expect(open.token).not.toBe(locked.token);
     expect(locked.hasPassword).toBe(true);
     expect(open.hasPassword).toBe(false);
-    expect(limited.url).toContain("/dl/docs/a.txt?t=");
+    expect(limited.url).toContain("/view?t=");
+    expect(limited.downloadUrl).toContain("/dl/docs/a.txt?t=");
     expect(open.viewUrl).toContain("/view?t=");
     const listed = await listShareLinks(db);
     expect(listed).toHaveLength(3);
@@ -484,5 +500,120 @@ describe("share access / password / short", () => {
       bundle: true,
     });
     expect(pack.status).toBe(200);
+  });
+
+  it("rejects creating a share with neither download nor preview", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(
+      db,
+      { kind: "file", ids: ["1"], allow_download: 0, allow_preview: 0 },
+      now,
+    );
+    expect(created).toMatchObject({ ok: false, status: 400, error: "need download or preview" });
+  });
+
+  it("preview-only file shares allow view/inline and 404 attachment downloads", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(
+      db,
+      { kind: "file", ids: ["1"], allow_download: 0, allow_preview: 1 },
+      now,
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(created.url).toContain("/view?t=");
+    expect(created.allowDownload).toBe(false);
+    expect(created.allowPreview).toBe(true);
+    const view = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt/view?t=x",
+      view: true,
+    });
+    expect(view.status).toBe(200);
+    const inline = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=x&inline=1",
+      inline: true,
+    });
+    expect(inline.status).toBe(200);
+    expect(
+      await authorizeFileShare(db, {
+        fileId: "1",
+        token: created.token,
+        cookieHeader: null,
+        nextPath: "/dl/a.txt?t=x",
+      }),
+    ).toEqual({ status: 404 });
+  });
+
+  it("download-only file shares allow attachment and 404 preview", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(
+      db,
+      { kind: "file", ids: ["1"], allow_download: 1, allow_preview: 0 },
+      now,
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    expect(created.url).toContain("/dl/a.txt?t=");
+    expect(created.viewUrl).toBeNull();
+    expect(
+      await authorizeFileShare(db, {
+        fileId: "1",
+        token: created.token,
+        cookieHeader: null,
+        nextPath: "/dl/a.txt/view?t=x",
+        view: true,
+      }),
+    ).toEqual({ status: 404 });
+    const dl = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=x",
+    });
+    expect(dl.status).toBe(200);
+  });
+
+  it("preview-only batch shares hide downloads including bundle", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt" }), file({ id: "2", name: "b.txt" })],
+    });
+    const created = await createShare(
+      db,
+      { kind: "batch", ids: ["1", "2"], allow_download: 0, allow_preview: 1 },
+      now,
+    );
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const view = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt/view?t=x",
+      view: true,
+    });
+    expect(view.status).toBe(200);
+    expect(
+      await authorizeFileShare(db, {
+        fileId: "1",
+        token: created.token,
+        cookieHeader: null,
+        nextPath: "/dl/a.txt?t=x",
+      }),
+    ).toEqual({ status: 404 });
+    expect(
+      await authorizeFileShare(db, {
+        fileId: "1",
+        token: created.token,
+        cookieHeader: null,
+        nextPath: "/dl/a.txt?t=x&bundle=1",
+        bundle: true,
+      }),
+    ).toEqual({ status: 404 });
   });
 });

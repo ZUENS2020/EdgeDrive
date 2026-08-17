@@ -33,6 +33,7 @@ export type ShareLink = {
   fail_count: number;
   locked_until: string | null;
   allow_preview: number;
+  allow_download: number;
 };
 
 export type ShareStatus = "active" | "revoked" | "expired" | "exhausted";
@@ -56,6 +57,7 @@ export type ShareLinkView = {
   shortUrl: string | null;
   status: ShareStatus;
   allow_preview: boolean;
+  allow_download: boolean;
 };
 
 export type CreateShareBody = {
@@ -70,6 +72,7 @@ export type CreateShareBody = {
   short?: unknown;
   reuseDefault?: unknown;
   allow_preview?: unknown;
+  allow_download?: unknown;
 };
 
 export type CreateShareOk = {
@@ -85,13 +88,15 @@ export type CreateShareOk = {
   expiresAt: string | null;
   reused: boolean;
   hasPassword: boolean;
+  allowDownload: boolean;
+  allowPreview: boolean;
 };
 
 export type CreateShareErr = { ok: false; status: number; error: string };
 export type CreateShareResult = CreateShareOk | CreateShareErr;
 
 const SHARE_COLS =
-  "token, kind, target, password_hash, max_downloads, download_count, created_at, expires_at, revoked, short_code, fail_count, locked_until, allow_preview";
+  "token, kind, target, password_hash, max_downloads, download_count, created_at, expires_at, revoked, short_code, fail_count, locked_until, allow_preview, allow_download";
 
 export function isShareKind(value: unknown): value is ShareKind {
   return value === "file" || value === "batch";
@@ -106,8 +111,25 @@ export function shareStatus(link: ShareLink, now = Date.now()): ShareStatus {
   return "active";
 }
 
-export function sharePackOnly(link: Pick<ShareLink, "kind" | "allow_preview">): boolean {
-  return link.kind === "batch" && Number(link.allow_preview) === 0;
+export function shareAllowsPreview(link: Pick<ShareLink, "allow_preview"> | { allow_preview?: number | null }): boolean {
+  return link.allow_preview == null || Number(link.allow_preview) !== 0;
+}
+
+export function shareAllowsDownload(
+  link: Pick<ShareLink, "allow_download"> | { allow_download?: number | null },
+): boolean {
+  return link.allow_download == null || Number(link.allow_download) !== 0;
+}
+
+/** Batch + download-only: hide the file list, download-all uses bundle=1. */
+export function sharePackOnly(
+  link: Pick<ShareLink, "kind" | "allow_preview" | "allow_download"> | {
+    kind: ShareKind;
+    allow_preview?: number | null;
+    allow_download?: number | null;
+  },
+): boolean {
+  return link.kind === "batch" && !shareAllowsPreview(link) && shareAllowsDownload(link);
 }
 
 export function shareAllowsFile(link: ShareLink, fileId: string): boolean {
@@ -150,6 +172,7 @@ export function normalizeShareLink(row: ShareLink): ShareLink {
     fail_count: Number(row.fail_count) || 0,
     locked_until: row.locked_until || null,
     allow_preview: row.allow_preview == null || Number(row.allow_preview) ? 1 : 0,
+    allow_download: row.allow_download == null || Number(row.allow_download) ? 1 : 0,
   };
 }
 
@@ -176,7 +199,7 @@ export async function getShareLinkByShortCode(db: D1Database, code: string): Pro
 export async function insertShareLink(db: D1Database, row: ShareLink): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO share_links (${SHARE_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO share_links (${SHARE_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       row.token,
@@ -192,6 +215,7 @@ export async function insertShareLink(db: D1Database, row: ShareLink): Promise<v
       row.fail_count,
       row.locked_until,
       row.allow_preview,
+      row.allow_download,
     )
     .run();
 }
@@ -235,15 +259,29 @@ function labelFor(kind: ShareKind, files: FileRow[]): string {
   return files[0] ? `${files[0].name} +${files.length - 1}` : "";
 }
 
+export function shareLandingPath(
+  link: Pick<ShareLink, "kind" | "token" | "allow_preview" | "allow_download">,
+  file?: Pick<FileRow, "path" | "name"> | null,
+): string {
+  if (link.kind === "batch") return batchSharePaths(link.token).previewUrl;
+  if (!file) return `/share/${link.token}`;
+  if (shareAllowsPreview(link)) return fileLongPath(file, link.token, true);
+  return fileLongPath(file, link.token);
+}
+
 export function toShareView(link: ShareLink, files: FileRow[], now = Date.now()): ShareLinkView {
   const ids = targetIds(link);
   const status = shareStatus(link, now);
   const batch = batchSharePaths(link.token);
   const file = files[0];
-  const url = link.kind === "batch" ? batch.previewUrl : file ? fileLongPath(file, link.token) : `/share/${link.token}`;
-  const viewUrl =
-    link.kind === "batch" ? batch.previewUrl : file ? fileLongPath(file, link.token, true) : null;
-  const downloadUrl = link.kind === "batch" ? batch.downloadUrl : url;
+  const allowPreview = shareAllowsPreview(link);
+  const allowDownload = shareAllowsDownload(link);
+  const fileView = file ? fileLongPath(file, link.token, true) : null;
+  const fileDl = file ? fileLongPath(file, link.token) : `/share/${link.token}`;
+  const url = shareLandingPath(link, file);
+  const viewUrl = link.kind === "batch" ? (allowPreview ? batch.previewUrl : null) : allowPreview ? fileView : null;
+  const downloadUrl =
+    link.kind === "batch" ? (allowDownload ? batch.downloadUrl : batch.previewUrl) : allowDownload ? fileDl : url;
   return {
     token: link.token,
     kind: link.kind,
@@ -262,7 +300,8 @@ export function toShareView(link: ShareLink, files: FileRow[], now = Date.now())
     downloadUrl,
     shortUrl: link.short_code ? shortSharePath(link.short_code) : null,
     status,
-    allow_preview: !sharePackOnly(link),
+    allow_preview: allowPreview,
+    allow_download: allowDownload,
   };
 }
 
@@ -369,6 +408,12 @@ export async function createShare(
   const files = await getFilesByIds(db, parsed.ids);
   if (files.length !== parsed.ids.length) return { ok: false, status: 400, error: "files not found" };
 
+  const allowDownload = "allow_download" in body ? (asBool(body.allow_download) ? 1 : 0) : 1;
+  const allowPreview = "allow_preview" in body ? (asBool(body.allow_preview) ? 1 : 0) : 1;
+  if (!allowDownload && !allowPreview) {
+    return { ok: false, status: 400, error: "need download or preview" };
+  }
+
   const reuseDefault =
     asBool(body.reuseDefault) &&
     body.kind === "file" &&
@@ -378,11 +423,13 @@ export async function createShare(
     body.expires == null &&
     body.hours == null &&
     body.days == null &&
-    !asBool(body.permanent);
+    !asBool(body.permanent) &&
+    allowDownload === 1 &&
+    allowPreview === 1;
 
   if (reuseDefault) {
     const existing = await findDefaultFileShare(db, parsed.ids[0]!, now);
-    if (existing) {
+    if (existing && shareAllowsDownload(existing) && shareAllowsPreview(existing)) {
       const [view] = await hydrate(db, [existing], now.getTime());
       if (view) {
         return {
@@ -398,6 +445,8 @@ export async function createShare(
           expiresAt: existing.expires_at,
           reused: true,
           hasPassword: false,
+          allowDownload: true,
+          allowPreview: true,
         };
       }
     }
@@ -418,7 +467,6 @@ export async function createShare(
 
   const token = generateShareToken();
   const passwordHash = password ? await hashSharePassword(password) : null;
-  const allowPreview = body.kind === "batch" && "allow_preview" in body ? (asBool(body.allow_preview) ? 1 : 0) : 1;
   const row: ShareLink = {
     token,
     kind: body.kind,
@@ -433,6 +481,7 @@ export async function createShare(
     fail_count: 0,
     locked_until: null,
     allow_preview: allowPreview,
+    allow_download: allowDownload,
   };
   await insertShareLink(db, row);
   const [view] = await hydrate(db, [row], now.getTime());
@@ -449,6 +498,8 @@ export async function createShare(
     expiresAt: row.expires_at,
     reused: false,
     hasPassword: Boolean(passwordHash),
+    allowDownload: Boolean(allowDownload),
+    allowPreview: Boolean(allowPreview),
   };
 }
 
@@ -592,6 +643,7 @@ export async function authorizeFileShare(
     nextPath: string;
     now?: number;
     view?: boolean;
+    inline?: boolean;
     bundle?: boolean;
   },
 ): Promise<ShareGate> {
@@ -601,23 +653,30 @@ export async function authorizeFileShare(
   if (!link || !shareAllowsFile(link, opts.fileId)) return { status: 404 };
   const gate = await evaluateShareAccess(link, opts);
   if (gate.status !== 200) return gate;
+  const wantsView = Boolean(opts.view);
+  const wantsInline = Boolean(opts.inline);
+  const wantsBundle = Boolean(opts.bundle);
+  const wantsAttachment = !wantsView && !wantsInline;
+  if ((wantsView || wantsInline) && !shareAllowsPreview(link)) return { status: 404 };
+  if (wantsAttachment && !shareAllowsDownload(link)) return { status: 404 };
+  if (wantsBundle && !shareAllowsDownload(link)) return { status: 404 };
+  if (sharePackOnly(link) && (wantsView || wantsInline || (wantsAttachment && !wantsBundle))) {
+    return { status: 404 };
+  }
   if (link.kind === "batch") {
-    if (sharePackOnly(link) && (opts.view || !opts.bundle)) return { status: 404 };
     if (link.max_downloads != null) {
       const n = await getShareFileCount(db, link.token, opts.fileId);
       if (n >= link.max_downloads) return { status: 410, reason: "exhausted" };
     }
-    return { status: 200, link, countShare: false, countBatchFile: true };
+    return { status: 200, link, countShare: false, countBatchFile: wantsAttachment };
   }
-  return { status: 200, link, countShare: true, countBatchFile: false };
+  return { status: 200, link, countShare: wantsAttachment, countBatchFile: false };
 }
 
 export async function longPathForShare(db: D1Database, link: ShareLink): Promise<string> {
   if (link.kind === "batch") return batchSharePaths(link.token).previewUrl;
   const files = await getFilesByIds(db, [link.target]);
-  const file = files[0];
-  if (!file) return `/share/${encodeURIComponent(link.token)}`;
-  return fileLongPath(file, link.token);
+  return shareLandingPath(link, files[0] ?? null);
 }
 
 export type VerifyShareResult =

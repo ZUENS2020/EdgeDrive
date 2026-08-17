@@ -17,6 +17,8 @@ export type RenderBatchPageOpts = {
   locale?: Locale;
   token?: string;
   packOnly?: boolean;
+  allowDownload?: boolean;
+  allowPreview?: boolean;
 };
 
 function publicPageCss(theme: PublicThemeVars): string {
@@ -54,11 +56,12 @@ export function renderBatchPage(opts: RenderBatchPageOpts): string {
   const locale = parseLocale(opts.locale ?? DEFAULT_LOCALE);
   const now = opts.now ?? Date.now();
   const files = opts.files;
-  const packOnly = Boolean(opts.packOnly);
-  const payload = JSON.stringify(downloadableFiles(files, opts.origin, now, opts.token, packOnly)).replace(
-    /</g,
-    "\\u003c",
-  );
+  const allowPreview = opts.allowPreview ?? !opts.packOnly;
+  const allowDownload = opts.allowDownload ?? true;
+  const packOnly = !allowPreview && allowDownload;
+  const payload = JSON.stringify(
+    allowDownload ? downloadableFiles(files, opts.origin, now, opts.token, packOnly) : [],
+  ).replace(/</g, "\\u003c");
   const batchStatus = fileExpiryLabel(opts.expiresAt, now, locale);
   const totalSize = files.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
   const rows = packOnly
@@ -71,6 +74,12 @@ export function renderBatchPage(opts: RenderBatchPageOpts): string {
           const download = opts.token
             ? originJoin(opts.origin, fileLongPath(file, opts.token))
             : dlUrl(opts.origin, fileKey(file.path, file.name));
+          const previewBtn = allowPreview
+            ? `<a class="btn ghost" href="${escapeHtml(preview)}">${escapeHtml(t(locale, "batchPage.preview"))}</a>`
+            : "";
+          const downloadBtn = allowDownload
+            ? `<a class="btn" href="${escapeHtml(download)}" download="${escapeHtml(file.name)}">${escapeHtml(t(locale, "batchPage.download"))}</a>`
+            : "";
           return `<div class="row">
       <div class="kind">${escapeHtml(fileKindLabel(file.name, file.mime, locale))}</div>
       <div class="info">
@@ -78,14 +87,13 @@ export function renderBatchPage(opts: RenderBatchPageOpts): string {
         <div class="sub">${escapeHtml(formatSize(file.size))} · ${escapeHtml(fileExpiryLabel(file.expires, now, locale))}${file.path ? ` · ${escapeHtml(file.path)}` : ""}</div>
       </div>
       <div class="row-actions">
-        <a class="btn ghost" href="${escapeHtml(preview)}">${escapeHtml(t(locale, "batchPage.preview"))}</a>
-        <a class="btn" href="${escapeHtml(download)}" download="${escapeHtml(file.name)}">${escapeHtml(t(locale, "batchPage.download"))}</a>
+        ${previewBtn}${downloadBtn}
       </div>
     </div>`;
         })
         .join("\n");
 
-  const banner = opts.autoDownload
+  const banner = opts.autoDownload && allowDownload
     ? `<p class="banner">${escapeHtml(t(locale, "batchPage.blocker"))}</p>`
     : "";
 
@@ -95,7 +103,7 @@ export function renderBatchPage(opts: RenderBatchPageOpts): string {
       ? `<p class="empty">${escapeHtml(t(locale, "batchPage.empty"))}</p>`
       : `<div class="list">${rows}</div>`;
 
-  const autoJs = opts.autoDownload
+  const autoJs = opts.autoDownload && allowDownload
     ? `window.addEventListener("DOMContentLoaded", function () { triggerDownloads(FILES); });`
     : "";
 
@@ -107,6 +115,10 @@ export function renderBatchPage(opts: RenderBatchPageOpts): string {
   const meta = packOnly
     ? t(locale, "batchPage.packMeta", { count: files.length, size: formatSize(totalSize) })
     : batchStatus;
+
+  const downloadAll = allowDownload
+    ? `<button type="button" class="btn" id="download-all">${escapeHtml(t(locale, "batchPage.downloadAll"))}</button>`
+    : "";
 
   return `<!doctype html>
 <html lang="${htmlLang(locale)}">
@@ -128,7 +140,7 @@ export function renderBatchPage(opts: RenderBatchPageOpts): string {
     <p class="meta">${escapeHtml(meta)}${packOnly ? ` · ${escapeHtml(batchStatus)}` : ""}</p>
     ${banner}
     <div class="actions">
-      <button type="button" class="btn" id="download-all">${escapeHtml(t(locale, "batchPage.downloadAll"))}</button>
+      ${downloadAll}
     </div>
     ${list}
     <div class="footer">

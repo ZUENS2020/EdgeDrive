@@ -46,5 +46,7 @@ export async function POST(request: Request) {
     expiresAt: result.expiresAt,
     reused: result.reused,
     hasPassword: result.hasPassword,
+    allowDownload: result.allowDownload,
+    allowPreview: result.allowPreview,
   });
 }

@@ -12,19 +12,14 @@ import RestoreFromTrashIcon from "@mui/icons-material/RestoreFromTrash";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import IconButton from "@mui/material/IconButton";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import { type MouseEvent, type ReactNode, useState } from "react";
+import { type MouseEvent, type ReactNode } from "react";
 import type { RowActionId } from "@/lib/row-actions";
 import type { FileView } from "@/lib/types";
 import { useI18n } from "./I18nProvider";
 
 export type FileRowActionEvent =
   | { type: RowActionId }
-  | { type: "share_copy" }
-  | { type: "share_new" }
   | { type: "more"; event: MouseEvent<HTMLElement> }
   | { type: "restore" }
   | { type: "purge" };
@@ -76,47 +71,6 @@ function ActionBtn({
   );
 }
 
-function ShareBtn({ file, onAction }: { file: FileView; onAction: Props["onAction"] }) {
-  const { t } = useI18n();
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  return (
-    <>
-      <ActionBtn
-        title={t("rowAction.share")}
-        onClick={(e) => {
-          e.stopPropagation();
-          setAnchor(e.currentTarget);
-        }}
-      >
-        <IosShareIcon fontSize="small" />
-      </ActionBtn>
-      <Menu
-        open={Boolean(anchor)}
-        anchorEl={anchor}
-        onClose={() => setAnchor(null)}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <MenuItem
-          onClick={() => {
-            setAnchor(null);
-            onAction(file, { type: "share_copy" });
-          }}
-        >
-          {t("fileManager.shareCopy")}
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setAnchor(null);
-            onAction(file, { type: "share_new" });
-          }}
-        >
-          {t("fileManager.shareNew")}
-        </MenuItem>
-      </Menu>
-    </>
-  );
-}
-
 export function FileRowActions({ file, actions, trash, onAction }: Props) {
   const { t } = useI18n();
   function actionButton(id: RowActionId) {
@@ -134,15 +88,9 @@ export function FileRowActions({ file, actions, trash, onAction }: Props) {
           </ActionBtn>
         );
       case "share":
-        return <ShareBtn key={id} file={file} onAction={onAction} />;
-      case "copy_view_link":
         return (
-          <ActionBtn
-            key={id}
-            title={t("rowAction.copy_view_link")}
-            onClick={() => onAction(file, { type: "copy_view_link" })}
-          >
-            <VisibilityIcon fontSize="small" />
+          <ActionBtn key={id} title={t("fileManager.newShare")} onClick={() => onAction(file, { type: "share" })}>
+            <IosShareIcon fontSize="small" />
           </ActionBtn>
         );
       case "expire":

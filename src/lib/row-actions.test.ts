@@ -27,14 +27,16 @@ describe("parseRowActions", () => {
       "download",
       "preview",
       "share",
-      "copy_view_link",
       "expire",
       "delete",
     ]);
     expect(serializeRowActions(DEFAULT_ROW_ACTIONS)).toBe(
-      '["download","preview","share","copy_view_link","expire","delete"]',
+      '["download","preview","share","expire","delete"]',
     );
     expect(parseRowActions('["download","preview","copy_link","copy_view_link","expire","delete"]')).toEqual(
+      DEFAULT_ROW_ACTIONS,
+    );
+    expect(parseRowActions('["download","preview","share","copy_view_link","expire","delete"]')).toEqual(
       DEFAULT_ROW_ACTIONS,
     );
     expect(serializeRowActions([])).toBe("[]");
@@ -62,7 +64,6 @@ describe("setRowActionEnabled", () => {
       "download",
       "preview",
       "share",
-      "copy_view_link",
       "expire",
       "star",
       "delete",
@@ -70,7 +71,6 @@ describe("setRowActionEnabled", () => {
     expect(setRowActionEnabled(next, "download", false)).toEqual([
       "preview",
       "share",
-      "copy_view_link",
       "expire",
       "star",
       "delete",

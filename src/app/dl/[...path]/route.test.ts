@@ -171,4 +171,31 @@ describe("GET /dl/[...path]", () => {
     expect(html).toContain('data-copy="https://dlp.zuens2020.work/dl/docs/a.txt/view?t=tok"');
     expect(html).not.toMatch(/data-copy="\/dl\//);
   });
+
+  it("passes inline=1 through to authorizeFileShare", async () => {
+    authorizeFileShare.mockResolvedValue({ status: 404 });
+    await GET(request("/dl/docs/a.txt?t=tok&inline=1"), {
+      params: Promise.resolve({ path: ["docs", "a.txt"] }),
+    });
+    expect(authorizeFileShare).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ fileId: "1", token: "tok", inline: true, view: false }),
+    );
+  });
+
+  it("hides download copy on a preview-only share view page", async () => {
+    authorizeFileShare.mockResolvedValue({
+      status: 200,
+      link: { token: "tok", kind: "file", allow_download: 0, allow_preview: 1 },
+      countShare: false,
+    });
+    getFileByKey.mockImplementation(async (key: string) => (key === "docs/a.txt" ? meta : null));
+    const res = await GET(request("/dl/docs/a.txt/view?t=tok"), {
+      params: Promise.resolve({ path: ["docs", "a.txt", "view"] }),
+    });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).not.toContain("复制下载链接");
+    expect(html).toContain("复制预览链接");
+  });
 });

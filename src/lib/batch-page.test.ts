@@ -128,4 +128,22 @@ describe("renderBatchPage", () => {
     expect(html).not.toContain('class="row"');
     expect(html).toContain("bundle=1");
   });
+
+  it("preview-only mode lists files without download buttons", () => {
+    const html = renderBatchPage({
+      origin: "https://edgedrive.example",
+      files: [file({ id: "1", name: "photo.png" })],
+      expiresAt: null,
+      autoDownload: true,
+      theme,
+      token: "tok",
+      allowDownload: false,
+      allowPreview: true,
+    });
+    expect(html).toContain("/view?t=tok");
+    expect(html).toContain("预览");
+    expect(html).not.toContain("全部下载");
+    expect(html).not.toContain("DOMContentLoaded");
+    expect(html).not.toContain('download="photo.png"');
+  });
 });
