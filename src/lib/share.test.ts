@@ -10,6 +10,7 @@ import {
   evaluateShareAccess,
   getShareLink,
   incrementShareDownload,
+  incrementShareFileCount,
   listShareLinks,
   patchShare,
   shareAllowsFile,
@@ -39,7 +40,12 @@ function file(partial: Partial<FileRow> & Pick<FileRow, "id" | "name">): FileRow
 
 function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Database {
   const files = new Map((init?.files ?? []).map((row) => [row.id, { ...row }]));
-  const links = new Map((init?.links ?? []).map((row) => [row.token, { ...row }]));
+  const links = new Map((init?.links ?? []).map((row) => [row.token, { ...row, allow_preview: row.allow_preview ?? 1 }]));
+  const fileCounts = new Map<string, number>();
+
+  function countKey(token: string, fileId: string) {
+    return `${token}\t${fileId}`;
+  }
 
   function applyUpdate(sql: string, args: unknown[]) {
     const normalized = sql.replace(/\s+/g, " ").trim();
@@ -66,6 +72,11 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
         bind(...args: unknown[]) {
           return {
             async first<T>() {
+              if (normalized.includes("FROM share_file_counts")) {
+                const n = fileCounts.get(countKey(String(args[0]), String(args[1])));
+                if (n == null) return null;
+                return { count: n } as T;
+              }
               if (normalized.includes("FROM share_links") && normalized.includes("WHERE token")) {
                 const row = links.get(String(args[0]));
                 if (!row) return null;
@@ -102,7 +113,15 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
               return { results: [] as T[] };
             },
             async run() {
-              if (normalized.startsWith("INSERT INTO share_links")) {
+              if (normalized.startsWith("INSERT INTO share_file_counts")) {
+                const key = countKey(String(args[0]), String(args[1]));
+                fileCounts.set(key, (fileCounts.get(key) ?? 0) + 1);
+              } else if (normalized.startsWith("DELETE FROM share_file_counts")) {
+                const token = String(args[0]);
+                for (const key of [...fileCounts.keys()]) {
+                  if (key.startsWith(`${token}\t`)) fileCounts.delete(key);
+                }
+              } else if (normalized.startsWith("INSERT INTO share_links")) {
                 const token = String(args[0]);
                 const kind = String(args[1]) as ShareRow["kind"];
                 links.set(token, {
@@ -118,6 +137,7 @@ function memoryShare(init?: { files?: FileRow[]; links?: ShareRow[] }): D1Databa
                   short_code: args[9] == null ? null : String(args[9]),
                   fail_count: Number(args[10] ?? 0),
                   locked_until: args[11] == null ? null : String(args[11]),
+                  allow_preview: args[12] == null ? 1 : Number(args[12]) ? 1 : 0,
                 });
               } else if (normalized.startsWith("UPDATE share_links")) {
                 applyUpdate(sql, args);
@@ -152,6 +172,16 @@ describe("0014 share_links migration", () => {
     expect(sql).toContain("password_hash");
     expect(sql).toContain("fail_count");
     expect(sql).toContain("schema_version', '14'");
+  });
+});
+
+describe("0015 share_file_counts migration", () => {
+  it("adds per-file counters and allow_preview", () => {
+    const sql = readFileSync(path.join(process.cwd(), "migrations/0015_share_file_counts.sql"), "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS share_file_counts");
+    expect(sql).toContain("PRIMARY KEY (token, file_id)");
+    expect(sql).toContain("ALTER TABLE share_links ADD COLUMN allow_preview");
+    expect(sql).toContain("schema_version', '15'");
   });
 });
 
@@ -358,5 +388,101 @@ describe("share access / password / short", () => {
     const gate = await evaluateShareAccess(link, { nextPath: "/dl/batch/x" });
     expect(gate.status).toBe(200);
     if (gate.status === 200) expect(gate.countShare).toBe(false);
+  });
+
+  it("counts batch downloads per file and 410s only that file", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt" }), file({ id: "2", name: "b.txt" })],
+    });
+    const created = await createShare(db, { kind: "batch", ids: ["1", "2"], max_downloads: 3 }, now);
+    if (!created.ok) throw new Error("create");
+    for (let i = 0; i < 3; i++) {
+      const gate = await authorizeFileShare(db, {
+        fileId: "1",
+        token: created.token,
+        cookieHeader: null,
+        nextPath: "/dl/a.txt?t=x",
+      });
+      expect(gate.status).toBe(200);
+      if (gate.status === 200) {
+        expect(gate.countShare).toBe(false);
+        expect(gate.countBatchFile).toBe(true);
+      }
+      await incrementShareFileCount(db, created.token, "1");
+    }
+    const exhausted = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=x",
+    });
+    expect(exhausted).toMatchObject({ status: 410, reason: "exhausted" });
+    const other = await authorizeFileShare(db, {
+      fileId: "2",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/b.txt?t=x",
+    });
+    expect(other.status).toBe(200);
+    const page = await evaluateShareAccess(await getShareLink(db, created.token), { nextPath: "/dl/batch/x" });
+    expect(page.status).toBe(200);
+  });
+
+  it("keeps file-link download_count exhaustion", async () => {
+    const db = memoryShare({ files: [file({ id: "1", name: "a.txt" })] });
+    const created = await createShare(db, { kind: "file", ids: ["1"], max_downloads: 1 }, now);
+    if (!created.ok) throw new Error("create");
+    const first = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt",
+    });
+    expect(first.status).toBe(200);
+    if (first.status === 200) expect(first.countShare).toBe(true);
+    await incrementShareDownload(db, created.token);
+    const second = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt",
+    });
+    expect(second).toMatchObject({ status: 410, reason: "exhausted" });
+  });
+
+  it("404s single-file and view access when batch is pack-only", async () => {
+    const db = memoryShare({
+      files: [file({ id: "1", name: "a.txt" }), file({ id: "2", name: "b.txt" })],
+    });
+    const created = await createShare(db, { kind: "batch", ids: ["1", "2"], allow_preview: 0 }, now);
+    if (!created.ok) throw new Error("create");
+    const link = await getShareLink(db, created.token);
+    expect(link?.allow_preview).toBe(0);
+    expect(
+      await authorizeFileShare(db, {
+        fileId: "1",
+        token: created.token,
+        cookieHeader: null,
+        nextPath: "/dl/a.txt?t=x",
+      }),
+    ).toEqual({ status: 404 });
+    expect(
+      await authorizeFileShare(db, {
+        fileId: "1",
+        token: created.token,
+        cookieHeader: null,
+        nextPath: "/dl/a.txt/view?t=x",
+        view: true,
+        bundle: true,
+      }),
+    ).toEqual({ status: 404 });
+    const pack = await authorizeFileShare(db, {
+      fileId: "1",
+      token: created.token,
+      cookieHeader: null,
+      nextPath: "/dl/a.txt?t=x&bundle=1",
+      bundle: true,
+    });
+    expect(pack.status).toBe(200);
   });
 });

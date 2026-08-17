@@ -32,6 +32,7 @@ export type ShareLink = {
   short_code: string | null;
   fail_count: number;
   locked_until: string | null;
+  allow_preview: number;
 };
 
 export type ShareStatus = "active" | "revoked" | "expired" | "exhausted";
@@ -54,6 +55,7 @@ export type ShareLinkView = {
   downloadUrl: string;
   shortUrl: string | null;
   status: ShareStatus;
+  allow_preview: boolean;
 };
 
 export type CreateShareBody = {
@@ -67,6 +69,7 @@ export type CreateShareBody = {
   permanent?: unknown;
   short?: unknown;
   reuseDefault?: unknown;
+  allow_preview?: unknown;
 };
 
 export type CreateShareOk = {
@@ -88,7 +91,7 @@ export type CreateShareErr = { ok: false; status: number; error: string };
 export type CreateShareResult = CreateShareOk | CreateShareErr;
 
 const SHARE_COLS =
-  "token, kind, target, password_hash, max_downloads, download_count, created_at, expires_at, revoked, short_code, fail_count, locked_until";
+  "token, kind, target, password_hash, max_downloads, download_count, created_at, expires_at, revoked, short_code, fail_count, locked_until, allow_preview";
 
 export function isShareKind(value: unknown): value is ShareKind {
   return value === "file" || value === "batch";
@@ -97,8 +100,14 @@ export function isShareKind(value: unknown): value is ShareKind {
 export function shareStatus(link: ShareLink, now = Date.now()): ShareStatus {
   if (link.revoked) return "revoked";
   if (isExpired(link.expires_at, now)) return "expired";
-  if (link.max_downloads != null && link.download_count >= link.max_downloads) return "exhausted";
+  if (link.kind === "file" && link.max_downloads != null && link.download_count >= link.max_downloads) {
+    return "exhausted";
+  }
   return "active";
+}
+
+export function sharePackOnly(link: Pick<ShareLink, "kind" | "allow_preview">): boolean {
+  return link.kind === "batch" && Number(link.allow_preview) === 0;
 }
 
 export function shareAllowsFile(link: ShareLink, fileId: string): boolean {
@@ -140,6 +149,7 @@ export function normalizeShareLink(row: ShareLink): ShareLink {
     short_code: row.short_code || null,
     fail_count: Number(row.fail_count) || 0,
     locked_until: row.locked_until || null,
+    allow_preview: row.allow_preview == null || Number(row.allow_preview) ? 1 : 0,
   };
 }
 
@@ -166,7 +176,7 @@ export async function getShareLinkByShortCode(db: D1Database, code: string): Pro
 export async function insertShareLink(db: D1Database, row: ShareLink): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO share_links (${SHARE_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO share_links (${SHARE_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       row.token,
@@ -181,7 +191,26 @@ export async function insertShareLink(db: D1Database, row: ShareLink): Promise<v
       row.short_code,
       row.fail_count,
       row.locked_until,
+      row.allow_preview,
     )
+    .run();
+}
+
+export async function getShareFileCount(db: D1Database, token: string, fileId: string): Promise<number> {
+  const row = await db
+    .prepare("SELECT count FROM share_file_counts WHERE token = ? AND file_id = ?")
+    .bind(token, fileId)
+    .first<{ count: number }>();
+  return Number(row?.count) || 0;
+}
+
+export async function incrementShareFileCount(db: D1Database, token: string, fileId: string): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO share_file_counts (token, file_id, count) VALUES (?, ?, 1)
+       ON CONFLICT(token, file_id) DO UPDATE SET count = count + 1`,
+    )
+    .bind(token, fileId)
     .run();
 }
 
@@ -195,6 +224,7 @@ export async function incrementShareDownload(db: D1Database, token: string): Pro
 export async function deleteShareLink(db: D1Database, token: string): Promise<boolean> {
   const existing = await getShareLink(db, token);
   if (!existing) return false;
+  await db.prepare("DELETE FROM share_file_counts WHERE token = ?").bind(token).run();
   await db.prepare("DELETE FROM share_links WHERE token = ?").bind(token).run();
   return true;
 }
@@ -232,6 +262,7 @@ export function toShareView(link: ShareLink, files: FileRow[], now = Date.now())
     downloadUrl,
     shortUrl: link.short_code ? shortSharePath(link.short_code) : null,
     status,
+    allow_preview: !sharePackOnly(link),
   };
 }
 
@@ -387,6 +418,7 @@ export async function createShare(
 
   const token = generateShareToken();
   const passwordHash = password ? await hashSharePassword(password) : null;
+  const allowPreview = body.kind === "batch" && "allow_preview" in body ? (asBool(body.allow_preview) ? 1 : 0) : 1;
   const row: ShareLink = {
     token,
     kind: body.kind,
@@ -400,6 +432,7 @@ export async function createShare(
     short_code: shortCode,
     fail_count: 0,
     locked_until: null,
+    allow_preview: allowPreview,
   };
   await insertShareLink(db, row);
   const [view] = await hydrate(db, [row], now.getTime());
@@ -523,7 +556,7 @@ export type ShareGate =
   | { status: 404 }
   | { status: 410; reason: Exclude<ShareStatus, "active"> }
   | { status: 302; location: string }
-  | { status: 200; link: ShareLink; countShare: boolean };
+  | { status: 200; link: ShareLink; countShare: boolean; countBatchFile: boolean };
 
 export async function shareCookieUnlocked(
   link: ShareLink,
@@ -547,7 +580,7 @@ export async function evaluateShareAccess(
   if (link.password_hash && !(await shareCookieUnlocked(link, opts.cookieHeader, now))) {
     return { status: 302, location: passwordPagePath(link.token, opts.nextPath) };
   }
-  return { status: 200, link, countShare: link.kind === "file" };
+  return { status: 200, link, countShare: link.kind === "file", countBatchFile: false };
 }
 
 export async function authorizeFileShare(
@@ -558,6 +591,8 @@ export async function authorizeFileShare(
     cookieHeader: string | null;
     nextPath: string;
     now?: number;
+    view?: boolean;
+    bundle?: boolean;
   },
 ): Promise<ShareGate> {
   const token = (opts.token || "").trim();
@@ -566,7 +601,15 @@ export async function authorizeFileShare(
   if (!link || !shareAllowsFile(link, opts.fileId)) return { status: 404 };
   const gate = await evaluateShareAccess(link, opts);
   if (gate.status !== 200) return gate;
-  return { ...gate, countShare: link.kind === "file" };
+  if (link.kind === "batch") {
+    if (sharePackOnly(link) && (opts.view || !opts.bundle)) return { status: 404 };
+    if (link.max_downloads != null) {
+      const n = await getShareFileCount(db, link.token, opts.fileId);
+      if (n >= link.max_downloads) return { status: 410, reason: "exhausted" };
+    }
+    return { status: 200, link, countShare: false, countBatchFile: true };
+  }
+  return { status: 200, link, countShare: true, countBatchFile: false };
 }
 
 export async function longPathForShare(db: D1Database, link: ShareLink): Promise<string> {

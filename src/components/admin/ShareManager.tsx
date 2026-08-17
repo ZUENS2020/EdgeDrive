@@ -72,6 +72,7 @@ export function ShareManager() {
   const [createPassword, setCreatePassword] = useState("");
   const [createMax, setCreateMax] = useState("");
   const [createShort, setCreateShort] = useState(false);
+  const [createPackOnly, setCreatePackOnly] = useState(false);
   const [createBusy, setCreateBusy] = useState(false);
 
   const toast = useCallback(
@@ -165,6 +166,7 @@ export function ShareManager() {
       };
       if (createPassword.trim()) body.password = createPassword.trim();
       if (createMax.trim()) body.max_downloads = Number(createMax);
+      if (ids.length > 1 && createPackOnly) body.allow_preview = 0;
       const data = await api("/api/share", { method: "POST", body: JSON.stringify(body) });
       if (!data) return;
       setCreateOpen(false);
@@ -172,6 +174,7 @@ export function ShareManager() {
       setCreatePassword("");
       setCreateMax("");
       setCreateShort(false);
+      setCreatePackOnly(false);
       toast(t("sharePage.created"));
       const url = (data as { url?: string }).url;
       if (url) await copyPath(url, t("sharePage.copied"));
@@ -503,6 +506,12 @@ export function ShareManager() {
             control={<Checkbox checked={createShort} onChange={(_, v) => setCreateShort(v)} />}
             label={t("sharePage.makeShort")}
           />
+          {picked.size > 1 ? (
+            <FormControlLabel
+              control={<Checkbox checked={createPackOnly} onChange={(_, v) => setCreatePackOnly(v)} />}
+              label={t("sharePage.packOnly")}
+            />
+          ) : null}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>

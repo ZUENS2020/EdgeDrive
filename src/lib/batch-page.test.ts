@@ -109,4 +109,23 @@ describe("renderBatchPage", () => {
     expect(html).toContain('lang="en"');
     expect(html).not.toContain("全部下载");
   });
+
+  it("pack-only mode shows download-all without a file list", () => {
+    const html = renderBatchPage({
+      origin: "https://edgedrive.example",
+      files: [file({ id: "1", name: "photo.png" }), file({ id: "2", name: "notes.pdf", mime: "application/pdf" })],
+      expiresAt: null,
+      autoDownload: false,
+      theme,
+      token: "tok",
+      packOnly: true,
+    });
+    expect(html).toContain("下载全部");
+    expect(html).toContain("2 个文件 · 4.0 KB");
+    expect(html).toContain("全部下载");
+    expect(html).not.toContain("/view?t=tok");
+    expect(html).not.toContain('class="list"');
+    expect(html).not.toContain('class="row"');
+    expect(html).toContain("bundle=1");
+  });
 });

@@ -8,6 +8,7 @@ const getR2 = vi.fn();
 const authorizeFileShare = vi.fn();
 const scheduleDownloadIncrement = vi.fn();
 const scheduleShareDownloadIncrement = vi.fn();
+const scheduleShareFileCountIncrement = vi.fn();
 
 vi.mock("@/lib/store", () => ({
   getFileByKey: (...args: unknown[]) => getFileByKey(...args),
@@ -35,6 +36,7 @@ vi.mock("@/lib/download-count", () => ({
   shouldCountDownload: () => true,
   scheduleDownloadIncrement: (...args: unknown[]) => scheduleDownloadIncrement(...args),
   scheduleShareDownloadIncrement: (...args: unknown[]) => scheduleShareDownloadIncrement(...args),
+  scheduleShareFileCountIncrement: (...args: unknown[]) => scheduleShareFileCountIncrement(...args),
 }));
 
 import { GET } from "./route";
@@ -67,6 +69,7 @@ describe("GET /dl/[...path]", () => {
     authorizeFileShare.mockReset();
     scheduleDownloadIncrement.mockReset();
     scheduleShareDownloadIncrement.mockReset();
+    scheduleShareFileCountIncrement.mockReset();
     getSettings.mockResolvedValue({ theme_name: "default", language: "zh" });
     getDB.mockResolvedValue({});
     getFileByKey.mockResolvedValue(meta);
@@ -118,7 +121,32 @@ describe("GET /dl/[...path]", () => {
       params: Promise.resolve({ path: ["docs", "a.txt"] }),
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toContain("no-store");
     expect(scheduleDownloadIncrement).toHaveBeenCalledWith("1");
     expect(scheduleShareDownloadIncrement).toHaveBeenCalledWith("tok");
+  });
+
+  it("increments per-file batch counts and skips share download_count", async () => {
+    authorizeFileShare.mockResolvedValue({
+      status: 200,
+      link: { token: "batch", kind: "batch" },
+      countShare: false,
+      countBatchFile: true,
+    });
+    getR2.mockResolvedValue({
+      get: async () => ({
+        body: new Uint8Array([1, 2, 3, 4]),
+        size: 4,
+        httpEtag: '"x"',
+        httpMetadata: { contentType: "text/plain" },
+      }),
+    });
+    const res = await GET(request("/dl/docs/a.txt?t=batch&bundle=1"), {
+      params: Promise.resolve({ path: ["docs", "a.txt"] }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toContain("no-store");
+    expect(scheduleShareDownloadIncrement).not.toHaveBeenCalled();
+    expect(scheduleShareFileCountIncrement).toHaveBeenCalledWith("batch", "1");
   });
 });

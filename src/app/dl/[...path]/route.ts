@@ -1,6 +1,11 @@
 import { NextRequest } from "next/server";
 import { getDB, getR2 } from "@/lib/cloudflare";
-import { scheduleDownloadIncrement, scheduleShareDownloadIncrement, shouldCountDownload } from "@/lib/download-count";
+import {
+  scheduleDownloadIncrement,
+  scheduleShareDownloadIncrement,
+  scheduleShareFileCountIncrement,
+  shouldCountDownload,
+} from "@/lib/download-count";
 import { looksLikeTraversal, parseRange, sanitizeKey } from "@/lib/sanitize";
 import { DEFAULTS, getSettings } from "@/lib/settings";
 import { authorizeFileShare } from "@/lib/share";
@@ -92,6 +97,8 @@ async function handle(
     token,
     cookieHeader: request.headers.get("cookie"),
     nextPath,
+    view,
+    bundle: request.nextUrl.searchParams.get("bundle") === "1",
   });
   if (gate.status !== 200) return gateResponse(gate, t(locale, "dl.gone"));
 
@@ -110,7 +117,7 @@ async function handle(
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "public, max-age=30, must-revalidate",
+        "Cache-Control": "private, no-store",
         ...DL_CORS,
       },
     });
@@ -127,6 +134,7 @@ async function handle(
   if (shouldCountDownload({ headOnly, inline, range })) {
     await scheduleDownloadIncrement(meta.id);
     if (gate.countShare) await scheduleShareDownloadIncrement(gate.link.token);
+    if (gate.countBatchFile) await scheduleShareFileCountIncrement(gate.link.token, meta.id);
   }
 
   return serveR2Object({

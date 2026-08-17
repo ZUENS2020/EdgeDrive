@@ -2,10 +2,9 @@ import { NextRequest } from "next/server";
 import { resolveBatchPage } from "@/lib/batch";
 import { renderBatchPage } from "@/lib/batch-page";
 import { getDB } from "@/lib/cloudflare";
-import { scheduleShareDownloadIncrement } from "@/lib/download-count";
 import { parseLocale, t } from "@/lib/i18n";
 import { DEFAULTS, getSettings } from "@/lib/settings";
-import { evaluateShareAccess, getShareLink } from "@/lib/share";
+import { evaluateShareAccess, getShareLink, sharePackOnly } from "@/lib/share";
 import { DL_CORS, dlText } from "@/lib/serve-r2";
 import { publicThemeVars } from "@/lib/themes";
 
@@ -61,8 +60,6 @@ async function handle(
   if (resolved.status === 404) return dlText("404 Not Found", 404);
   if (resolved.status === 410) return dlText(t(locale, "dl.gone"), 410);
 
-  if (!headOnly) await scheduleShareDownloadIncrement(token);
-
   const autoDownload = request.nextUrl.searchParams.get("mode") === "download";
   const html = renderBatchPage({
     origin: request.nextUrl.origin,
@@ -72,6 +69,7 @@ async function handle(
     theme: publicThemeVars(settings.theme_name),
     locale,
     token: link.token,
+    packOnly: sharePackOnly(link),
   });
   return new Response(headOnly ? null : html, {
     status: 200,

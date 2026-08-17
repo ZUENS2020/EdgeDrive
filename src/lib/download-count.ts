@@ -1,5 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { incrementShareDownload } from "./share";
+import { incrementShareDownload, incrementShareFileCount } from "./share";
 import { incrementDownload } from "./store";
 import { getDB } from "./cloudflare";
 
@@ -30,5 +30,12 @@ export async function scheduleShareDownloadIncrement(token: string): Promise<voi
   await scheduleBackground(
     getDB().then((db) => incrementShareDownload(db, token)),
     "incrementShareDownload failed",
+  );
+}
+
+export async function scheduleShareFileCountIncrement(token: string, fileId: string): Promise<void> {
+  await scheduleBackground(
+    getDB().then((db) => incrementShareFileCount(db, token, fileId)),
+    "incrementShareFileCount failed",
   );
 }

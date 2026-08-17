@@ -50,12 +50,7 @@ export async function serveR2Object(opts: {
     ETag: obj.httpEtag,
     "Content-Disposition": disposition,
   };
-  if (meta.expires) {
-    const ttl = Math.max(0, Math.floor((new Date(meta.expires).getTime() - Date.now()) / 1000));
-    headers["Cache-Control"] = `public, max-age=${Math.min(60, ttl)}, must-revalidate`;
-  } else {
-    headers["Cache-Control"] = "public, max-age=300";
-  }
+  headers["Cache-Control"] = "private, no-store";
 
   const range = parseRange(rangeHeader, obj.size);
   if (rangeHeader && !range) {

@@ -157,15 +157,16 @@ export function downloadableFiles(
   origin: string,
   now = Date.now(),
   token?: string,
+  packOnly = false,
 ): { url: string; name: string }[] {
   const base = origin.replace(/\/$/, "");
   return files
     .filter((file) => !isExpired(file.expires, now))
     .map((file) => {
       const path = encodeDlPath(fileKey(file.path, file.name));
-      const url = token
-        ? `${base}/dl/${path}?t=${encodeURIComponent(token)}`
-        : `${base}/dl/${path}`;
-      return { url, name: file.name };
+      const qs = token
+        ? `?t=${encodeURIComponent(token)}${packOnly ? "&bundle=1" : ""}`
+        : "";
+      return { url: `${base}/dl/${path}${qs}`, name: file.name };
     });
 }

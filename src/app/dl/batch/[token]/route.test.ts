@@ -23,7 +23,13 @@ function request(path: string) {
 }
 
 function memoryBatch(init: {
-  batches?: { token: string; file_ids: string; created_at: string; expires_at: string | null }[];
+  batches?: {
+    token: string;
+    file_ids: string;
+    created_at: string;
+    expires_at: string | null;
+    allow_preview?: number;
+  }[];
   files?: { id: string; name: string; path: string; size: number; mime: string | null; expires: string | null; download_count: number; created_at: string; tags: string }[];
 }): D1Database {
   const files = new Map((init.files ?? []).map((row) => [row.id, row]));
@@ -51,6 +57,7 @@ function memoryBatch(init: {
                   short_code: null,
                   fail_count: 0,
                   locked_until: null,
+                  allow_preview: row.allow_preview ?? 1,
                 } as T;
               }
               if (normalized.includes("FROM batch_links") && normalized.includes("WHERE token")) {
@@ -141,6 +148,44 @@ describe("GET /dl/batch/[token]", () => {
     expect(html).toContain("pack.zip");
     expect(html).toContain("/dl/pack.zip/view");
     expect(html).not.toContain("DOMContentLoaded");
+  });
+
+  it("pack-only batch pages hide the file list", async () => {
+    getDB.mockResolvedValue(
+      memoryBatch({
+        batches: [
+          {
+            token: "pack",
+            file_ids: JSON.stringify(["1"]),
+            created_at: "2026-08-16T00:00:00.000Z",
+            expires_at: null,
+            allow_preview: 0,
+          },
+        ],
+        files: [
+          {
+            id: "1",
+            name: "pack.zip",
+            path: "",
+            size: 10,
+            mime: "application/zip",
+            expires: null,
+            download_count: 0,
+            created_at: "2026-08-16T00:00:00.000Z",
+            tags: "",
+          },
+        ],
+      }),
+    );
+    const res = await GET(request("/dl/batch/pack"), { params: Promise.resolve({ token: "pack" }) });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("全部下载");
+    expect(html).toContain("1 个文件");
+    expect(html).not.toContain("/dl/pack.zip/view");
+    expect(html).not.toContain('class="list"');
+    expect(html).not.toContain('class="row"');
+    expect(html).toContain("bundle=1");
   });
 
   it("auto-download mode includes the staggered trigger", async () => {
