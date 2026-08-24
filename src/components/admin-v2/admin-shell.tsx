@@ -41,7 +41,7 @@ function FolderLinks({ nodes, activeId, depth = 0 }: { nodes: FolderDto[]; activ
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const search = useSearchParams();
-  const { locale, setLocale, theme, cycleTheme, t } = useAdmin();
+  const { locale, theme, appearanceSaving, toggleLocale, cycleTheme, t } = useAdmin();
   const [mobileOpen, setMobileOpen] = useState(false);
   const folders = useQuery({
     queryKey: ["folders"],
@@ -70,8 +70,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="rail-tools">
-          <button className="rail-link" onClick={() => setLocale(locale === "zh" ? "en" : "zh")} title="Language"><Languages size={18} /><span>{locale.toUpperCase()}</span></button>
-          <button className="rail-link" onClick={cycleTheme} title="Theme"><ThemeIcon size={18} /><span>{theme}</span></button>
+          <button className="rail-link" disabled={appearanceSaving} onClick={() => void toggleLocale()} title="Language"><Languages size={18} /><span>{locale.toUpperCase()}</span></button>
+          <button className="rail-link" disabled={appearanceSaving} aria-busy={appearanceSaving} onClick={() => void cycleTheme()} title="Theme"><ThemeIcon size={18} /><span>{theme}</span></button>
         </div>
       </aside>
       <aside className={`context-panel ${mobileOpen ? "is-open" : ""}`}>
