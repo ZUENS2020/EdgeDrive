@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "edgedrive-v2",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-24",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "upload_source_maps": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "edgedrive-v2-db",
+      "database_id": "7c3e1f2a-9b4d-4a6e-8c1f-2d5e8a7b0c13",
+      "migrations_dir": "migrations-v2"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "edgedrive-v2",
+      "preview_bucket_name": "edgedrive-v2"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 4 * * *"]
+  }
+}

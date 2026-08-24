@@ -1,0 +1,73 @@
+{
+  "name": "edgedrive",
+  "version": "2.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "node scripts/cf-build.mjs",
+    "start": "next start",
+    "preview": "opennextjs-cloudflare build && wrangler dev",
+    "deploy": "npm run build && npm run cf-deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "schema:generate": "node scripts/generate-bootstrap.mjs",
+    "schema:check": "node scripts/generate-bootstrap.mjs --check",
+    "cf-build": "node scripts/cf-build.mjs",
+    "cf-deploy": "node scripts/cf-deploy.mjs",
+    "d2c-parse": "node scripts/d2c-parse.mjs",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv",
+    "postinstall": "node scripts/install-wrangler-shim.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate": "wrangler d1 migrations apply DB --remote"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "^1.20.2",
+    "@tanstack/react-query": "^5.90.5",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "hash-wasm": "^4.12.0",
+    "highlight.js": "^11.11.1",
+    "lucide-react": "^1.31.0",
+    "mermaid": "^11.12.0",
+    "next": "16.3.1",
+    "radix-ui": "^1.6.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "shadcn": "^4.18.0",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.6.0",
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260823.1",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^3.2.7",
+    "wrangler": "^4.125.0"
+  },
+  "cloudflare": {
+    "label": "EdgeDrive",
+    "products": ["Workers", "D1", "R2"],
+    "categories": ["storage"],
+    "bindings": {
+      "DB": {
+        "description": "D1 database for file metadata, shares, and settings. Auto-provisioned on first deploy."
+      },
+      "FILES": {
+        "description": "R2 bucket for uploaded files. Auto-provisioned on first deploy."
+      }
+    }
+  }
+}

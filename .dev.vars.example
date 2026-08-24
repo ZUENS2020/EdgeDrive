@@ -1,0 +1,4 @@
+# Copy to `.dev.vars` only if you need local overrides. Do not commit `.dev.vars`.
+# Access Team / AUD 在首次引导填写，存入 app_settings。
+# Optional (protects first-boot setup until Access is enabled):
+# SETUP_TOKEN=
