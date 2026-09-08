@@ -43,7 +43,11 @@ export async function withAdmin(
       const issue = error.issues[0];
       return apiError(issue?.message || "invalid-input", 400, issue?.path.join(".") || undefined);
     }
-    console.error(JSON.stringify({ message: "admin request failed", error: error instanceof Error ? error.message : String(error) }));
+    console.error(JSON.stringify({
+      message: "admin request failed",
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    }));
     return apiError("internal-error", 500);
   }
 }

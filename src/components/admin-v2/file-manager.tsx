@@ -157,8 +157,17 @@ export function FileManagerV2() {
         await refresh();
       } catch (error) {
         if (uploadSessionId) await api(`/api/admin/uploads/${uploadSessionId}`, { method: "DELETE" }).catch(() => undefined);
-        setProgress(0, error instanceof Error ? error.message : t("上传失败", "Upload failed"));
-        toast.error(`${file.name}: ${error instanceof Error ? error.message : "upload-failed"}`);
+        const code = error instanceof Error ? error.message : "upload-failed";
+        const detail = ({
+          "internal-error": t("服务器内部错误", "Internal error"),
+          "upload-part-failed": t("分片上传失败，请重试", "Part upload failed"),
+          "upload-complete-failed": t("合并分片失败，请重试", "Could not complete upload"),
+          "upload-body-unreadable": t("上传数据无法读取", "Upload body unreadable"),
+          "multipart-init-failed": t("无法开始分片上传", "Could not start multipart upload"),
+          "part-too-large": t("分片过大", "Part too large"),
+        } as Record<string, string>)[code] || code;
+        setProgress(0, detail);
+        toast.error(`${file.name}: ${detail}`);
       }
     }
     if (fileInput.current) fileInput.current.value = "";

@@ -6,6 +6,26 @@ export const UPLOAD_PART_SIZE = 8 * 1024 * 1024;
 export const MAX_UPLOAD_PART_SIZE = 10 * 1024 * 1024;
 const SESSION_TTL_MS = 2 * 3600_000;
 
+function mapR2Error(error: unknown, fallback: string): never {
+  if (error instanceof DomainError) throw error;
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(JSON.stringify({ message: fallback, error: message }));
+  if (/sha-?256|checksum/i.test(message)) throw new DomainError("hash-mismatch", 409, "sha256");
+  if (/known length|FixedLengthStream/i.test(message)) throw new DomainError("upload-body-unreadable", 400);
+  throw new DomainError(fallback, 502);
+}
+
+/** Buffer first: OpenNext request streams have no known length, and R2 uploadPart() rejects those. */
+export async function readUploadBytes(request: Request): Promise<ArrayBuffer> {
+  try {
+    return await request.arrayBuffer();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/body|locked|used|disturbed/i.test(message)) throw new DomainError("empty-upload", 400);
+    throw error;
+  }
+}
+
 type UploadSession = {
   id: string;
   folder_id: string | null;
@@ -85,12 +105,16 @@ export async function prepareUpload(
   let uploadId: string | null = null;
   let state: UploadSession["state"] = "prepared";
   if (input.size > UPLOAD_PART_SIZE) {
-    const upload = await r2.createMultipartUpload(storageKey, {
-      httpMetadata: { contentType: input.mime || "application/octet-stream" },
-      customMetadata: { sha256: input.sha256 },
-    });
-    uploadId = upload.uploadId;
-    state = "uploading";
+    try {
+      const upload = await r2.createMultipartUpload(storageKey, {
+        httpMetadata: { contentType: input.mime || "application/octet-stream" },
+        customMetadata: { sha256: input.sha256 },
+      });
+      uploadId = upload.uploadId;
+      state = "uploading";
+    } catch (error) {
+      mapR2Error(error, "multipart-init-failed");
+    }
   }
   await db
     .prepare(`INSERT INTO upload_sessions (id, folder_id, name, mime, sha256, expected_size, storage_key, r2_upload_id, state, expires_at, created_at, updated_at, session_expires_at)
@@ -145,14 +169,19 @@ export async function uploadSingle(db: D1Database, r2: R2Bucket, sessionId: stri
   if (session.r2_upload_id || session.expected_size > UPLOAD_PART_SIZE) throw new DomainError("multipart-required", 409);
   const length = Number(request.headers.get("content-length") || "0");
   if (length && length !== Number(session.expected_size)) throw new DomainError("upload-size-mismatch", 409);
-  if (!request.body) throw new DomainError("empty-upload", 400);
-  const body = await request.arrayBuffer();
+  const body = await readUploadBytes(request);
   if (body.byteLength !== Number(session.expected_size)) throw new DomainError("upload-size-mismatch", 409);
-  const object = await r2.put(session.storage_key, body, {
-    httpMetadata: { contentType: session.mime || "application/octet-stream" },
-    customMetadata: { sha256: session.sha256 },
-    sha256: session.sha256,
-  });
+  if (!body.byteLength) throw new DomainError("empty-upload", 400);
+  let object: R2Object;
+  try {
+    object = await r2.put(session.storage_key, body, {
+      httpMetadata: { contentType: session.mime || "application/octet-stream" },
+      customMetadata: { sha256: session.sha256 },
+      sha256: session.sha256,
+    });
+  } catch (error) {
+    mapR2Error(error, "upload-failed");
+  }
   return finalizeUpload(db, r2, session, object.size);
 }
 
@@ -166,10 +195,18 @@ export async function uploadPart(
   const session = await getSession(db, sessionId);
   if (!session.r2_upload_id) throw new DomainError("single-upload-required", 409);
   if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10_000) throw new DomainError("invalid-part-number", 400);
-  const length = Number(request.headers.get("content-length") || "0");
-  if (length > MAX_UPLOAD_PART_SIZE) throw new DomainError("part-too-large", 413);
-  if (!request.body) throw new DomainError("empty-upload", 400);
-  return r2.resumeMultipartUpload(session.storage_key, session.r2_upload_id).uploadPart(partNumber, request.body);
+  const declared = Number(request.headers.get("content-length") || "0");
+  if (declared > MAX_UPLOAD_PART_SIZE) throw new DomainError("part-too-large", 413);
+  const body = await readUploadBytes(request);
+  if (body.byteLength > MAX_UPLOAD_PART_SIZE) throw new DomainError("part-too-large", 413);
+  if (!body.byteLength) throw new DomainError("empty-upload", 400);
+  if (declared && declared !== body.byteLength) throw new DomainError("upload-size-mismatch", 409);
+  try {
+    const uploaded = await r2.resumeMultipartUpload(session.storage_key, session.r2_upload_id).uploadPart(partNumber, body);
+    return { partNumber: uploaded.partNumber, etag: uploaded.etag };
+  } catch (error) {
+    mapR2Error(error, "upload-part-failed");
+  }
 }
 
 export async function completeMultipart(
@@ -182,9 +219,14 @@ export async function completeMultipart(
   if (!session.r2_upload_id) throw new DomainError("single-upload-required", 409);
   if (!parts.length) throw new DomainError("empty-parts", 400);
   await db.prepare("UPDATE upload_sessions SET state = 'completing', updated_at = ? WHERE id = ?").bind(new Date().toISOString(), session.id).run();
-  const object = await r2.resumeMultipartUpload(session.storage_key, session.r2_upload_id).complete(
-    parts.slice().sort((a, b) => a.partNumber - b.partNumber),
-  );
+  let object: R2Object;
+  try {
+    object = await r2.resumeMultipartUpload(session.storage_key, session.r2_upload_id).complete(
+      parts.slice().sort((a, b) => a.partNumber - b.partNumber),
+    );
+  } catch (error) {
+    mapR2Error(error, "upload-complete-failed");
+  }
   return finalizeUpload(db, r2, session, object.size);
 }
 
